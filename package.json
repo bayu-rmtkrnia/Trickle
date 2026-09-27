@@ -1,0 +1,22 @@
+{
+  "name": "trickle",
+  "private": true,
+  "packageManager": "pnpm@10.13.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @trickle/api dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d db",
+    "db:migrate": "pnpm --filter @trickle/api db:migrate"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  }
+}
