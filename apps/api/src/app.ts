@@ -18,6 +18,7 @@ import { registerErrorHandling } from './plugins/errors.js'
 import authRoutes from './routes/auth.js'
 import employerRoutes from './routes/employers.js'
 import healthRoutes from './routes/health.js'
+import inviteRoutes from './routes/invites.js'
 import './types.js'
 
 export interface AppDeps {
@@ -83,6 +84,7 @@ export async function buildApp(deps: AppDeps) {
   await app.register(healthRoutes)
   await app.register(authRoutes)
   await app.register(employerRoutes)
+  await app.register(inviteRoutes)
 
   return app
 }
