@@ -13,7 +13,9 @@ import {
 } from 'fastify-type-provider-zod'
 import type { Env } from './env.js'
 import { createPrisma, type Db } from './lib/prisma.js'
+import authPlugin from './plugins/auth.js'
 import { registerErrorHandling } from './plugins/errors.js'
+import authRoutes from './routes/auth.js'
 import healthRoutes from './routes/health.js'
 import './types.js'
 
@@ -76,7 +78,9 @@ export async function buildApp(deps: AppDeps) {
   })
   await app.register(swaggerUi, { routePrefix: '/docs' })
 
+  await app.register(authPlugin)
   await app.register(healthRoutes)
+  await app.register(authRoutes)
 
   return app
 }
