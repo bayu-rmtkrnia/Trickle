@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: trickle
+      POSTGRES_PASSWORD: trickle
+      POSTGRES_DB: trickle
+    ports:
+      - '${TRICKLE_DB_PORT:-5433}:5432'
+    volumes:
+      - trickle-db:/var/lib/postgresql/data
+
+volumes:
+  trickle-db:
