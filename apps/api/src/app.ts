@@ -12,6 +12,7 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod'
 import type { Env } from './env.js'
+import { createChain, type Chain } from './lib/chain.js'
 import { createFxService, type FxService } from './lib/fx.js'
 import { createPrisma, type Db } from './lib/prisma.js'
 import authPlugin from './plugins/auth.js'
@@ -19,6 +20,7 @@ import { registerErrorHandling } from './plugins/errors.js'
 import authRoutes from './routes/auth.js'
 import employerRoutes from './routes/employers.js'
 import fxRoutes from './routes/fx.js'
+import gasRoutes from './routes/gas.js'
 import healthRoutes from './routes/health.js'
 import inviteRoutes from './routes/invites.js'
 import './types.js'
@@ -27,6 +29,7 @@ export interface AppDeps {
   env: Env
   db?: Db
   fx?: FxService
+  chain?: Chain
   logger?: FastifyServerOptions['logger']
   /** Per-IP rate limiting. Integration tests turn it off because every request shares one IP. */
   rateLimit?: boolean
@@ -54,6 +57,7 @@ export async function buildApp(deps: AppDeps) {
         fallbackRate: env.FX_FALLBACK_USD_IDR,
       }),
   )
+  app.decorate('chain', deps.chain ?? createChain(env))
   if (!deps.db) app.addHook('onClose', () => db.$disconnect())
 
   registerErrorHandling(app)
@@ -97,6 +101,7 @@ export async function buildApp(deps: AppDeps) {
   await app.register(authRoutes)
   await app.register(employerRoutes)
   await app.register(inviteRoutes)
+  await app.register(gasRoutes)
   await app.register(fxRoutes)
 
   return app

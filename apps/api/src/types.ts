@@ -1,5 +1,6 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import type { Env } from './env.js'
+import type { Chain } from './lib/chain.js'
 import type { FxService } from './lib/fx.js'
 import type { Db } from './lib/prisma.js'
 
@@ -13,6 +14,7 @@ declare module 'fastify' {
     env: Env
     db: Db
     fx: FxService
+    chain: Chain
     authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
   }
 }
