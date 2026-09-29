@@ -1,0 +1,173 @@
+// Postgres only stores metadata. Balances, streamed amounts and withdrawals
+// always come from the contract or indexer (see PLAN §4.2).
+
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum InviteType {
+  WORKER
+  FAMILY
+}
+
+enum InviteStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+enum GasDripStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+enum PayoutStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+/// Anyone who signed in with a Mera passkey account. Role is contextual:
+/// the same address can own an employer profile, be a worker, or be family.
+model User {
+  id          String    @id @default(cuid())
+  /// Lowercased 0x address
+  address     String    @unique
+  displayName String?
+  createdAt   DateTime  @default(now())
+  lastLoginAt DateTime?
+
+  employer         Employer?
+  employments      EmployerWorker[]
+  familyAsWorker   FamilyLink[]     @relation("FamilyWorker")
+  familyAsRelative FamilyLink[]     @relation("FamilyRelative")
+  invitesCreated   Invite[]         @relation("InviteCreatedBy")
+  invitesAccepted  Invite[]         @relation("InviteAcceptedBy")
+  payouts          Payout[]
+}
+
+/// Single-use sign-in nonce.
+model AuthChallenge {
+  nonce     String    @id
+  address   String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([address])
+}
+
+model Employer {
+  id        String   @id @default(cuid())
+  ownerId   String   @unique
+  name      String
+  country   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner   User             @relation(fields: [ownerId], references: [id])
+  workers EmployerWorker[]
+  invites Invite[]
+}
+
+model EmployerWorker {
+  id                 String   @id @default(cuid())
+  employerId         String
+  workerId           String
+  displayName        String
+  monthlySalaryCents Int
+  createdAt          DateTime @default(now())
+
+  employer Employer @relation(fields: [employerId], references: [id])
+  worker   User     @relation(fields: [workerId], references: [id])
+
+  @@unique([employerId, workerId])
+  @@index([workerId])
+}
+
+model FamilyLink {
+  id          String   @id @default(cuid())
+  workerId    String
+  relativeId  String
+  displayName String
+  relation    String?
+  createdAt   DateTime @default(now())
+
+  worker   User @relation("FamilyWorker", fields: [workerId], references: [id])
+  relative User @relation("FamilyRelative", fields: [relativeId], references: [id])
+
+  @@unique([workerId, relativeId])
+  @@index([relativeId])
+}
+
+model Invite {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  type        InviteType
+  status      InviteStatus @default(PENDING)
+  createdById String
+  /// Set for WORKER invites
+  employerId  String?
+  inviteeName String
+  /// Set for WORKER invites
+  monthlySalaryCents Int?
+  /// Set for FAMILY invites, e.g. "Ibu", "Istri"
+  relation     String?
+  acceptedById String?
+  acceptedAt   DateTime?
+  expiresAt    DateTime
+  createdAt    DateTime  @default(now())
+
+  createdBy  User      @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  employer   Employer? @relation(fields: [employerId], references: [id])
+  acceptedBy User?     @relation("InviteAcceptedBy", fields: [acceptedById], references: [id])
+
+  @@index([createdById])
+  @@index([employerId])
+}
+
+/// One drip per address, ever. The unique constraint is the idempotency guard.
+model GasDrip {
+  id        String        @id @default(cuid())
+  address   String        @unique
+  amountWei String
+  status    GasDripStatus @default(PENDING)
+  txHash    String?
+  error     String?
+  ip        String?
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([createdAt])
+}
+
+/// Family cash-out to a bank account via a sandbox provider (Milestone 2).
+model Payout {
+  id            String       @id @default(cuid())
+  userId        String
+  /// Transfer tx from the family account to the payout address
+  sourceTxHash  String       @unique
+  amountUnits   String
+  amountIdr     Int?
+  bankCode      String
+  accountNumber String
+  accountName   String
+  provider      String
+  providerRef   String?
+  status        PayoutStatus @default(PENDING)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}

@@ -1,0 +1,16 @@
+AgaPersonalNotes.md
+
+# deps & build
+node_modules/
+dist/
+**/generated/
+
+# env & secrets
+.env
+.env.*
+!.env.example
+
+# misc
+.DS_Store
+*.log
+coverage/

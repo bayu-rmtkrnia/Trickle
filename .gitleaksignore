@@ -1,0 +1,2 @@
+# False positive: the rule read the line after the empty GAS_TREASURY_PRIVATE_KEY= as its value.
+52f96c849dd3cf63fe01161f7ba780b201065941:apps/api/.env.example:generic-api-key:23

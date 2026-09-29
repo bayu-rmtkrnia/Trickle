@@ -1,0 +1,1414 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Trickle API",
+    "version": "0.1.0",
+    "description": "Metadata API for Trickle: auth, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances."
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
+      }
+    },
+    "schemas": {
+      "ErrorInput": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {}
+        },
+        "required": ["code", "message"]
+      },
+      "UserInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "address", "displayName", "createdAt"]
+      },
+      "EmployerInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "country": {
+            "nullable": true,
+            "type": "string"
+          },
+          "ownerAddress": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "country", "ownerAddress", "createdAt"]
+      },
+      "FxQuoteInput": {
+        "type": "object",
+        "properties": {
+          "base": {
+            "type": "string",
+            "enum": ["USD"]
+          },
+          "quote": {
+            "type": "string",
+            "enum": ["IDR"]
+          },
+          "rate": {
+            "type": "number",
+            "description": "IDR per 1 USD"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["live", "cache", "fallback"],
+            "description": "`fallback` means the provider was unreachable and no cached rate exists"
+          },
+          "rateTime": {
+            "nullable": true,
+            "description": "When the provider last updated the rate",
+            "type": "string"
+          },
+          "fetchedAt": {
+            "nullable": true,
+            "description": "When this server fetched the rate",
+            "type": "string"
+          }
+        },
+        "required": ["base", "quote", "rate", "source", "rateTime", "fetchedAt"]
+      },
+      "GasDripInput": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "SENT", "FAILED"]
+          },
+          "amountMon": {
+            "type": "string"
+          },
+          "txHash": {
+            "nullable": true,
+            "type": "string"
+          },
+          "alreadyDripped": {
+            "type": "boolean",
+            "description": "true when this address was funded by an earlier call"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": ["address", "status", "amountMon", "txHash", "alreadyDripped", "createdAt"]
+      },
+      "InviteInput": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["WORKER", "FAMILY"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"]
+          },
+          "inviteeName": {
+            "type": "string"
+          },
+          "monthlySalaryUsd": {
+            "nullable": true,
+            "type": "number"
+          },
+          "relation": {
+            "nullable": true,
+            "type": "string"
+          },
+          "invitedBy": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "nullable": true,
+                "description": "Company name for WORKER, worker name for FAMILY",
+                "type": "string"
+              },
+              "address": {
+                "type": "string"
+              }
+            },
+            "required": ["name", "address"]
+          },
+          "url": {
+            "type": "string",
+            "description": "Link to share with the invitee"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "acceptedAt": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "type",
+          "status",
+          "inviteeName",
+          "monthlySalaryUsd",
+          "relation",
+          "invitedBy",
+          "url",
+          "expiresAt",
+          "acceptedAt",
+          "createdAt"
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {}
+        },
+        "required": ["code", "message"],
+        "additionalProperties": false
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "address", "displayName", "createdAt"],
+        "additionalProperties": false
+      },
+      "Employer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "country": {
+            "nullable": true,
+            "type": "string"
+          },
+          "ownerAddress": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "name", "country", "ownerAddress", "createdAt"],
+        "additionalProperties": false
+      },
+      "FxQuote": {
+        "type": "object",
+        "properties": {
+          "base": {
+            "type": "string",
+            "enum": ["USD"]
+          },
+          "quote": {
+            "type": "string",
+            "enum": ["IDR"]
+          },
+          "rate": {
+            "type": "number",
+            "description": "IDR per 1 USD"
+          },
+          "source": {
+            "type": "string",
+            "enum": ["live", "cache", "fallback"],
+            "description": "`fallback` means the provider was unreachable and no cached rate exists"
+          },
+          "rateTime": {
+            "nullable": true,
+            "description": "When the provider last updated the rate",
+            "type": "string"
+          },
+          "fetchedAt": {
+            "nullable": true,
+            "description": "When this server fetched the rate",
+            "type": "string"
+          }
+        },
+        "required": ["base", "quote", "rate", "source", "rateTime", "fetchedAt"],
+        "additionalProperties": false
+      },
+      "GasDrip": {
+        "type": "object",
+        "properties": {
+          "address": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "SENT", "FAILED"]
+          },
+          "amountMon": {
+            "type": "string"
+          },
+          "txHash": {
+            "nullable": true,
+            "type": "string"
+          },
+          "alreadyDripped": {
+            "type": "boolean",
+            "description": "true when this address was funded by an earlier call"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": ["address", "status", "amountMon", "txHash", "alreadyDripped", "createdAt"],
+        "additionalProperties": false
+      },
+      "Invite": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["WORKER", "FAMILY"]
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "ACCEPTED", "REVOKED", "EXPIRED"]
+          },
+          "inviteeName": {
+            "type": "string"
+          },
+          "monthlySalaryUsd": {
+            "nullable": true,
+            "type": "number"
+          },
+          "relation": {
+            "nullable": true,
+            "type": "string"
+          },
+          "invitedBy": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "nullable": true,
+                "description": "Company name for WORKER, worker name for FAMILY",
+                "type": "string"
+              },
+              "address": {
+                "type": "string"
+              }
+            },
+            "required": ["name", "address"],
+            "additionalProperties": false
+          },
+          "url": {
+            "type": "string",
+            "description": "Link to share with the invitee"
+          },
+          "expiresAt": {
+            "type": "string"
+          },
+          "acceptedAt": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "type",
+          "status",
+          "inviteeName",
+          "monthlySalaryUsd",
+          "relation",
+          "invitedBy",
+          "url",
+          "expiresAt",
+          "acceptedAt",
+          "createdAt"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Service and database status",
+        "tags": ["System"],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["ok", "degraded"]
+                    },
+                    "db": {
+                      "type": "string",
+                      "enum": ["ok", "down"]
+                    },
+                    "uptimeSeconds": {
+                      "type": "number"
+                    },
+                    "time": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["status", "db", "uptimeSeconds", "time"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": ["ok", "degraded"]
+                    },
+                    "db": {
+                      "type": "string",
+                      "enum": ["ok", "down"]
+                    },
+                    "uptimeSeconds": {
+                      "type": "number"
+                    },
+                    "time": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["status", "db", "uptimeSeconds", "time"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/challenge": {
+      "post": {
+        "summary": "Get a sign-in message for an address",
+        "tags": ["Auth"],
+        "description": "Returns an EIP-4361 (Sign-In with Ethereum) message. The client signs `message` with the Mera account and sends it to `/auth/verify`. Nonces are single-use and expire after a few minutes.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "address": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  }
+                },
+                "required": ["address"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "nonce": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["nonce", "message", "expiresAt"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/verify": {
+      "post": {
+        "summary": "Exchange a signed challenge for a session token",
+        "tags": ["Auth"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "message": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "signature": {
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]+$"
+                  }
+                },
+                "required": ["message", "signature"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "token": {
+                      "type": "string"
+                    },
+                    "user": {
+                      "$ref": "#/components/schemas/User"
+                    }
+                  },
+                  "required": ["token", "user"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "summary": "Current user and the roles they hold",
+        "tags": ["Auth"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "address": {
+                      "type": "string"
+                    },
+                    "displayName": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "roles": {
+                      "type": "object",
+                      "properties": {
+                        "employer": {
+                          "type": "boolean"
+                        },
+                        "worker": {
+                          "type": "boolean"
+                        },
+                        "family": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": ["employer", "worker", "family"],
+                      "additionalProperties": false
+                    }
+                  },
+                  "required": ["id", "address", "displayName", "createdAt", "roles"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/employers": {
+      "post": {
+        "summary": "Create the company profile for the signed-in user",
+        "tags": ["Employers"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 100
+                  },
+                  "country": {
+                    "description": "ISO 3166-1 alpha-2 country code, e.g. MY",
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 2
+                  }
+                },
+                "required": ["name"]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/employers/me": {
+      "get": {
+        "summary": "The signed-in user's company profile",
+        "tags": ["Employers"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employer"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update the company profile",
+        "tags": ["Employers"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 100
+                  },
+                  "country": {
+                    "description": "ISO 3166-1 alpha-2 country code, e.g. MY",
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 2
+                  }
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Employer"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/employers/me/workers": {
+      "get": {
+        "summary": "Workers who accepted an invite from this company",
+        "tags": ["Employers"],
+        "description": "Metadata only. Stream balances come from the contract/indexer, never from this API.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "workers": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "displayName": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "monthlySalaryUsd": {
+                            "type": "number"
+                          },
+                          "joinedAt": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "displayName",
+                          "address",
+                          "monthlySalaryUsd",
+                          "joinedAt"
+                        ],
+                        "additionalProperties": false
+                      }
+                    }
+                  },
+                  "required": ["workers"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invites": {
+      "post": {
+        "summary": "Create a worker invite (employer) or a family invite (worker)",
+        "tags": ["Invites"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": ["WORKER"]
+                      },
+                      "inviteeName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "monthlySalaryUsd": {
+                        "type": "number",
+                        "minimum": 0,
+                        "exclusiveMinimum": true,
+                        "maximum": 1000000,
+                        "multipleOf": 0.01,
+                        "description": "Gross monthly salary in USD, up to 2 decimals"
+                      }
+                    },
+                    "required": ["type", "inviteeName", "monthlySalaryUsd"]
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "enum": ["FAMILY"]
+                      },
+                      "inviteeName": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 100
+                      },
+                      "relation": {
+                        "description": "e.g. \"Ibu\", \"Istri\"",
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 40
+                      }
+                    },
+                    "required": ["type", "inviteeName"]
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invite"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Invites created by the signed-in user",
+        "tags": ["Invites"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "enum": ["WORKER", "FAMILY"]
+            },
+            "in": "query",
+            "name": "type",
+            "required": false
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "invites": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Invite"
+                      }
+                    }
+                  },
+                  "required": ["invites"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invites/{code}": {
+      "get": {
+        "summary": "Public invite details, shown before the invitee creates an account",
+        "tags": ["Invites"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{6,16}$"
+            },
+            "in": "path",
+            "name": "code",
+            "required": true
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invite"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/invites/{code}/accept": {
+      "post": {
+        "summary": "Accept an invite as the signed-in user",
+        "tags": ["Invites"],
+        "description": "WORKER invite: the user joins the company. FAMILY invite: the user is linked to the worker as a family recipient.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z0-9]{6,16}$"
+            },
+            "in": "path",
+            "name": "code",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Invite"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gas/drip": {
+      "post": {
+        "summary": "Fund the signed-in account's gas, once per address",
+        "tags": ["Gas"],
+        "description": "Called by the web app right after an account is created, so users never hold or see MON. Idempotent: calling again returns the original drip. Capped per day across all users.",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GasDrip"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GasDrip"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/gas/status": {
+      "get": {
+        "summary": "Treasury balance and drip usage, for monitoring",
+        "tags": ["Gas"],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "treasuryAddress": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "treasuryBalanceMon": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "dripAmountMon": {
+                      "type": "string"
+                    },
+                    "dripsLast24h": {
+                      "type": "number"
+                    },
+                    "dailyLimit": {
+                      "type": "number"
+                    },
+                    "dripsRemainingOnBalance": {
+                      "nullable": true,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "treasuryAddress",
+                    "treasuryBalanceMon",
+                    "dripAmountMon",
+                    "dripsLast24h",
+                    "dailyLimit",
+                    "dripsRemainingOnBalance"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/fx/usd-idr": {
+      "get": {
+        "summary": "USD to IDR exchange rate (display and estimates only)",
+        "tags": ["FX"],
+        "description": "Cached for 600 seconds. Falls back to the last good rate, then to a static rate, and says which one it is.",
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FxQuote"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "System"
+    },
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Employers"
+    },
+    {
+      "name": "Invites"
+    },
+    {
+      "name": "Gas"
+    },
+    {
+      "name": "FX"
+    }
+  ]
+}
