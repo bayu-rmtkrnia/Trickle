@@ -20,7 +20,7 @@ Employer tops up payroll (fiat → AUSD via Agora) → contract streams wages pe
 
 ## Team
 
-**Group:** _TBD_
+**Group:** Trickle
 
 | Name | Student ID | Role |
 | ---- | ---------- | ---- |
@@ -29,7 +29,7 @@ Employer tops up payroll (fiat → AUSD via Agora) → contract streams wages pe
 | Bayu Rahmat Kurnia | 24/533736/TK/59139 | Frontend: worker & family |
 | Raka Bagus Samudra | 24/543213/TK/60349 | Frontend: employer & design |
 
-**Milestone 1 report (PDF):** _GDrive link TBD_
+**Milestone 1 report (PDF):** https://drive.google.com/file/d/1QpE0x27FLanq6SFl48sUJyDhbVktgnzW/view?usp=sharing
 
 ## Tech stack
 
