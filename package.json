@@ -14,7 +14,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:up": "docker compose up -d db",
-    "db:migrate": "pnpm --filter @trickle/api db:migrate"
+    "db:migrate": "pnpm --filter @trickle/api db:migrate",
+    "start": "pnpm --filter @trickle/api db:deploy && pnpm --filter @trickle/api start"
   },
   "devDependencies": {
     "prettier": "^3.6.2"
