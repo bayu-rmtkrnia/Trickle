@@ -37,7 +37,7 @@ const employers: FastifyPluginAsyncZod = async (app) => {
         summary: 'Create the company profile for the signed-in user',
         security,
         body: EmployerInput,
-        response: { 201: EmployerDto, ...errors(400, 401, 409) },
+        response: { 201: EmployerDto, ...errors(400, 401, 409, 422) },
       },
     },
     async (req, reply) => {
@@ -82,7 +82,7 @@ const employers: FastifyPluginAsyncZod = async (app) => {
         summary: 'Update the company profile',
         security,
         body: EmployerInput.partial(),
-        response: { 200: EmployerDto, ...errors(400, 401, 404) },
+        response: { 200: EmployerDto, ...errors(400, 401, 404, 422) },
       },
     },
     async (req) => {

@@ -21,7 +21,7 @@ const auth: FastifyPluginAsyncZod = async (app) => {
         body: z.object({ address: Address }),
         response: {
           201: z.object({ nonce: z.string(), message: z.string(), expiresAt: z.string() }),
-          ...errors(400, 429),
+          ...errors(400, 422, 429),
         },
       },
     },
@@ -63,7 +63,7 @@ const auth: FastifyPluginAsyncZod = async (app) => {
         }),
         response: {
           200: z.object({ token: z.string(), user: UserDto }),
-          ...errors(400, 401, 429),
+          ...errors(400, 401, 422, 429),
         },
       },
     },

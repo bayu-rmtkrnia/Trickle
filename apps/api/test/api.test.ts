@@ -108,13 +108,15 @@ describe.skipIf(!url)('api (integration)', () => {
         payload: { message, signature },
       })
       expect(res.statusCode).toBe(401)
-      expect(res.json().code).toBe('UNAUTHORIZED')
+      expect(res.json().error.code).toBe('UNAUTHORIZED')
     })
 
     it('requires a session for protected routes', async () => {
       const res = await app.inject({ method: 'GET', url: '/auth/me' })
       expect(res.statusCode).toBe(401)
-      expect(res.json()).toEqual({ code: 'UNAUTHORIZED', message: expect.any(String) })
+      expect(res.json()).toEqual({
+        error: { code: 'UNAUTHORIZED', message: expect.any(String) },
+      })
     })
 
     it('returns validation errors in the uniform format', async () => {
@@ -123,8 +125,8 @@ describe.skipIf(!url)('api (integration)', () => {
         url: '/auth/challenge',
         payload: { address: 'nope' },
       })
-      expect(res.statusCode).toBe(400)
-      expect(res.json().code).toBe('VALIDATION_ERROR')
+      expect(res.statusCode).toBe(422)
+      expect(res.json().error.code).toBe('VALIDATION_ERROR')
     })
   })
 
@@ -158,7 +160,7 @@ describe.skipIf(!url)('api (integration)', () => {
         headers: as(employer.token),
         payload: { name: 'Another' },
       })
-      expect(dup.json().code).toBe('EMPLOYER_EXISTS')
+      expect(dup.json().error.code).toBe('EMPLOYER_EXISTS')
 
       const invite = (
         await app.inject({
@@ -179,7 +181,7 @@ describe.skipIf(!url)('api (integration)', () => {
         url: `/invites/${invite.code}/accept`,
         headers: as(employer.token),
       })
-      expect(own.json().code).toBe('CANNOT_ACCEPT_OWN_INVITE')
+      expect(own.json().error.code).toBe('CANNOT_ACCEPT_OWN_INVITE')
 
       const accepted = await app.inject({
         method: 'POST',
@@ -265,7 +267,7 @@ describe.skipIf(!url)('api (integration)', () => {
       sendNative.mockRejectedValueOnce(new Error('rpc down'))
       const failed = await app.inject({ method: 'POST', url: '/gas/drip', headers: as(user.token) })
       expect(failed.statusCode).toBe(502)
-      expect(failed.json().code).toBe('DRIP_FAILED')
+      expect(failed.json().error.code).toBe('DRIP_FAILED')
 
       sendNative.mockResolvedValueOnce(`0x${'cd'.repeat(32)}`)
       const retry = await app.inject({ method: 'POST', url: '/gas/drip', headers: as(user.token) })
@@ -282,7 +284,7 @@ describe.skipIf(!url)('api (integration)', () => {
       const late = await signIn('d')
       const res = await app.inject({ method: 'POST', url: '/gas/drip', headers: as(late.token) })
       expect(res.statusCode).toBe(429)
-      expect(res.json().code).toBe('DRIP_DAILY_LIMIT')
+      expect(res.json().error.code).toBe('DRIP_DAILY_LIMIT')
     })
   })
 })
