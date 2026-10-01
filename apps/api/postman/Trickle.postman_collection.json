@@ -984,13 +984,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/invites?type=WORKER",
+              "raw": "{{baseUrl}}/api/v1/invites?type=WORKER&limit=10",
               "host": ["{{baseUrl}}"],
               "path": ["api", "v1", "invites"],
               "query": [
                 {
                   "key": "type",
                   "value": "WORKER"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
                 }
               ]
             },

@@ -200,7 +200,7 @@ const collection = {
           auth: bearer('familyToken'),
           tests: [status(200)],
         }),
-        req('List my invites', 'GET', '/api/v1/invites?type=WORKER', {
+        req('List my invites', 'GET', '/api/v1/invites?type=WORKER&limit=10', {
           auth: bearer('employerToken'),
           tests: [status(200)],
         }),

@@ -34,7 +34,7 @@ Kalau waktu mepet, nomor 12 tetap Must dan tidak boleh dipotong (PLAN §10.2). Y
 | ------- | ----------------------------------------------------------------------------------------- | ------ |
 | 1       | Format error `{ error: { code, message, details } }`, 422 untuk validasi, 400 untuk request rusak | ✅     |
 | 2       | Semua endpoint pindah ke prefix `/api/v1`; `/health` dan `/docs` tetap di root            | 🟨     |
-| 3       | Helper pagination `?limit=&cursor=` dan respons `{ data, nextCursor }` untuk endpoint list | ⬜     |
+| 3       | Helper pagination `?limit=&cursor=` dan respons `{ data, nextCursor }` untuk endpoint list | 🟨     |
 | 4       | Dokumentasi: OpenAPI, Postman, README                                                     | ⬜     |
 
 ## Ketergantungan yang belum terjawab

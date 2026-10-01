@@ -922,6 +922,31 @@
         "summary": "Workers who accepted an invite from this company",
         "tags": ["Employers"],
         "description": "Metadata only. Stream balances come from the contract/indexer, never from this API.",
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -935,7 +960,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "workers": {
+                    "data": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -965,9 +990,14 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
                     }
                   },
-                  "required": ["workers"],
+                  "required": ["data", "nextCursor"],
                   "additionalProperties": false
                 }
               }
@@ -984,6 +1014,16 @@
             }
           },
           "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1119,6 +1159,29 @@
         "parameters": [
           {
             "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          },
+          {
+            "schema": {
               "type": "string",
               "enum": ["WORKER", "FAMILY"]
             },
@@ -1140,14 +1203,19 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "invites": {
+                    "data": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Invite"
                       }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
                     }
                   },
-                  "required": ["invites"],
+                  "required": ["data", "nextCursor"],
                   "additionalProperties": false
                 }
               }
