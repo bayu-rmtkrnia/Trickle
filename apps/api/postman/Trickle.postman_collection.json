@@ -101,9 +101,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/challenge",
+              "raw": "{{baseUrl}}/api/v1/auth/challenge",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "challenge"]
+              "path": ["api", "v1", "auth", "challenge"]
             },
             "auth": {
               "type": "noauth"
@@ -139,9 +139,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/challenge",
+              "raw": "{{baseUrl}}/api/v1/auth/challenge",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "challenge"]
+              "path": ["api", "v1", "auth", "challenge"]
             },
             "auth": {
               "type": "noauth"
@@ -180,9 +180,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/verify",
+              "raw": "{{baseUrl}}/api/v1/auth/verify",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
+              "path": ["api", "v1", "auth", "verify"]
             },
             "auth": {
               "type": "noauth"
@@ -222,9 +222,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/verify",
+              "raw": "{{baseUrl}}/api/v1/auth/verify",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
+              "path": ["api", "v1", "auth", "verify"]
             },
             "auth": {
               "type": "noauth"
@@ -264,9 +264,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/verify",
+              "raw": "{{baseUrl}}/api/v1/auth/verify",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
+              "path": ["api", "v1", "auth", "verify"]
             },
             "auth": {
               "type": "noauth"
@@ -306,9 +306,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/verify",
+              "raw": "{{baseUrl}}/api/v1/auth/verify",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
+              "path": ["api", "v1", "auth", "verify"]
             },
             "auth": {
               "type": "noauth"
@@ -340,9 +340,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "{{baseUrl}}/api/v1/auth/me",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"]
+              "path": ["api", "v1", "auth", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -371,9 +371,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "{{baseUrl}}/api/v1/auth/me",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"]
+              "path": ["api", "v1", "auth", "me"]
             },
             "auth": {
               "type": "noauth"
@@ -408,9 +408,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers",
+              "raw": "{{baseUrl}}/api/v1/employers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers"]
+              "path": ["api", "v1", "employers"]
             },
             "auth": {
               "type": "bearer",
@@ -453,9 +453,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers",
+              "raw": "{{baseUrl}}/api/v1/employers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers"]
+              "path": ["api", "v1", "employers"]
             },
             "auth": {
               "type": "bearer",
@@ -501,9 +501,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers",
+              "raw": "{{baseUrl}}/api/v1/employers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers"]
+              "path": ["api", "v1", "employers"]
             },
             "auth": {
               "type": "bearer",
@@ -544,9 +544,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/employers/me",
+              "raw": "{{baseUrl}}/api/v1/employers/me",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me"]
+              "path": ["api", "v1", "employers", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -575,9 +575,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/employers/me",
+              "raw": "{{baseUrl}}/api/v1/employers/me",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me"]
+              "path": ["api", "v1", "employers", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -614,9 +614,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers/me",
+              "raw": "{{baseUrl}}/api/v1/employers/me",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me"]
+              "path": ["api", "v1", "employers", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -664,9 +664,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/invites",
+              "raw": "{{baseUrl}}/api/v1/invites",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"]
+              "path": ["api", "v1", "invites"]
             },
             "auth": {
               "type": "bearer",
@@ -712,9 +712,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/invites",
+              "raw": "{{baseUrl}}/api/v1/invites",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"]
+              "path": ["api", "v1", "invites"]
             },
             "auth": {
               "type": "bearer",
@@ -755,9 +755,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}"]
             },
             "auth": {
               "type": "noauth"
@@ -779,9 +779,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/ZZZZZZZZZZ",
+              "raw": "{{baseUrl}}/api/v1/invites/ZZZZZZZZZZ",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "ZZZZZZZZZZ"]
+              "path": ["api", "v1", "invites", "ZZZZZZZZZZ"]
             },
             "auth": {
               "type": "noauth"
@@ -806,9 +806,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -840,9 +840,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -871,9 +871,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -910,9 +910,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/invites",
+              "raw": "{{baseUrl}}/api/v1/invites",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"]
+              "path": ["api", "v1", "invites"]
             },
             "auth": {
               "type": "bearer",
@@ -953,9 +953,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{familyInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{familyInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{familyInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{familyInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -984,9 +984,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites?type=WORKER",
+              "raw": "{{baseUrl}}/api/v1/invites?type=WORKER",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"],
+              "path": ["api", "v1", "invites"],
               "query": [
                 {
                   "key": "type",
@@ -1021,9 +1021,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/employers/me/workers",
+              "raw": "{{baseUrl}}/api/v1/employers/me/workers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me", "workers"]
+              "path": ["api", "v1", "employers", "me", "workers"]
             },
             "auth": {
               "type": "bearer",
@@ -1052,9 +1052,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "{{baseUrl}}/api/v1/auth/me",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"]
+              "path": ["api", "v1", "auth", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -1088,9 +1088,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/gas/status",
+              "raw": "{{baseUrl}}/api/v1/gas/status",
               "host": ["{{baseUrl}}"],
-              "path": ["gas", "status"]
+              "path": ["api", "v1", "gas", "status"]
             },
             "auth": {
               "type": "noauth"
@@ -1112,9 +1112,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/gas/drip",
+              "raw": "{{baseUrl}}/api/v1/gas/drip",
               "host": ["{{baseUrl}}"],
-              "path": ["gas", "drip"]
+              "path": ["api", "v1", "gas", "drip"]
             },
             "auth": {
               "type": "bearer",
@@ -1135,9 +1135,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/gas/drip",
+              "raw": "{{baseUrl}}/api/v1/gas/drip",
               "host": ["{{baseUrl}}"],
-              "path": ["gas", "drip"]
+              "path": ["api", "v1", "gas", "drip"]
             },
             "auth": {
               "type": "bearer",
@@ -1162,9 +1162,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/fx/usd-idr",
+              "raw": "{{baseUrl}}/api/v1/fx/usd-idr",
               "host": ["{{baseUrl}}"],
-              "path": ["fx", "usd-idr"]
+              "path": ["api", "v1", "fx", "usd-idr"]
             },
             "auth": {
               "type": "noauth"

@@ -469,11 +469,11 @@
         }
       }
     },
-    "/auth/challenge": {
+    "/api/v1/auth/challenge": {
       "post": {
         "summary": "Get a sign-in message for an address",
         "tags": ["Auth"],
-        "description": "Returns an EIP-4361 (Sign-In with Ethereum) message. The client signs `message` with the Mera account and sends it to `/auth/verify`. Nonces are single-use and expire after a few minutes.",
+        "description": "Returns an EIP-4361 (Sign-In with Ethereum) message. The client signs `message` with the Mera account and sends it to `/api/v1/auth/verify`. Nonces are single-use and expire after a few minutes.",
         "requestBody": {
           "required": true,
           "content": {
@@ -548,7 +548,7 @@
         }
       }
     },
-    "/auth/verify": {
+    "/api/v1/auth/verify": {
       "post": {
         "summary": "Exchange a signed challenge for a session token",
         "tags": ["Auth"],
@@ -637,7 +637,7 @@
         }
       }
     },
-    "/auth/me": {
+    "/api/v1/auth/me": {
       "get": {
         "summary": "Current user and the roles they hold",
         "tags": ["Auth"],
@@ -703,7 +703,7 @@
         }
       }
     },
-    "/employers": {
+    "/api/v1/employers": {
       "post": {
         "summary": "Create the company profile for the signed-in user",
         "tags": ["Employers"],
@@ -790,7 +790,7 @@
         }
       }
     },
-    "/employers/me": {
+    "/api/v1/employers/me": {
       "get": {
         "summary": "The signed-in user's company profile",
         "tags": ["Employers"],
@@ -917,7 +917,7 @@
         }
       }
     },
-    "/employers/me/workers": {
+    "/api/v1/employers/me/workers": {
       "get": {
         "summary": "Workers who accepted an invite from this company",
         "tags": ["Employers"],
@@ -996,7 +996,7 @@
         }
       }
     },
-    "/invites": {
+    "/api/v1/invites": {
       "post": {
         "summary": "Create a worker invite (employer) or a family invite (worker)",
         "tags": ["Invites"],
@@ -1176,7 +1176,7 @@
         }
       }
     },
-    "/invites/{code}": {
+    "/api/v1/invites/{code}": {
       "get": {
         "summary": "Public invite details, shown before the invitee creates an account",
         "tags": ["Invites"],
@@ -1225,7 +1225,7 @@
         }
       }
     },
-    "/invites/{code}/accept": {
+    "/api/v1/invites/{code}/accept": {
       "post": {
         "summary": "Accept an invite as the signed-in user",
         "tags": ["Invites"],
@@ -1320,7 +1320,7 @@
         }
       }
     },
-    "/gas/drip": {
+    "/api/v1/gas/drip": {
       "post": {
         "summary": "Fund the signed-in account's gas, once per address",
         "tags": ["Gas"],
@@ -1394,7 +1394,7 @@
         }
       }
     },
-    "/gas/status": {
+    "/api/v1/gas/status": {
       "get": {
         "summary": "Treasury balance and drip usage, for monitoring",
         "tags": ["Gas"],
@@ -1448,7 +1448,7 @@
         }
       }
     },
-    "/fx/usd-idr": {
+    "/api/v1/fx/usd-idr": {
       "get": {
         "summary": "USD to IDR exchange rate (display and estimates only)",
         "tags": ["FX"],

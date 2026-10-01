@@ -83,9 +83,11 @@ Trickle/
 
 Interactive docs: `http://localhost:4000/docs`. All errors use `{ "error": { "code": "...", "message": "...", "details": ... } }`. Schema validation failures return 422 with one `details` entry per invalid field; unreadable bodies (e.g. broken JSON) return 400.
 
+Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1/auth/me`. Only `/health` and `/docs` live at the root.
+
 | Method | Endpoint | Auth | Description |
 | ------ | -------- | ---- | ----------- |
-| GET | `/health` | – | Service + database status |
+| GET | `/health` (root) | – | Service + database status |
 | POST | `/auth/challenge` | – | Sign-in message (EIP-4361) with a single-use nonce |
 | POST | `/auth/verify` | – | Verify the signed message → session token |
 | GET | `/auth/me` | ✓ | Current user and roles (employer / worker / family) |
