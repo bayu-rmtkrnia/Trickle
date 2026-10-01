@@ -22,12 +22,12 @@ Employer tops up payroll (fiat → AUSD via Agora) → contract streams wages pe
 
 **Group:** _TBD_
 
-| Name | Student ID | Role |
-| ---- | ---------- | ---- |
-| _TBD_ | _TBD_ | Backend |
-| _TBD_ | _TBD_ | Smart contract |
-| _TBD_ | _TBD_ | Frontend: worker & family |
-| _TBD_ | _TBD_ | Frontend: employer & design |
+| Name | Role |
+| ---- | ---- |
+| Bayu Rahmat Kurnia | _TBD_ |
+| Muhammad Affandi Argya Bagaskara | Backend |
+| Raka Bagus Samudra | _TBD_ |
+| Razaqi Alkautsar | _TBD_ |
 
 **Milestone 1 report (PDF):** _GDrive link TBD_
 
