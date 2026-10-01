@@ -1,5 +1,9 @@
 pnpm-lock.yaml
 **/generated/**
 **/dist/**
+**/.next/**
+**/out/**
+**/next-env.d.ts
+*.tsbuildinfo
 **/migrations/**
 *.md
