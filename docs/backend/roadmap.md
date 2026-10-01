@@ -6,13 +6,13 @@ Aturan main:
 
 - Satu fitur = satu branch = satu PR, berisi beberapa commit kecil (lihat [`CONTRIBUTING.md`](../../CONTRIBUTING.md)).
 - Setiap PR memperbarui `openapi.json` dan menambah test. Endpoint sensitif wajib punya test 403 untuk peran lain (K5).
-- Status: ⬜ belum · 🟨 dikerjakan · ✅ selesai (sudah di-merge ke `main`)
+- Status: ⬜ belum · 🟨 dikerjakan · 🔍 menunggu review PR · ✅ selesai (sudah di-merge ke `main`)
 
 ## Daftar fitur
 
 | #   | Fitur              | Branch                         | Isi                                                                                                                  | Target      | Status |
 | --- | ------------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------- | ------ |
-| 1   | Fondasi API        | `refactor/api-v1-foundation`   | Prefix `/api/v1`, format error seragam, 400 vs 422, helper pagination                                                | Kam 1 Okt   | 🟨     |
+| 1   | Fondasi API        | `refactor/api-v1-foundation`   | Prefix `/api/v1`, format error seragam, 400 vs 422, helper pagination                                                | Kam 1 Okt   | 🔍     |
 | 2   | Struktur berlapis  | `refactor/api-layered-modules` | Pecah modul ke `modules/<resource>/{routes,controller,service,repository}`. Perilaku tidak berubah, test tetap hijau | Kam 1–Jum 2 | ⬜     |
 | 3   | Sesi & pengguna    | `feat/api-sessions`            | Tabel `Session` (token di-hash), `/sessions/challenges`, `/sessions`, `DELETE /sessions/current`, `GET/PATCH /users/me` | Jum 2       | ⬜     |
 | 4   | RBAC & kepemilikan | `feat/api-rbac`                | Middleware `requireRole` dan `requireOwnership`, peran diturunkan dari relasi DB, helper test 403                    | Jum 2       | ⬜     |
@@ -33,9 +33,9 @@ Kalau waktu mepet, nomor 12 tetap Must dan tidak boleh dipotong (PLAN §10.2). Y
 | Langkah | Isi                                                                                       | Status |
 | ------- | ----------------------------------------------------------------------------------------- | ------ |
 | 1       | Format error `{ error: { code, message, details } }`, 422 untuk validasi, 400 untuk request rusak | ✅     |
-| 2       | Semua endpoint pindah ke prefix `/api/v1`; `/health` dan `/docs` tetap di root            | 🟨     |
-| 3       | Helper pagination `?limit=&cursor=` dan respons `{ data, nextCursor }` untuk endpoint list | 🟨     |
-| 4       | Dokumentasi: OpenAPI, Postman, README                                                     | ⬜     |
+| 2       | Semua endpoint pindah ke prefix `/api/v1`; `/health` dan `/docs` tetap di root            | ✅     |
+| 3       | Helper pagination `?limit=&cursor=` dan respons `{ data, nextCursor }` untuk endpoint list | ✅     |
+| 4       | Dokumentasi: OpenAPI, Postman, README                                                     | ✅     |
 
 ## Ketergantungan yang belum terjawab
 

@@ -73,7 +73,7 @@ const collection = {
   info: {
     name: 'Trickle API',
     description:
-      'Milestone 1 API. Folders follow the golden path: employer invites worker, worker invites family. Set {{baseUrl}} to the deployed URL or http://localhost:4000.',
+      'Trickle API v1 (resource endpoints under /api/v1). Folders follow the golden path: employer invites worker, worker invites family. Set {{baseUrl}} to the deployed URL or http://localhost:4000.',
     schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
   },
   variable: [
