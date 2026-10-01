@@ -604,6 +604,7 @@ Hanya perbaikan darurat P0 dan perbaikan link. Tidak ada fitur baru.
 - Gate review: call 30 menit tepat di jam gate.
 
 ### 8.2 Git
+- Aturan lengkap penamaan branch, format commit, dan alur PR ada di [`CONTRIBUTING.md`](../CONTRIBUTING.md).
 - `main` dilindungi. Kerja di branch `feat/...` atau `fix/...`.
 - PR kecil, direview satu orang (pemilik area yang disentuh).
 - Commit setiap hari kerja. Commit history adalah bukti kerja selama periode hackathon.
