@@ -17,15 +17,23 @@
       "ErrorInput": {
         "type": "object",
         "properties": {
-          "code": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "details": {}
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable code, e.g. INVITE_NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "details": {}
+            },
+            "required": ["code", "message"]
+          }
         },
-        "required": ["code", "message"]
+        "required": ["error"]
       },
       "UserInput": {
         "type": "object",
@@ -199,15 +207,24 @@
       "Error": {
         "type": "object",
         "properties": {
-          "code": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "details": {}
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable code, e.g. INVITE_NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "details": {}
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false
+          }
         },
-        "required": ["code", "message"],
+        "required": ["error"],
         "additionalProperties": false
       },
       "User": {
@@ -508,6 +525,16 @@
               }
             }
           },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Default Response",
             "content": {
@@ -578,6 +605,16 @@
             }
           },
           "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -739,6 +776,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -848,6 +895,16 @@
             }
           },
           "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1043,6 +1100,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -1086,7 +1153,7 @@
               }
             }
           },
-          "400": {
+          "401": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1096,7 +1163,7 @@
               }
             }
           },
-          "401": {
+          "422": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1135,7 +1202,7 @@
               }
             }
           },
-          "400": {
+          "404": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1145,7 +1212,7 @@
               }
             }
           },
-          "404": {
+          "422": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1231,6 +1298,16 @@
             }
           },
           "410": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
             "description": "Default Response",
             "content": {
               "application/json": {

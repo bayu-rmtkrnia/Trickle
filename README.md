@@ -81,7 +81,7 @@ Trickle/
 
 ## API (Milestone 1)
 
-Interactive docs: `http://localhost:4000/docs`. All errors use `{ "code": "...", "message": "..." }`.
+Interactive docs: `http://localhost:4000/docs`. All errors use `{ "error": { "code": "...", "message": "...", "details": ... } }`. Schema validation failures return 422 with one `details` entry per invalid field; unreadable bodies (e.g. broken JSON) return 400.
 
 | Method | Endpoint | Auth | Description |
 | ------ | -------- | ---- | ----------- |

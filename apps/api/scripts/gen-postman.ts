@@ -15,7 +15,7 @@ const bearer = (variable: string): Auth => ({
 const status = (code: number) =>
   `pm.test('status ${code}', () => pm.response.to.have.status(${code}));`
 const errCode = (code: string) =>
-  `pm.test('error code ${code}', () => pm.expect(pm.response.json().code).to.eql('${code}'));`
+  `pm.test('error code ${code}', () => pm.expect(pm.response.json().error.code).to.eql('${code}'));`
 const save = (variable: string, field: string) =>
   `pm.collectionVariables.set('${variable}', pm.response.json().${field});`
 
@@ -101,9 +101,9 @@ const collection = {
           body: { address: '0x66818500d7c295d61D613C55269089e0C3D73fCf' },
           tests: [status(201)],
         }),
-        req('Challenge - invalid address (400)', 'POST', '/auth/challenge', {
+        req('Challenge - invalid address (422)', 'POST', '/auth/challenge', {
           body: { address: '0x123' },
-          tests: [status(400), errCode('VALIDATION_ERROR')],
+          tests: [status(422), errCode('VALIDATION_ERROR')],
         }),
         verify('employer'),
         verify('worker'),
@@ -132,10 +132,10 @@ const collection = {
           body: { name: 'PT Maju Jaya', country: 'MY' },
           tests: [status(409), errCode('EMPLOYER_EXISTS')],
         }),
-        req('Create employer - invalid (400)', 'POST', '/employers', {
+        req('Create employer - invalid (422)', 'POST', '/employers', {
           auth: bearer('workerToken'),
           body: { name: 'A', country: 'Malaysia' },
-          tests: [status(400), errCode('VALIDATION_ERROR')],
+          tests: [status(422), errCode('VALIDATION_ERROR')],
         }),
         req('Get my employer', 'GET', '/employers/me', {
           auth: bearer('employerToken'),
