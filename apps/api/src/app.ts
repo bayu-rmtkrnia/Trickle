@@ -25,6 +25,9 @@ import healthRoutes from './routes/health.js'
 import inviteRoutes from './routes/invites.js'
 import './types.js'
 
+/** Every resource endpoint lives under this prefix (PLAN §6.3). */
+export const API_PREFIX = '/api/v1'
+
 export interface AppDeps {
   env: Env
   db?: Db
@@ -97,12 +100,18 @@ export async function buildApp(deps: AppDeps) {
   await app.register(swaggerUi, { routePrefix: '/docs' })
 
   await app.register(authPlugin)
+  // Infrastructure endpoints stay unversioned so the Railway healthcheck and docs URL never move.
   await app.register(healthRoutes)
-  await app.register(authRoutes)
-  await app.register(employerRoutes)
-  await app.register(inviteRoutes)
-  await app.register(gasRoutes)
-  await app.register(fxRoutes)
+  await app.register(
+    async (v1) => {
+      await v1.register(authRoutes)
+      await v1.register(employerRoutes)
+      await v1.register(inviteRoutes)
+      await v1.register(gasRoutes)
+      await v1.register(fxRoutes)
+    },
+    { prefix: API_PREFIX },
+  )
 
   return app
 }

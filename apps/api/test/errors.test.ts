@@ -22,7 +22,7 @@ describe('error responses', () => {
   it('returns 422 with field details when the body fails validation', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/auth/challenge',
+      url: '/api/v1/auth/challenge',
       payload: { address: 'nope' },
     })
     expect(res.statusCode).toBe(422)
@@ -38,7 +38,7 @@ describe('error responses', () => {
   it('returns 400 when the body is not valid JSON', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/auth/challenge',
+      url: '/api/v1/auth/challenge',
       headers: { 'content-type': 'application/json' },
       payload: '{"address":',
     })
@@ -47,7 +47,7 @@ describe('error responses', () => {
   })
 
   it('returns 401 in the envelope when the session is missing', async () => {
-    const res = await app.inject({ method: 'GET', url: '/auth/me' })
+    const res = await app.inject({ method: 'GET', url: '/api/v1/auth/me' })
     expect(res.statusCode).toBe(401)
     expect(res.json()).toEqual({
       error: { code: 'UNAUTHORIZED', message: expect.any(String) },
@@ -60,5 +60,11 @@ describe('error responses', () => {
     expect(res.json()).toEqual({
       error: { code: 'ROUTE_NOT_FOUND', message: 'No route for GET /does-not-exist' },
     })
+  })
+
+  it('serves resource routes only under /api/v1', async () => {
+    const res = await app.inject({ method: 'GET', url: '/auth/me' })
+    expect(res.statusCode).toBe(404)
+    expect(res.json().error.code).toBe('ROUTE_NOT_FOUND')
   })
 })

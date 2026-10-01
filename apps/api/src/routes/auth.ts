@@ -17,7 +17,7 @@ const auth: FastifyPluginAsyncZod = async (app) => {
         tags: ['Auth'],
         summary: 'Get a sign-in message for an address',
         description:
-          'Returns an EIP-4361 (Sign-In with Ethereum) message. The client signs `message` with the Mera account and sends it to `/auth/verify`. Nonces are single-use and expire after a few minutes.',
+          'Returns an EIP-4361 (Sign-In with Ethereum) message. The client signs `message` with the Mera account and sends it to `/api/v1/auth/verify`. Nonces are single-use and expire after a few minutes.',
         body: z.object({ address: Address }),
         response: {
           201: z.object({ nonce: z.string(), message: z.string(), expiresAt: z.string() }),
