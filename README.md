@@ -20,16 +20,16 @@ Employer tops up payroll (fiat → AUSD via Agora) → contract streams wages pe
 
 ## Team
 
-**Group:** _TBD_
+**Group:** Trickle
 
-| Name | Role |
-| ---- | ---- |
-| Bayu Rahmat Kurnia | _TBD_ |
-| Muhammad Affandi Argya Bagaskara | Backend |
-| Raka Bagus Samudra | _TBD_ |
-| Razaqi Alkautsar | _TBD_ |
+| Name | Student ID | Role |
+| ---- | ---------- | ---- |
+| Muhammad Affandi Argya Bagaskara | 24/538984/TK/59778 | Backend |
+| Razaqi Alkautsar | 24/544958/TK/60570 | Smart contract |
+| Bayu Rahmat Kurnia | 24/533736/TK/59139 | Frontend: worker & family |
+| Raka Bagus Samudra | 24/543213/TK/60349 | Frontend: employer & design |
 
-**Milestone 1 report (PDF):** _GDrive link TBD_
+**Milestone 1 report (PDF):** https://drive.google.com/file/d/1QpE0x27FLanq6SFl48sUJyDhbVktgnzW/view?usp=sharing
 
 ## Tech stack
 
