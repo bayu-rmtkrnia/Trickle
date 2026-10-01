@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Trickle API",
-    "version": "0.1.0",
-    "description": "Metadata API for Trickle: auth, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances."
+    "version": "1.1.0",
+    "description": "Metadata API for Trickle: auth, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
   },
   "components": {
     "securitySchemes": {

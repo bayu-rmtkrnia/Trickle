@@ -76,9 +76,11 @@ export async function buildApp(deps: AppDeps) {
     openapi: {
       info: {
         title: 'Trickle API',
-        version: '0.1.0',
+        version: '1.1.0',
         description:
-          'Metadata API for Trickle: auth, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.',
+          'Metadata API for Trickle: auth, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\n' +
+          'Resource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). ' +
+          'List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`.',
       },
       tags: [
         { name: 'System' },
