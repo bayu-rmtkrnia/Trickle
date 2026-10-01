@@ -209,9 +209,12 @@ describe.skipIf(!url)('api (integration)', () => {
         url: '/api/v1/employers/me/workers',
         headers: as(employer.token),
       })
-      expect(workers.json().workers).toEqual([
-        expect.objectContaining({ displayName: 'Siti', address: worker.address.toLowerCase() }),
-      ])
+      expect(workers.json()).toEqual({
+        data: [
+          expect.objectContaining({ displayName: 'Siti', address: worker.address.toLowerCase() }),
+        ],
+        nextCursor: null,
+      })
 
       const famInvite = (
         await app.inject({
@@ -245,6 +248,56 @@ describe.skipIf(!url)('api (integration)', () => {
         payload: { type: 'FAMILY', inviteeName: 'Ibu' },
       })
       expect(res.statusCode).toBe(403)
+    })
+  })
+
+  describe('pagination', () => {
+    it('pages through invites newest first without gaps or repeats', async () => {
+      const employer = await signIn('employer')
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/employers',
+        headers: as(employer.token),
+        payload: { name: 'PT Maju Jaya' },
+      })
+      for (const name of ['A', 'B', 'C']) {
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/invites',
+          headers: as(employer.token),
+          payload: { type: 'WORKER', inviteeName: name, monthlySalaryUsd: 1000 },
+        })
+      }
+
+      const first = await app.inject({
+        method: 'GET',
+        url: '/api/v1/invites?limit=2',
+        headers: as(employer.token),
+      })
+      expect(first.statusCode).toBe(200)
+      const page1 = first.json()
+      expect(page1.data.map((i: { inviteeName: string }) => i.inviteeName)).toEqual(['C', 'B'])
+      expect(page1.nextCursor).toEqual(expect.any(String))
+
+      const second = await app.inject({
+        method: 'GET',
+        url: `/api/v1/invites?limit=2&cursor=${page1.nextCursor}`,
+        headers: as(employer.token),
+      })
+      const page2 = second.json()
+      expect(page2.data.map((i: { inviteeName: string }) => i.inviteeName)).toEqual(['A'])
+      expect(page2.nextCursor).toBeNull()
+    })
+
+    it('rejects an out-of-range limit with 422', async () => {
+      const user = await signIn('alice')
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/invites?limit=0',
+        headers: as(user.token),
+      })
+      expect(res.statusCode).toBe(422)
+      expect(res.json().error.details[0].field).toBe('querystring.limit')
     })
   })
 

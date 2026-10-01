@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { Prisma, type Invite } from '../generated/prisma/client.js'
 import { inviteCode } from '../lib/codes.js'
 import { AppError, badRequest, conflict, forbidden, notFound } from '../lib/errors.js'
+import { Page, PageQuery, pageArgs, toPage } from '../lib/pagination.js'
 import { errors } from '../lib/schemas.js'
 import { centsToUsd } from './dto.js'
 
@@ -136,17 +137,18 @@ const invites: FastifyPluginAsyncZod = async (app) => {
         tags: ['Invites'],
         summary: 'Invites created by the signed-in user',
         security,
-        querystring: z.object({ type: z.enum(['WORKER', 'FAMILY']).optional() }),
-        response: { 200: z.object({ invites: z.array(InviteDto) }), ...errors(401, 422) },
+        querystring: PageQuery.extend({ type: z.enum(['WORKER', 'FAMILY']).optional() }),
+        response: { 200: Page(InviteDto), ...errors(401, 422) },
       },
     },
     async (req) => {
+      const { type, ...page } = req.query
       const rows = await db.invite.findMany({
-        where: { createdById: req.user.sub, type: req.query.type },
+        where: { createdById: req.user.sub, type },
         include,
-        orderBy: { createdAt: 'desc' },
+        ...pageArgs(page),
       })
-      return { invites: rows.map(toDto) }
+      return toPage(rows, page.limit, toDto)
     },
   )
 

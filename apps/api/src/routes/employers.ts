@@ -1,6 +1,7 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod'
 import { z } from 'zod'
 import { conflict, notFound } from '../lib/errors.js'
+import { Page, PageQuery, pageArgs, toPage } from '../lib/pagination.js'
 import { errors } from '../lib/schemas.js'
 import { EmployerDto, centsToUsd, toEmployerDto } from './dto.js'
 
@@ -107,29 +108,25 @@ const employers: FastifyPluginAsyncZod = async (app) => {
         description:
           'Metadata only. Stream balances come from the contract/indexer, never from this API.',
         security,
-        response: { 200: z.object({ workers: z.array(WorkerDto) }), ...errors(401, 404) },
+        querystring: PageQuery,
+        response: { 200: Page(WorkerDto), ...errors(401, 404, 422) },
       },
     },
     async (req) => {
-      const employer = await db.employer.findUnique({
-        where: { ownerId: req.user.sub },
-        include: {
-          workers: {
-            include: { worker: { select: { address: true } } },
-            orderBy: { createdAt: 'desc' },
-          },
-        },
-      })
+      const employer = await db.employer.findUnique({ where: { ownerId: req.user.sub } })
       if (!employer) throw notFound('EMPLOYER_NOT_FOUND', 'You have no company profile yet')
-      return {
-        workers: employer.workers.map((w) => ({
-          id: w.id,
-          displayName: w.displayName,
-          address: w.worker.address,
-          monthlySalaryUsd: centsToUsd(w.monthlySalaryCents),
-          joinedAt: w.createdAt.toISOString(),
-        })),
-      }
+      const rows = await db.employerWorker.findMany({
+        where: { employerId: employer.id },
+        include: { worker: { select: { address: true } } },
+        ...pageArgs(req.query),
+      })
+      return toPage(rows, req.query.limit, (w) => ({
+        id: w.id,
+        displayName: w.displayName,
+        address: w.worker.address,
+        monthlySalaryUsd: centsToUsd(w.monthlySalaryCents),
+        joinedAt: w.createdAt.toISOString(),
+      }))
     },
   )
 }
