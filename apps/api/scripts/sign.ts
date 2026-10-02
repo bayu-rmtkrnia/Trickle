@@ -1,8 +1,8 @@
 /**
  * Dev helper for testing auth from Postman, which cannot sign messages.
  *
- *   pnpm sign <account>            request a challenge, sign it, print the /auth/verify body
- *   pnpm sign <account> --login    also call /auth/verify and print the session token
+ *   pnpm sign <account>            request a challenge, sign it, print the /api/v1/auth/verify body
+ *   pnpm sign <account> --login    also call /api/v1/auth/verify and print the session token
  *   pnpm sign <account> --message "<siwe message>"   only sign the given message
  *
  * <account> is any name (employer, worker, family, ...). Each name maps to a
@@ -48,19 +48,19 @@ async function main() {
     return
   }
 
-  const { message } = (await post('/auth/challenge', { address: account.address })) as {
+  const { message } = (await post('/api/v1/auth/challenge', { address: account.address })) as {
     message: string
   }
   const signature = await account.signMessage({ message })
   const verifyBody = { message, signature }
 
   if (!login) {
-    console.error('Paste this as the raw JSON body of POST /auth/verify:\n')
+    console.error('Paste this as the raw JSON body of POST /api/v1/auth/verify:\n')
     console.log(JSON.stringify(verifyBody, null, 2))
     return
   }
 
-  const { token } = (await post('/auth/verify', verifyBody)) as { token: string }
+  const { token } = (await post('/api/v1/auth/verify', verifyBody)) as { token: string }
   console.error('Session token (use as Bearer token):\n')
   console.log(token)
 }

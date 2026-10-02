@@ -79,21 +79,23 @@ Trickle/
 └── package.json / pnpm-workspace.yaml
 ```
 
-## API (Milestone 1)
+## API (v1)
 
-Interactive docs: `http://localhost:4000/docs`. All errors use `{ "code": "...", "message": "..." }`.
+Interactive docs: `http://localhost:4000/docs`. All errors use `{ "error": { "code": "...", "message": "...", "details": ... } }`. Schema validation failures return 422 with one `details` entry per invalid field; unreadable bodies (e.g. broken JSON) return 400.
+
+Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1/auth/me`. Only `/health` and `/docs` live at the root. List endpoints (marked *paged*) take `?limit=` (1–100, default 20) and `?cursor=`, and return `{ "data": [...], "nextCursor": "..." }`; pass `nextCursor` back as `cursor` until it is `null`.
 
 | Method | Endpoint | Auth | Description |
 | ------ | -------- | ---- | ----------- |
-| GET | `/health` | – | Service + database status |
+| GET | `/health` (root) | – | Service + database status |
 | POST | `/auth/challenge` | – | Sign-in message (EIP-4361) with a single-use nonce |
 | POST | `/auth/verify` | – | Verify the signed message → session token |
 | GET | `/auth/me` | ✓ | Current user and roles (employer / worker / family) |
 | POST | `/employers` | ✓ | Create company profile |
 | GET, PATCH | `/employers/me` | ✓ | Read / update company profile |
-| GET | `/employers/me/workers` | ✓ | Workers who joined via invite |
+| GET | `/employers/me/workers` | ✓ | Workers who joined via invite (paged) |
 | POST | `/invites` | ✓ | Worker invite (employer) or family invite (worker) |
-| GET | `/invites` | ✓ | Invites I created |
+| GET | `/invites` | ✓ | Invites I created (paged) |
 | GET | `/invites/:code` | – | Public invite details |
 | POST | `/invites/:code/accept` | ✓ | Accept an invite |
 | POST | `/gas/drip` | ✓ | Sponsor gas for a new account, once per address |
