@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Trickle API",
-    "version": "0.1.0",
-    "description": "Metadata API for Trickle: auth, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances."
+    "version": "1.1.0",
+    "description": "Metadata API for Trickle: auth, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
   },
   "components": {
     "securitySchemes": {
@@ -17,15 +17,23 @@
       "ErrorInput": {
         "type": "object",
         "properties": {
-          "code": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "details": {}
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable code, e.g. INVITE_NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "details": {}
+            },
+            "required": ["code", "message"]
+          }
         },
-        "required": ["code", "message"]
+        "required": ["error"]
       },
       "UserInput": {
         "type": "object",
@@ -199,15 +207,24 @@
       "Error": {
         "type": "object",
         "properties": {
-          "code": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "details": {}
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable code, e.g. INVITE_NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "details": {}
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false
+          }
         },
-        "required": ["code", "message"],
+        "required": ["error"],
         "additionalProperties": false
       },
       "User": {
@@ -452,11 +469,11 @@
         }
       }
     },
-    "/auth/challenge": {
+    "/api/v1/auth/challenge": {
       "post": {
         "summary": "Get a sign-in message for an address",
         "tags": ["Auth"],
-        "description": "Returns an EIP-4361 (Sign-In with Ethereum) message. The client signs `message` with the Mera account and sends it to `/auth/verify`. Nonces are single-use and expire after a few minutes.",
+        "description": "Returns an EIP-4361 (Sign-In with Ethereum) message. The client signs `message` with the Mera account and sends it to `/api/v1/auth/verify`. Nonces are single-use and expire after a few minutes.",
         "requestBody": {
           "required": true,
           "content": {
@@ -508,6 +525,16 @@
               }
             }
           },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Default Response",
             "content": {
@@ -521,7 +548,7 @@
         }
       }
     },
-    "/auth/verify": {
+    "/api/v1/auth/verify": {
       "post": {
         "summary": "Exchange a signed challenge for a session token",
         "tags": ["Auth"],
@@ -587,6 +614,16 @@
               }
             }
           },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
             "description": "Default Response",
             "content": {
@@ -600,7 +637,7 @@
         }
       }
     },
-    "/auth/me": {
+    "/api/v1/auth/me": {
       "get": {
         "summary": "Current user and the roles they hold",
         "tags": ["Auth"],
@@ -666,7 +703,7 @@
         }
       }
     },
-    "/employers": {
+    "/api/v1/employers": {
       "post": {
         "summary": "Create the company profile for the signed-in user",
         "tags": ["Employers"],
@@ -739,11 +776,21 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/employers/me": {
+    "/api/v1/employers/me": {
       "get": {
         "summary": "The signed-in user's company profile",
         "tags": ["Employers"],
@@ -856,15 +903,50 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/employers/me/workers": {
+    "/api/v1/employers/me/workers": {
       "get": {
         "summary": "Workers who accepted an invite from this company",
         "tags": ["Employers"],
         "description": "Metadata only. Stream balances come from the contract/indexer, never from this API.",
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -878,7 +960,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "workers": {
+                    "data": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -908,9 +990,14 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
                     }
                   },
-                  "required": ["workers"],
+                  "required": ["data", "nextCursor"],
                   "additionalProperties": false
                 }
               }
@@ -935,11 +1022,21 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/invites": {
+    "/api/v1/invites": {
       "post": {
         "summary": "Create a worker invite (employer) or a family invite (worker)",
         "tags": ["Invites"],
@@ -1043,6 +1140,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -1050,6 +1157,29 @@
         "summary": "Invites created by the signed-in user",
         "tags": ["Invites"],
         "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          },
           {
             "schema": {
               "type": "string",
@@ -1073,25 +1203,20 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "invites": {
+                    "data": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Invite"
                       }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
                     }
                   },
-                  "required": ["invites"],
+                  "required": ["data", "nextCursor"],
                   "additionalProperties": false
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -1105,11 +1230,21 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/invites/{code}": {
+    "/api/v1/invites/{code}": {
       "get": {
         "summary": "Public invite details, shown before the invitee creates an account",
         "tags": ["Invites"],
@@ -1135,7 +1270,7 @@
               }
             }
           },
-          "400": {
+          "404": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1145,7 +1280,7 @@
               }
             }
           },
-          "404": {
+          "422": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1158,7 +1293,7 @@
         }
       }
     },
-    "/invites/{code}/accept": {
+    "/api/v1/invites/{code}/accept": {
       "post": {
         "summary": "Accept an invite as the signed-in user",
         "tags": ["Invites"],
@@ -1239,11 +1374,21 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/gas/drip": {
+    "/api/v1/gas/drip": {
       "post": {
         "summary": "Fund the signed-in account's gas, once per address",
         "tags": ["Gas"],
@@ -1317,7 +1462,7 @@
         }
       }
     },
-    "/gas/status": {
+    "/api/v1/gas/status": {
       "get": {
         "summary": "Treasury balance and drip usage, for monitoring",
         "tags": ["Gas"],
@@ -1371,7 +1516,7 @@
         }
       }
     },
-    "/fx/usd-idr": {
+    "/api/v1/fx/usd-idr": {
       "get": {
         "summary": "USD to IDR exchange rate (display and estimates only)",
         "tags": ["FX"],

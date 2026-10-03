@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { Prisma, type Invite } from '../generated/prisma/client.js'
 import { inviteCode } from '../lib/codes.js'
 import { AppError, badRequest, conflict, forbidden, notFound } from '../lib/errors.js'
+import { Page, PageQuery, pageArgs, toPage } from '../lib/pagination.js'
 import { errors } from '../lib/schemas.js'
 import { centsToUsd } from './dto.js'
 
@@ -90,7 +91,7 @@ const invites: FastifyPluginAsyncZod = async (app) => {
         summary: 'Create a worker invite (employer) or a family invite (worker)',
         security,
         body: CreateInvite,
-        response: { 201: InviteDto, ...errors(400, 401, 403) },
+        response: { 201: InviteDto, ...errors(400, 401, 403, 422) },
       },
     },
     async (req, reply) => {
@@ -136,17 +137,18 @@ const invites: FastifyPluginAsyncZod = async (app) => {
         tags: ['Invites'],
         summary: 'Invites created by the signed-in user',
         security,
-        querystring: z.object({ type: z.enum(['WORKER', 'FAMILY']).optional() }),
-        response: { 200: z.object({ invites: z.array(InviteDto) }), ...errors(400, 401) },
+        querystring: PageQuery.extend({ type: z.enum(['WORKER', 'FAMILY']).optional() }),
+        response: { 200: Page(InviteDto), ...errors(401, 422) },
       },
     },
     async (req) => {
+      const { type, ...page } = req.query
       const rows = await db.invite.findMany({
-        where: { createdById: req.user.sub, type: req.query.type },
+        where: { createdById: req.user.sub, type },
         include,
-        orderBy: { createdAt: 'desc' },
+        ...pageArgs(page),
       })
-      return { invites: rows.map(toDto) }
+      return toPage(rows, page.limit, toDto)
     },
   )
 
@@ -157,7 +159,7 @@ const invites: FastifyPluginAsyncZod = async (app) => {
         tags: ['Invites'],
         summary: 'Public invite details, shown before the invitee creates an account',
         params: InviteCode,
-        response: { 200: InviteDto, ...errors(400, 404) },
+        response: { 200: InviteDto, ...errors(404, 422) },
       },
     },
     async (req) => {
@@ -178,7 +180,7 @@ const invites: FastifyPluginAsyncZod = async (app) => {
           'WORKER invite: the user joins the company. FAMILY invite: the user is linked to the worker as a family recipient.',
         security,
         params: InviteCode,
-        response: { 200: InviteDto, ...errors(400, 401, 404, 409, 410) },
+        response: { 200: InviteDto, ...errors(400, 401, 404, 409, 410, 422) },
       },
     },
     async (req) => {

@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Trickle API",
-    "description": "Milestone 1 API. Folders follow the golden path: employer invites worker, worker invites family. Set {{baseUrl}} to the deployed URL or http://localhost:4000.",
+    "description": "Trickle API v1 (resource endpoints under /api/v1). Folders follow the golden path: employer invites worker, worker invites family. Set {{baseUrl}} to the deployed URL or http://localhost:4000.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -79,7 +79,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 404', () => pm.response.to.have.status(404));",
-                  "pm.test('error code ROUTE_NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('ROUTE_NOT_FOUND'));"
+                  "pm.test('error code ROUTE_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('ROUTE_NOT_FOUND'));"
                 ]
               }
             }
@@ -101,9 +101,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/challenge",
+              "raw": "{{baseUrl}}/api/v1/auth/challenge",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "challenge"]
+              "path": ["api", "v1", "auth", "challenge"]
             },
             "auth": {
               "type": "noauth"
@@ -129,7 +129,7 @@
           ]
         },
         {
-          "name": "Challenge - invalid address (400)",
+          "name": "Challenge - invalid address (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -139,9 +139,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/challenge",
+              "raw": "{{baseUrl}}/api/v1/auth/challenge",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "challenge"]
+              "path": ["api", "v1", "auth", "challenge"]
             },
             "auth": {
               "type": "noauth"
@@ -162,8 +162,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 400', () => pm.response.to.have.status(400));",
-                  "pm.test('error code VALIDATION_ERROR', () => pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'));"
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
                 ]
               }
             }
@@ -180,9 +180,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/verify",
+              "raw": "{{baseUrl}}/api/v1/auth/verify",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
+              "path": ["api", "v1", "auth", "verify"]
             },
             "auth": {
               "type": "noauth"
@@ -222,9 +222,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/verify",
+              "raw": "{{baseUrl}}/api/v1/auth/verify",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
+              "path": ["api", "v1", "auth", "verify"]
             },
             "auth": {
               "type": "noauth"
@@ -264,9 +264,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/verify",
+              "raw": "{{baseUrl}}/api/v1/auth/verify",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
+              "path": ["api", "v1", "auth", "verify"]
             },
             "auth": {
               "type": "noauth"
@@ -306,9 +306,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/verify",
+              "raw": "{{baseUrl}}/api/v1/auth/verify",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
+              "path": ["api", "v1", "auth", "verify"]
             },
             "auth": {
               "type": "noauth"
@@ -340,9 +340,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "{{baseUrl}}/api/v1/auth/me",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"]
+              "path": ["api", "v1", "auth", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -371,9 +371,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "{{baseUrl}}/api/v1/auth/me",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"]
+              "path": ["api", "v1", "auth", "me"]
             },
             "auth": {
               "type": "noauth"
@@ -386,7 +386,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
-                  "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED'));"
+                  "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));"
                 ]
               }
             }
@@ -408,9 +408,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers",
+              "raw": "{{baseUrl}}/api/v1/employers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers"]
+              "path": ["api", "v1", "employers"]
             },
             "auth": {
               "type": "bearer",
@@ -453,9 +453,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers",
+              "raw": "{{baseUrl}}/api/v1/employers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers"]
+              "path": ["api", "v1", "employers"]
             },
             "auth": {
               "type": "bearer",
@@ -484,14 +484,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 409', () => pm.response.to.have.status(409));",
-                  "pm.test('error code EMPLOYER_EXISTS', () => pm.expect(pm.response.json().code).to.eql('EMPLOYER_EXISTS'));"
+                  "pm.test('error code EMPLOYER_EXISTS', () => pm.expect(pm.response.json().error.code).to.eql('EMPLOYER_EXISTS'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Create employer - invalid (400)",
+          "name": "Create employer - invalid (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -501,9 +501,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers",
+              "raw": "{{baseUrl}}/api/v1/employers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers"]
+              "path": ["api", "v1", "employers"]
             },
             "auth": {
               "type": "bearer",
@@ -531,8 +531,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 400', () => pm.response.to.have.status(400));",
-                  "pm.test('error code VALIDATION_ERROR', () => pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'));"
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
                 ]
               }
             }
@@ -544,9 +544,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/employers/me",
+              "raw": "{{baseUrl}}/api/v1/employers/me",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me"]
+              "path": ["api", "v1", "employers", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -575,9 +575,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/employers/me",
+              "raw": "{{baseUrl}}/api/v1/employers/me",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me"]
+              "path": ["api", "v1", "employers", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -597,7 +597,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 404', () => pm.response.to.have.status(404));",
-                  "pm.test('error code EMPLOYER_NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('EMPLOYER_NOT_FOUND'));"
+                  "pm.test('error code EMPLOYER_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('EMPLOYER_NOT_FOUND'));"
                 ]
               }
             }
@@ -614,9 +614,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers/me",
+              "raw": "{{baseUrl}}/api/v1/employers/me",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me"]
+              "path": ["api", "v1", "employers", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -664,9 +664,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/invites",
+              "raw": "{{baseUrl}}/api/v1/invites",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"]
+              "path": ["api", "v1", "invites"]
             },
             "auth": {
               "type": "bearer",
@@ -712,9 +712,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/invites",
+              "raw": "{{baseUrl}}/api/v1/invites",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"]
+              "path": ["api", "v1", "invites"]
             },
             "auth": {
               "type": "bearer",
@@ -743,7 +743,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 403', () => pm.response.to.have.status(403));",
-                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().code).to.eql('FORBIDDEN'));"
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
                 ]
               }
             }
@@ -755,9 +755,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}"]
             },
             "auth": {
               "type": "noauth"
@@ -779,9 +779,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/ZZZZZZZZZZ",
+              "raw": "{{baseUrl}}/api/v1/invites/ZZZZZZZZZZ",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "ZZZZZZZZZZ"]
+              "path": ["api", "v1", "invites", "ZZZZZZZZZZ"]
             },
             "auth": {
               "type": "noauth"
@@ -794,7 +794,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 404', () => pm.response.to.have.status(404));",
-                  "pm.test('error code INVITE_NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('INVITE_NOT_FOUND'));"
+                  "pm.test('error code INVITE_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('INVITE_NOT_FOUND'));"
                 ]
               }
             }
@@ -806,9 +806,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -828,7 +828,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 400', () => pm.response.to.have.status(400));",
-                  "pm.test('error code CANNOT_ACCEPT_OWN_INVITE', () => pm.expect(pm.response.json().code).to.eql('CANNOT_ACCEPT_OWN_INVITE'));"
+                  "pm.test('error code CANNOT_ACCEPT_OWN_INVITE', () => pm.expect(pm.response.json().error.code).to.eql('CANNOT_ACCEPT_OWN_INVITE'));"
                 ]
               }
             }
@@ -840,9 +840,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -871,9 +871,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -893,7 +893,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 409', () => pm.response.to.have.status(409));",
-                  "pm.test('error code INVITE_ALREADY_ACCEPTED', () => pm.expect(pm.response.json().code).to.eql('INVITE_ALREADY_ACCEPTED'));"
+                  "pm.test('error code INVITE_ALREADY_ACCEPTED', () => pm.expect(pm.response.json().error.code).to.eql('INVITE_ALREADY_ACCEPTED'));"
                 ]
               }
             }
@@ -910,9 +910,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/invites",
+              "raw": "{{baseUrl}}/api/v1/invites",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"]
+              "path": ["api", "v1", "invites"]
             },
             "auth": {
               "type": "bearer",
@@ -953,9 +953,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{familyInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{familyInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{familyInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{familyInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -984,13 +984,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites?type=WORKER",
+              "raw": "{{baseUrl}}/api/v1/invites?type=WORKER&limit=10",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"],
+              "path": ["api", "v1", "invites"],
               "query": [
                 {
                   "key": "type",
                   "value": "WORKER"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
                 }
               ]
             },
@@ -1021,9 +1025,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/employers/me/workers",
+              "raw": "{{baseUrl}}/api/v1/employers/me/workers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me", "workers"]
+              "path": ["api", "v1", "employers", "me", "workers"]
             },
             "auth": {
               "type": "bearer",
@@ -1052,9 +1056,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "{{baseUrl}}/api/v1/auth/me",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"]
+              "path": ["api", "v1", "auth", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -1088,9 +1092,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/gas/status",
+              "raw": "{{baseUrl}}/api/v1/gas/status",
               "host": ["{{baseUrl}}"],
-              "path": ["gas", "status"]
+              "path": ["api", "v1", "gas", "status"]
             },
             "auth": {
               "type": "noauth"
@@ -1112,9 +1116,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/gas/drip",
+              "raw": "{{baseUrl}}/api/v1/gas/drip",
               "host": ["{{baseUrl}}"],
-              "path": ["gas", "drip"]
+              "path": ["api", "v1", "gas", "drip"]
             },
             "auth": {
               "type": "bearer",
@@ -1135,9 +1139,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/gas/drip",
+              "raw": "{{baseUrl}}/api/v1/gas/drip",
               "host": ["{{baseUrl}}"],
-              "path": ["gas", "drip"]
+              "path": ["api", "v1", "gas", "drip"]
             },
             "auth": {
               "type": "bearer",
@@ -1162,9 +1166,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/fx/usd-idr",
+              "raw": "{{baseUrl}}/api/v1/fx/usd-idr",
               "host": ["{{baseUrl}}"],
-              "path": ["fx", "usd-idr"]
+              "path": ["api", "v1", "fx", "usd-idr"]
             },
             "auth": {
               "type": "noauth"
