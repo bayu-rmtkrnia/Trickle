@@ -47,14 +47,14 @@ Setiap resource pindah dari `src/routes/<resource>.ts` ke `src/modules/<resource
 | `schemas.ts`    | Skema Zod untuk input, DTO, dan definisi OpenAPI tiap endpoint. Validasi terjadi di lapisan ini  |
 | `controller.ts` | Urusan HTTP saja: ambil data dari `req`, panggil service, tentukan status code dan header        |
 | `service.ts`    | Logika bisnis dan aturan. Melempar `AppError`, tidak mengenal `req`/`reply`                      |
-| `repository.ts` | Satu-satunya lapisan yang memanggil Prisma                                                       |
+| `repository.ts` | Satu-satunya lapisan yang memanggil Prisma. Method-nya `async` agar tipe Prisma tidak bocor                                                       |
 
 Modul yang tidak menyentuh database tidak punya `repository.ts`. Klien infrastruktur (Prisma, chain, penyedia kurs) tetap di `src/lib/`. Karena service menerima repository lewat parameter, service bisa diuji tanpa database.
 
 | Langkah | Isi                                                                               | Status |
 | ------- | --------------------------------------------------------------------------------- | ------ |
 | 1       | Konvensi + tipe `Handler` (`lib/http.ts`), modul `health` dan `fx` sebagai contoh | ✅     |
-| 2       | Modul `auth`                                                                      | ⬜     |
+| 2       | Modul `auth`                                                                      | ✅     |
 | 3       | Modul `employers`                                                                 | ⬜     |
 | 4       | Modul `invites`                                                                   | ⬜     |
 | 5       | Modul `gas`                                                                       | ⬜     |
