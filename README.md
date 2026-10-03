@@ -67,9 +67,10 @@ Trickle/
 │       │   ├── app.ts              # Fastify app: plugins, Swagger, routes
 │       │   ├── env.ts              # Environment variable validation
 │       │   ├── types.ts            # Fastify / JWT type augmentation
-│       │   ├── lib/                # chain (viem), fx, prisma, errors, shared schemas
+│       │   ├── lib/                # chain (viem), fx, prisma, errors, pagination, shared schemas
 │       │   ├── plugins/            # auth (JWT), uniform error handling
-│       │   └── routes/             # health, auth, employers, invites, gas, fx
+│       │   └── modules/            # health, auth, employers, invites, gas, fx; each one has:
+│       │       └── <resource>/     #   routes → controller → service → repository, plus schemas (Zod)
 │       ├── test/                   # Vitest unit + integration tests
 │       ├── openapi.json            # Generated API spec (import into Postman / FE codegen)
 │       └── .env.example

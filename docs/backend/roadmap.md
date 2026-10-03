@@ -13,7 +13,7 @@ Aturan main:
 | #   | Fitur              | Branch                         | Isi                                                                                                                  | Target      | Status |
 | --- | ------------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------- | ------ |
 | 1   | Fondasi API        | `refactor/api-v1-foundation`   | Prefix `/api/v1`, format error seragam, 400 vs 422, helper pagination                                                | Kam 1 Okt   | ✅     |
-| 2   | Struktur berlapis  | `refactor/api-layered-modules` | Pecah modul ke `modules/<resource>/{routes,controller,service,repository}`. Perilaku tidak berubah, test tetap hijau | Kam 1–Jum 2 | 🟨     |
+| 2   | Struktur berlapis  | `refactor/api-layered-modules` | Pecah modul ke `modules/<resource>/{routes,controller,service,repository}`. Perilaku tidak berubah, test tetap hijau | Kam 1–Jum 2 | 🔍     |
 | 3   | Sesi & pengguna    | `feat/api-sessions`            | Tabel `Session` (token di-hash), `/sessions/challenges`, `/sessions`, `DELETE /sessions/current`, `GET/PATCH /users/me` | Jum 2       | ⬜     |
 | 4   | RBAC & kepemilikan | `feat/api-rbac`                | Middleware `requireRole` dan `requireOwnership`, peran diturunkan dari relasi DB, helper test 403                    | Jum 2       | ⬜     |
 | 5   | Companies CRUD     | `feat/api-companies`           | Rename Employer → Company, soft delete, test 403                                                                     | Sab 3       | ⬜     |
@@ -58,7 +58,7 @@ Modul yang tidak menyentuh database tidak punya `repository.ts`. Klien infrastru
 | 3       | Modul `employers`                                                                 | ✅     |
 | 4       | Modul `invites`                                                                   | ✅     |
 | 5       | Modul `gas`                                                                       | ✅     |
-| 6       | Hapus `src/routes/`, regenerasi OpenAPI/Postman, perbarui README                  | ⬜     |
+| 6       | Hapus `src/routes/`, regenerasi OpenAPI/Postman, perbarui README                  | ✅     |
 
 ## Ketergantungan yang belum terjawab
 
