@@ -55,7 +55,7 @@ Modul yang tidak menyentuh database tidak punya `repository.ts`. Klien infrastru
 | ------- | --------------------------------------------------------------------------------- | ------ |
 | 1       | Konvensi + tipe `Handler` (`lib/http.ts`), modul `health` dan `fx` sebagai contoh | ✅     |
 | 2       | Modul `auth`                                                                      | ✅     |
-| 3       | Modul `employers`                                                                 | ⬜     |
+| 3       | Modul `employers`                                                                 | ✅     |
 | 4       | Modul `invites`                                                                   | ⬜     |
 | 5       | Modul `gas`                                                                       | ⬜     |
 | 6       | Hapus `src/routes/`, regenerasi OpenAPI/Postman, perbarui README                  | ⬜     |
