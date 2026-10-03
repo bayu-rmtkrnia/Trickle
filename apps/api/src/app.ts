@@ -19,10 +19,10 @@ import authRoutes from './modules/auth/routes.js'
 import employerRoutes from './modules/employers/routes.js'
 import fxRoutes from './modules/fx/routes.js'
 import healthRoutes from './modules/health/routes.js'
+import inviteRoutes from './modules/invites/routes.js'
 import authPlugin from './plugins/auth.js'
 import { registerErrorHandling } from './plugins/errors.js'
 import gasRoutes from './routes/gas.js'
-import inviteRoutes from './routes/invites.js'
 import './types.js'
 
 /** Every resource endpoint lives under this prefix (PLAN §6.3). */
