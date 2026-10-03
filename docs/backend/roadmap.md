@@ -57,7 +57,7 @@ Modul yang tidak menyentuh database tidak punya `repository.ts`. Klien infrastru
 | 2       | Modul `auth`                                                                      | ✅     |
 | 3       | Modul `employers`                                                                 | ✅     |
 | 4       | Modul `invites`                                                                   | ✅     |
-| 5       | Modul `gas`                                                                       | ⬜     |
+| 5       | Modul `gas`                                                                       | ✅     |
 | 6       | Hapus `src/routes/`, regenerasi OpenAPI/Postman, perbarui README                  | ⬜     |
 
 ## Ketergantungan yang belum terjawab
