@@ -1,12 +1,16 @@
-import type { FastifyReply, FastifyRequest } from 'fastify'
+import type { FastifyReply } from 'fastify'
 import type { Env } from './env.js'
 import type { Chain } from './lib/chain.js'
 import type { FxService } from './lib/fx.js'
+import type { Privy } from './lib/privy.js'
 import type { Db } from './lib/prisma.js'
 
-export interface Session {
+/** Who is calling, set by `app.authenticate`. */
+export interface AuthUser {
+  /** User id */
   sub: string
   address: `0x${string}`
+  sessionId: string
 }
 
 declare module 'fastify' {
@@ -15,13 +19,12 @@ declare module 'fastify' {
     db: Db
     fx: FxService
     chain: Chain
+    privy: Privy
     authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
   }
-}
 
-declare module '@fastify/jwt' {
-  interface FastifyJWT {
-    payload: Session
-    user: Session
+  interface FastifyRequest {
+    /** Only set on routes guarded by `app.authenticate`. */
+    user: AuthUser
   }
 }
