@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from 'next'
 import { Anton, Plus_Jakarta_Sans } from 'next/font/google'
 import type { ReactNode } from 'react'
+import { SplashScreen } from '@/components/splash-screen'
+import { splashScript } from '@/lib/splash'
 import { TricklePrivyProvider } from '@/providers/privy-provider'
 import './globals.css'
 
@@ -25,8 +27,13 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="id" className={`${anton.variable} ${jakarta.variable}`}>
+    // suppressHydrationWarning: splashScript menambah data-splash ke <html> sebelum React hidrasi.
+    <html lang="id" className={`${anton.variable} ${jakarta.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: splashScript }} />
+      </head>
       <body className="min-h-dvh bg-bg font-sans text-ink antialiased">
+        <SplashScreen />
         <TricklePrivyProvider>{children}</TricklePrivyProvider>
       </body>
     </html>

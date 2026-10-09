@@ -152,6 +152,17 @@
   }
 }
 
+/* Splash cold start (DESIGN.md 12.2) */
+
+html[data-splash='off'] [data-splash-screen] {
+  display: none;
+}
+
+.splash-slow {
+  opacity: 0;
+  animation: fade-in 200ms 6s forwards;
+}
+
 @keyframes fade-in {
   from {
     opacity: 0;
