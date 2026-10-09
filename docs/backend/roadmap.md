@@ -14,7 +14,7 @@ Aturan main:
 | --- | ------------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------- | ------ |
 | 1   | Fondasi API        | `refactor/api-v1-foundation`   | Prefix `/api/v1`, format error seragam, 400 vs 422, helper pagination                                                | Kam 1 Okt   | ✅     |
 | 2   | Struktur berlapis  | `refactor/api-layered-modules` | Pecah modul ke `modules/<resource>/{routes,controller,service,repository}`. Perilaku tidak berubah, test tetap hijau | Kam 1–Jum 2 | 🔍     |
-| 3   | Sesi & pengguna    | `feat/api-sessions`            | Tabel `Session` (token di-hash), `/sessions/challenges`, `/sessions`, `DELETE /sessions/current`, `GET/PATCH /users/me` | Jum 2       | ⬜     |
+| 3   | Sesi & pengguna    | `feat/api-sessions`            | Tabel `Session` (token di-hash), `POST /sessions` (token Privy), `DELETE /sessions/current`, `GET/PATCH /users/me` | Jum 2       | 🔍     |
 | 4   | RBAC & kepemilikan | `feat/api-rbac`                | Middleware `requireRole` dan `requireOwnership`, peran diturunkan dari relasi DB, helper test 403                    | Jum 2       | ⬜     |
 | 5   | Companies CRUD     | `feat/api-companies`           | Rename Employer → Company, soft delete, test 403                                                                     | Sab 3       | ⬜     |
 | 6   | Workers CRUD       | `feat/api-workers`             | CRUD + 409 kalau stream masih aktif (cek on-chain lewat interface `StreamReader`)                                    | Sab 3       | ⬜     |
@@ -60,11 +60,24 @@ Modul yang tidak menyentuh database tidak punya `repository.ts`. Klien infrastru
 | 5       | Modul `gas`                                                                       | ✅     |
 | 6       | Hapus `src/routes/`, regenerasi OpenAPI/Postman, perbarui README                  | ✅     |
 
+## Rincian Fitur 3: Sesi & pengguna
+
+D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `/sessions/challenges` (SIWE). Endpoint `/auth/*` diganti.
+
+| Bagian | Isi |
+| ------ | --- |
+| `POST /sessions` | Body `{ accessToken }` dari `getAccessToken()` Privy. Token diverifikasi (ES256, `iss=privy.io`, `aud=PRIVY_APP_ID`) dengan `jose`, kuncinya dari `PRIVY_VERIFICATION_KEY` atau JWKS Privy. Login pertama mengambil alamat embedded wallet lewat API Privy (`PRIVY_APP_SECRET`); belum ada wallet → 409 `WALLET_NOT_READY` |
+| Token sesi | 32 byte acak (base64url). Database hanya menyimpan SHA-256-nya di tabel `Session`, berlaku `SESSION_TTL_DAYS` (default 7). `@fastify/jwt` dan `JWT_SECRET` dihapus |
+| `DELETE /sessions/current` | Mengisi `revokedAt` sesi yang dipakai request ini → 204. Sesi di perangkat lain tetap aktif |
+| `GET/PATCH /users/me` | Profil + peran (dulu `/auth/me`); PATCH mengubah `displayName` |
+| Data lama | `User.privyId` baru (nullable). User lama dengan alamat yang sama otomatis ditautkan saat login Privy pertama. Tabel `AuthChallenge` dihapus |
+| Postman | `pnpm session <role>` membuat token sesi langsung di database lokal (menggantikan `pnpm sign`) |
+
 ## Ketergantungan yang belum terjawab
 
 | Kebutuhan                       | Dipakai di  | Dari                    | Status |
 | ------------------------------- | ----------- | ----------------------- | ------ |
-| D1: Privy atau Mera             | Fitur 3, 10 | Koordinator + FE-A      | Open   |
+| D1: Privy atau Mera             | Fitur 3, 10 | Koordinator + FE-A      | Privy  |
 | Alamat kontrak + ABI            | Fitur 6, 12 | SC (`packages/shared`)  | Belum  |
 | D5: sandbox Xendit atau Flip    | Fitur 11    | BE                      | Open   |
 | D10: login tanpa kata sandi di K4 | Fitur 3, 4  | Koordinator (pengampu)  | Open   |

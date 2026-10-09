@@ -59,17 +59,17 @@ Trickle/
 │       ├── postman/
 │       │   └── Trickle.postman_collection.json
 │       ├── scripts/
-│       │   ├── sign.ts             # Dev helper: sign a login challenge for Postman
+│       │   ├── dev-session.ts      # Dev helper: mint a session token for Postman
 │       │   ├── export-openapi.ts   # Writes openapi.json
 │       │   └── gen-postman.ts      # Writes the Postman collection
 │       ├── src/
 │       │   ├── index.ts            # Server entry point
 │       │   ├── app.ts              # Fastify app: plugins, Swagger, routes
 │       │   ├── env.ts              # Environment variable validation
-│       │   ├── types.ts            # Fastify / JWT type augmentation
-│       │   ├── lib/                # chain (viem), fx, prisma, errors, pagination, shared schemas
-│       │   ├── plugins/            # auth (JWT), uniform error handling
-│       │   └── modules/            # health, auth, employers, invites, gas, fx; each one has:
+│       │   ├── types.ts            # Fastify type augmentation
+│       │   ├── lib/                # chain (viem), fx, privy, prisma, errors, pagination, tokens, shared schemas
+│       │   ├── plugins/            # auth (session tokens), uniform error handling
+│       │   └── modules/            # health, sessions, users, employers, invites, gas, fx; each one has:
 │       │       └── <resource>/     #   routes → controller → service → repository, plus schemas (Zod)
 │       ├── test/                   # Vitest unit + integration tests
 │       ├── openapi.json            # Generated API spec (import into Postman / FE codegen)
@@ -84,14 +84,15 @@ Trickle/
 
 Interactive docs: `http://localhost:4000/docs`. All errors use `{ "error": { "code": "...", "message": "...", "details": ... } }`. Schema validation failures return 422 with one `details` entry per invalid field; unreadable bodies (e.g. broken JSON) return 400.
 
-Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1/auth/me`. Only `/health` and `/docs` live at the root. List endpoints (marked *paged*) take `?limit=` (1–100, default 20) and `?cursor=`, and return `{ "data": [...], "nextCursor": "..." }`; pass `nextCursor` back as `cursor` until it is `null`.
+Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1/users/me`. Only `/health` and `/docs` live at the root. List endpoints (marked *paged*) take `?limit=` (1–100, default 20) and `?cursor=`, and return `{ "data": [...], "nextCursor": "..." }`; pass `nextCursor` back as `cursor` until it is `null`.
 
 | Method | Endpoint | Auth | Description |
 | ------ | -------- | ---- | ----------- |
 | GET | `/health` (root) | – | Service + database status |
-| POST | `/auth/challenge` | – | Sign-in message (EIP-4361) with a single-use nonce |
-| POST | `/auth/verify` | – | Verify the signed message → session token |
-| GET | `/auth/me` | ✓ | Current user and roles (employer / worker / family) |
+| POST | `/sessions` | – | Exchange a Privy access token for a session token |
+| DELETE | `/sessions/current` | ✓ | Sign out (revoke this session token) |
+| GET | `/users/me` | ✓ | Current user and roles (employer / worker / family) |
+| PATCH | `/users/me` | ✓ | Update my display name |
 | POST | `/employers` | ✓ | Create company profile |
 | GET, PATCH | `/employers/me` | ✓ | Read / update company profile |
 | GET | `/employers/me/workers` | ✓ | Workers who joined via invite (paged) |
@@ -112,7 +113,7 @@ Requirements: Node.js 22+, pnpm 10, Docker.
 ```bash
 pnpm install
 pnpm db:up                                   # Postgres on localhost:5433
-cp apps/api/.env.example apps/api/.env       # then set JWT_SECRET
+cp apps/api/.env.example apps/api/.env       # then set PRIVY_APP_ID and PRIVY_APP_SECRET
 pnpm db:migrate
 pnpm dev                                     # API on http://localhost:4000
 ```
@@ -127,15 +128,16 @@ TEST_DATABASE_URL=postgresql://trickle:trickle@localhost:5433/trickle_test pnpm 
 ### Testing with Postman
 
 1. Import `apps/api/postman/Trickle.postman_collection.json` and set `baseUrl`.
-2. Postman cannot sign messages, so get a login body from the CLI:
+2. Postman cannot log in to Privy, so mint session tokens from the CLI (needs the local database):
    ```bash
    cd apps/api
-   pnpm sign employer      # also: worker, family
+   pnpm session employer   # also: worker, family
    ```
-   Paste the printed JSON into **Verify (employer)** etc. The token is saved automatically.
-3. Run the folders top to bottom. They follow the flow employer → worker invite → family invite.
+   Paste each printed token into the `employerToken`, `workerToken` and `familyToken` collection variables.
+   To try the real sign-in, put an access token from the web app (`getAccessToken()`) into `privyAccessToken`.
+3. Run the folders top to bottom. They follow the flow employer → worker invite → family invite, and end with sign-out.
 
-`pnpm sign <name>` uses a throwaway key derived from the name. Never use it for real funds.
+`pnpm session <name>` always maps a name to the same throwaway address and refuses to run with `NODE_ENV=production`.
 
 ## Status
 
