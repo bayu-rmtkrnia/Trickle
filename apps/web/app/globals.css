@@ -1,6 +1,162 @@
 @import 'tailwindcss';
 
-body {
-  margin: 0;
-  font-family: Arial, Helvetica, sans-serif;
+/* Token warna: DESIGN.md 2.3 */
+
+:root {
+  --bg: #f5f3ff;
+  --surface: #ffffff;
+  --ink: #1a1530;
+  --muted: #5e5877;
+  --brand-fill: #7058f0;
+  --brand-text: #5b3fd9;
+  --on-brand: #ffffff;
+  --success: #0e6f4e;
+  --warn-fill: #f5a524;
+  --warn-ink: #1a1530;
+  --danger: #c42b2b;
+  --slot: #1e1650;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    /* sama dengan blok dark di bawah */
+    --bg: #0e0b1a;
+    --surface: #171329;
+    --ink: #f4f2ff;
+    --muted: #a9a3c4;
+    --brand-fill: #836ef9;
+    --brand-text: #836ef9;
+    --on-brand: #0e0b1a;
+    --success: #34d399;
+    --warn-ink: #0e0b1a;
+    --danger: #ff6b6b;
+    --slot: #2a1f7a;
+  }
+}
+:root[data-theme='dark'] {
+  --bg: #0e0b1a;
+  --surface: #171329;
+  --ink: #f4f2ff;
+  --muted: #a9a3c4;
+  --brand-fill: #836ef9;
+  --brand-text: #836ef9;
+  --on-brand: #0e0b1a;
+  --success: #34d399;
+  --warn-ink: #0e0b1a;
+  --danger: #ff6b6b;
+  --slot: #2a1f7a;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-brand-fill: var(--brand-fill);
+  --color-brand-text: var(--brand-text);
+  --color-on-brand: var(--on-brand);
+  --color-success: var(--success);
+  --color-warn-fill: var(--warn-fill);
+  --color-warn-ink: var(--warn-ink);
+  --color-danger: var(--danger);
+  --color-slot: var(--slot);
+}
+
+/* Font (bagian 3), dimuat lewat next/font di app/layout.tsx */
+
+@theme inline {
+  --font-sans: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-anton), Impact, sans-serif;
+}
+
+/* Skala tipografi (3.1) dan gerak (4) */
+
+@theme {
+  --text-num-hero: 2.5rem;
+  --text-num-hero--line-height: 2.75rem;
+  --text-section: 1.25rem;
+  --text-section--line-height: 1.5rem;
+  --text-section--letter-spacing: 0.02em;
+  --text-title: 1.125rem;
+  --text-title--line-height: 1.5rem;
+  --text-title--font-weight: 600;
+  --text-label: 0.875rem;
+  --text-label--line-height: 1.25rem;
+  --text-label--font-weight: 500;
+
+  --ease-trickle: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  --animate-shimmer: shimmer 1.4s linear infinite;
+  --animate-sheet-in: sheet-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+
+  @keyframes shimmer {
+    from {
+      background-position: 200% 0;
+    }
+    to {
+      background-position: -200% 0;
+    }
+  }
+
+  @keyframes sheet-in {
+    from {
+      opacity: 0;
+      transform: translateY(24px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+/* Dasar: rasa app (11.4) dan a11y (10) */
+
+@layer base {
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+  }
+
+  a,
+  button,
+  input,
+  select,
+  textarea,
+  label,
+  summary {
+    touch-action: manipulation;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--brand-text);
+    outline-offset: 2px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 150ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 150ms !important;
+  }
+
+  .animate-shimmer {
+    animation: none !important;
+  }
+
+  .animate-sheet-in {
+    animation-name: fade-in !important;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
