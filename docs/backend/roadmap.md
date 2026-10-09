@@ -12,8 +12,8 @@ Aturan main:
 
 | #   | Fitur              | Branch                         | Isi                                                                                                                  | Target      | Status |
 | --- | ------------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------- | ------ |
-| 1   | Fondasi API        | `refactor/api-v1-foundation`   | Prefix `/api/v1`, format error seragam, 400 vs 422, helper pagination                                                | Kam 1 Okt   | 🔍     |
-| 2   | Struktur berlapis  | `refactor/api-layered-modules` | Pecah modul ke `modules/<resource>/{routes,controller,service,repository}`. Perilaku tidak berubah, test tetap hijau | Kam 1–Jum 2 | ⬜     |
+| 1   | Fondasi API        | `refactor/api-v1-foundation`   | Prefix `/api/v1`, format error seragam, 400 vs 422, helper pagination                                                | Kam 1 Okt   | ✅     |
+| 2   | Struktur berlapis  | `refactor/api-layered-modules` | Pecah modul ke `modules/<resource>/{routes,controller,service,repository}`. Perilaku tidak berubah, test tetap hijau | Kam 1–Jum 2 | 🔍     |
 | 3   | Sesi & pengguna    | `feat/api-sessions`            | Tabel `Session` (token di-hash), `/sessions/challenges`, `/sessions`, `DELETE /sessions/current`, `GET/PATCH /users/me` | Jum 2       | ⬜     |
 | 4   | RBAC & kepemilikan | `feat/api-rbac`                | Middleware `requireRole` dan `requireOwnership`, peran diturunkan dari relasi DB, helper test 403                    | Jum 2       | ⬜     |
 | 5   | Companies CRUD     | `feat/api-companies`           | Rename Employer → Company, soft delete, test 403                                                                     | Sab 3       | ⬜     |
@@ -36,6 +36,29 @@ Kalau waktu mepet, nomor 12 tetap Must dan tidak boleh dipotong (PLAN §10.2). Y
 | 2       | Semua endpoint pindah ke prefix `/api/v1`; `/health` dan `/docs` tetap di root            | ✅     |
 | 3       | Helper pagination `?limit=&cursor=` dan respons `{ data, nextCursor }` untuk endpoint list | ✅     |
 | 4       | Dokumentasi: OpenAPI, Postman, README                                                     | ✅     |
+
+## Rincian Fitur 2: Struktur berlapis
+
+Setiap resource pindah dari `src/routes/<resource>.ts` ke `src/modules/<resource>/`:
+
+| Berkas          | Tanggung jawab                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------ |
+| `routes.ts`     | Mendaftarkan endpoint dan middleware (`onRequest`), lalu merakit repository → service → controller |
+| `schemas.ts`    | Skema Zod untuk input, DTO, dan definisi OpenAPI tiap endpoint. Validasi terjadi di lapisan ini  |
+| `controller.ts` | Urusan HTTP saja: ambil data dari `req`, panggil service, tentukan status code dan header        |
+| `service.ts`    | Logika bisnis dan aturan. Melempar `AppError`, tidak mengenal `req`/`reply`                      |
+| `repository.ts` | Satu-satunya lapisan yang memanggil Prisma. Method-nya `async` agar tipe Prisma tidak bocor                                                       |
+
+Modul yang tidak menyentuh database tidak punya `repository.ts`. Klien infrastruktur (Prisma, chain, penyedia kurs) tetap di `src/lib/`. Karena service menerima repository lewat parameter, service bisa diuji tanpa database.
+
+| Langkah | Isi                                                                               | Status |
+| ------- | --------------------------------------------------------------------------------- | ------ |
+| 1       | Konvensi + tipe `Handler` (`lib/http.ts`), modul `health` dan `fx` sebagai contoh | ✅     |
+| 2       | Modul `auth`                                                                      | ✅     |
+| 3       | Modul `employers`                                                                 | ✅     |
+| 4       | Modul `invites`                                                                   | ✅     |
+| 5       | Modul `gas`                                                                       | ✅     |
+| 6       | Hapus `src/routes/`, regenerasi OpenAPI/Postman, perbarui README                  | ✅     |
 
 ## Ketergantungan yang belum terjawab
 
