@@ -3,6 +3,8 @@ import { privateKeyToAccount } from 'viem/accounts'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildApp } from '../src/app.js'
 import { loadEnv } from '../src/env.js'
+import { unauthorized } from '../src/lib/errors.js'
+import type { Privy } from '../src/lib/privy.js'
 import type { Chain } from '../src/lib/chain.js'
 import { createPrisma } from '../src/lib/prisma.js'
 
@@ -12,7 +14,6 @@ describe.skipIf(!url)('api (integration)', () => {
   const env = loadEnv({
     NODE_ENV: 'test',
     DATABASE_URL: url,
-    JWT_SECRET: 'test-secret-test-secret-test-secret',
     GAS_DRIP_DAILY_LIMIT: '3',
   })
   const db = createPrisma(env.DATABASE_URL)
@@ -27,35 +28,37 @@ describe.skipIf(!url)('api (integration)', () => {
 
   const account = (name: string) => privateKeyToAccount(keccak256(toHex(`test:${name}`)))
 
+  /** Fake Privy: `privy:<name>` is a valid access token whose embedded wallet is account(name). */
+  const privy: Privy = {
+    async verifyAccessToken(token) {
+      if (!token.startsWith('privy:')) throw unauthorized('Privy access token is invalid')
+      return { privyId: `did:privy:${token.slice(6)}` }
+    },
+    async getWalletAddress(privyId) {
+      return account(privyId.replace('did:privy:', '')).address.toLowerCase() as Address
+    },
+  }
+
   async function signIn(name: string) {
-    const acct = account(name)
-    const challenge = await app.inject({
+    const res = await app.inject({
       method: 'POST',
-      url: '/api/v1/auth/challenge',
-      payload: { address: acct.address },
+      url: '/api/v1/sessions',
+      payload: { accessToken: `privy:${name}` },
     })
-    expect(challenge.statusCode).toBe(201)
-    const { message } = challenge.json()
-    const signature = await acct.signMessage({ message })
-    const verify = await app.inject({
-      method: 'POST',
-      url: '/api/v1/auth/verify',
-      payload: { message, signature },
-    })
-    expect(verify.statusCode).toBe(200)
-    return { token: verify.json().token as string, address: acct.address }
+    expect(res.statusCode).toBe(201)
+    return { token: res.json().token as string, address: account(name).address }
   }
 
   const as = (token: string) => ({ authorization: `Bearer ${token}` })
 
   beforeAll(async () => {
-    app = await buildApp({ env, db, chain, fx, rateLimit: false })
+    app = await buildApp({ env, db, chain, fx, privy, rateLimit: false })
   })
 
   beforeEach(async () => {
     sendNative.mockReset()
     await db.$executeRawUnsafe(
-      'TRUNCATE "Payout","GasDrip","Invite","FamilyLink","EmployerWorker","Employer","AuthChallenge","User" CASCADE',
+      'TRUNCATE "Payout","GasDrip","Invite","FamilyLink","EmployerWorker","Employer","Session","User" CASCADE',
     )
   })
 
@@ -70,69 +73,90 @@ describe.skipIf(!url)('api (integration)', () => {
     expect(res.json()).toMatchObject({ status: 'ok', db: 'ok' })
   })
 
-  describe('auth', () => {
-    it('signs in with a signed challenge and rejects replays', async () => {
-      const acct = account('alice')
-      const { message } = (
-        await app.inject({
-          method: 'POST',
-          url: '/api/v1/auth/challenge',
-          payload: { address: acct.address },
-        })
-      ).json()
-      const signature = await acct.signMessage({ message })
-
+  describe('sessions and users', () => {
+    it('signs in with a Privy token and signs out', async () => {
       const first = await app.inject({
         method: 'POST',
-        url: '/api/v1/auth/verify',
-        payload: { message, signature },
+        url: '/api/v1/sessions',
+        payload: { accessToken: 'privy:alice' },
       })
-      expect(first.statusCode).toBe(200)
-      expect(first.json().user.address).toBe(acct.address.toLowerCase())
+      expect(first.statusCode).toBe(201)
+      const { token, user } = first.json()
+      expect(user.address).toBe(account('alice').address.toLowerCase())
 
-      const replay = await app.inject({
-        method: 'POST',
-        url: '/api/v1/auth/verify',
-        payload: { message, signature },
+      // Signing in again reuses the account but issues a separate session.
+      const again = await signIn('alice')
+      expect(again.token).not.toBe(token)
+
+      const stored = await db.session.findMany({ where: { userId: user.id } })
+      expect(stored).toHaveLength(2)
+      expect(stored.map((s) => s.tokenHash)).not.toContain(token)
+
+      const me = await app.inject({ method: 'GET', url: '/api/v1/users/me', headers: as(token) })
+      expect(me.statusCode).toBe(200)
+      expect(me.json()).toMatchObject({ id: user.id, roles: { employer: false } })
+
+      const out = await app.inject({
+        method: 'DELETE',
+        url: '/api/v1/sessions/current',
+        headers: as(token),
       })
-      expect(replay.statusCode).toBe(401)
+      expect(out.statusCode).toBe(204)
+      expect(out.body).toBe('')
+
+      const after = await app.inject({ method: 'GET', url: '/api/v1/users/me', headers: as(token) })
+      expect(after.statusCode).toBe(401)
+      // Only the session that signed out is revoked.
+      const other = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/me',
+        headers: as(again.token),
+      })
+      expect(other.statusCode).toBe(200)
     })
 
-    it('rejects a signature from a different key', async () => {
-      const acct = account('alice')
-      const { message } = (
-        await app.inject({
-          method: 'POST',
-          url: '/api/v1/auth/challenge',
-          payload: { address: acct.address },
-        })
-      ).json()
-      const signature = await account('mallory').signMessage({ message })
+    it('rejects an invalid Privy token', async () => {
       const res = await app.inject({
         method: 'POST',
-        url: '/api/v1/auth/verify',
-        payload: { message, signature },
+        url: '/api/v1/sessions',
+        payload: { accessToken: 'forged' },
       })
       expect(res.statusCode).toBe(401)
       expect(res.json().error.code).toBe('UNAUTHORIZED')
     })
 
-    it('requires a session for protected routes', async () => {
-      const res = await app.inject({ method: 'GET', url: '/api/v1/auth/me' })
-      expect(res.statusCode).toBe(401)
-      expect(res.json()).toEqual({
-        error: { code: 'UNAUTHORIZED', message: expect.any(String) },
-      })
+    it('rejects expired and unknown session tokens', async () => {
+      const { token } = await signIn('alice')
+      await db.session.updateMany({ data: { expiresAt: new Date(Date.now() - 1000) } })
+
+      for (const t of [token, 'not-a-session']) {
+        const res = await app.inject({ method: 'GET', url: '/api/v1/users/me', headers: as(t) })
+        expect(res.statusCode).toBe(401)
+        expect(res.json()).toEqual({
+          error: { code: 'UNAUTHORIZED', message: expect.any(String) },
+        })
+      }
     })
 
-    it('returns validation errors in the uniform format', async () => {
+    it('updates my display name', async () => {
+      const { token } = await signIn('alice')
       const res = await app.inject({
-        method: 'POST',
-        url: '/api/v1/auth/challenge',
-        payload: { address: 'nope' },
+        method: 'PATCH',
+        url: '/api/v1/users/me',
+        headers: as(token),
+        payload: { displayName: '  Siti  ' },
       })
-      expect(res.statusCode).toBe(422)
-      expect(res.json().error.code).toBe('VALIDATION_ERROR')
+      expect(res.statusCode).toBe(200)
+      expect(res.json().displayName).toBe('Siti')
+
+      const invalid = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/users/me',
+        headers: as(token),
+        payload: { displayName: '' },
+      })
+      expect(invalid.statusCode).toBe(422)
+      expect(invalid.json().error.code).toBe('VALIDATION_ERROR')
     })
   })
 
@@ -233,7 +257,7 @@ describe.skipIf(!url)('api (integration)', () => {
       })
       const me = await app.inject({
         method: 'GET',
-        url: '/api/v1/auth/me',
+        url: '/api/v1/users/me',
         headers: as(family.token),
       })
       expect(me.json().roles).toEqual({ employer: false, worker: false, family: true })

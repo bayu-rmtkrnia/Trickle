@@ -1,7 +1,8 @@
 /**
  * Generates postman/Trickle.postman_collection.json.
  * Folders follow the golden path, so "Run collection" top to bottom works
- * once the three Verify requests have bodies from `pnpm sign <role>`.
+ * once {{employerToken}}, {{workerToken}} and {{familyToken}} are filled with
+ * `pnpm session <role>` (Postman cannot log in to Privy).
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 
@@ -62,13 +63,6 @@ function req(name: string, method: string, path: string, opts: Opts = {}) {
   }
 }
 
-const verify = (who: string) =>
-  req(`Verify (${who})`, 'POST', '/api/v1/auth/verify', {
-    body: { message: `paste from: pnpm sign ${who}`, signature: '0x...' },
-    description: `Postman cannot sign messages. In apps/api run \`pnpm sign ${who}\` and paste the printed JSON as the body. The token is saved to {{${who}Token}}.`,
-    tests: [status(200), save(`${who}Token`, 'token')],
-  })
-
 const collection = {
   info: {
     name: 'Trickle API',
@@ -83,6 +77,7 @@ const collection = {
     { key: 'familyToken', value: '' },
     { key: 'workerInviteCode', value: '' },
     { key: 'familyInviteCode', value: '' },
+    { key: 'privyAccessToken', value: '' },
   ],
   item: [
     {
@@ -95,30 +90,39 @@ const collection = {
       ],
     },
     {
-      name: '2. Auth',
+      name: '2. Sessions & users',
       item: [
-        req('Challenge', 'POST', '/api/v1/auth/challenge', {
-          body: { address: '0x66818500d7c295d61D613C55269089e0C3D73fCf' },
+        req('Sign in with Privy', 'POST', '/api/v1/sessions', {
+          body: { accessToken: '{{privyAccessToken}}' },
+          description:
+            'Set {{privyAccessToken}} to the value of `await getAccessToken()` in the web app (or the `privy:token` entry in its localStorage). For the role tokens below, run `pnpm session employer|worker|family` in apps/api instead.',
           tests: [status(201)],
         }),
-        req('Challenge - invalid address (422)', 'POST', '/api/v1/auth/challenge', {
-          body: { address: '0x123' },
+        req('Sign in - invalid Privy token (401)', 'POST', '/api/v1/sessions', {
+          body: { accessToken: 'not-a-privy-token' },
+          description: 'Answers 503 PRIVY_NOT_CONFIGURED when the server has no PRIVY_APP_ID.',
+          tests: [status(401), errCode('UNAUTHORIZED')],
+        }),
+        req('Sign in - missing token (422)', 'POST', '/api/v1/sessions', {
+          body: {},
           tests: [status(422), errCode('VALIDATION_ERROR')],
         }),
-        verify('employer'),
-        verify('worker'),
-        verify('family'),
-        req('Verify - replayed signature (401)', 'POST', '/api/v1/auth/verify', {
-          body: { message: 'paste a body that was already used', signature: '0x...' },
-          description: 'Send the same body as an earlier successful verify. Nonces are single-use.',
-          tests: [status(401)],
-        }),
-        req('Me', 'GET', '/api/v1/auth/me', {
+        req('Me', 'GET', '/api/v1/users/me', {
           auth: bearer('employerToken'),
           tests: [status(200)],
         }),
-        req('Me - no token (401)', 'GET', '/api/v1/auth/me', {
+        req('Me - no token (401)', 'GET', '/api/v1/users/me', {
           tests: [status(401), errCode('UNAUTHORIZED')],
+        }),
+        req('Update me', 'PATCH', '/api/v1/users/me', {
+          auth: bearer('workerToken'),
+          body: { displayName: 'Siti Rahma' },
+          tests: [status(200)],
+        }),
+        req('Update me - empty name (422)', 'PATCH', '/api/v1/users/me', {
+          auth: bearer('workerToken'),
+          body: { displayName: '' },
+          tests: [status(422), errCode('VALIDATION_ERROR')],
         }),
       ],
     },
@@ -208,7 +212,7 @@ const collection = {
           auth: bearer('employerToken'),
           tests: [status(200)],
         }),
-        req('Me (worker roles)', 'GET', '/api/v1/auth/me', {
+        req('Me (worker roles)', 'GET', '/api/v1/users/me', {
           auth: bearer('workerToken'),
           tests: [status(200)],
         }),
@@ -231,6 +235,19 @@ const collection = {
     {
       name: '6. FX',
       item: [req('USD to IDR', 'GET', '/api/v1/fx/usd-idr', { tests: [status(200)] })],
+    },
+    {
+      name: '7. Sign out',
+      item: [
+        req('Sign out', 'DELETE', '/api/v1/sessions/current', {
+          auth: bearer('familyToken'),
+          tests: [status(204)],
+        }),
+        req('Me after sign out (401)', 'GET', '/api/v1/users/me', {
+          auth: bearer('familyToken'),
+          tests: [status(401), errCode('UNAUTHORIZED')],
+        }),
+      ],
     },
   ],
 }

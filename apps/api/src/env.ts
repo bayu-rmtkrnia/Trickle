@@ -4,6 +4,13 @@ const hexKey = z
   .string()
   .regex(/^0x[0-9a-fA-F]{64}$/, 'must be a 0x-prefixed 32-byte hex private key')
 
+/** Empty strings from .env files count as unset. */
+const optionalString = z
+  .string()
+  .trim()
+  .optional()
+  .transform((s) => s || undefined)
+
 const EnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().default(4000),
@@ -20,11 +27,15 @@ const EnvSchema = z.object({
 
   DATABASE_URL: z.string().url(),
 
-  JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
-  JWT_EXPIRES_IN: z.string().default('7d'),
-  AUTH_DOMAIN: z.string().default('localhost:3000'),
   WEB_URL: z.string().url().default('http://localhost:3000'),
-  AUTH_CHALLENGE_TTL_SECONDS: z.coerce.number().int().positive().default(300),
+  SESSION_TTL_DAYS: z.coerce.number().int().positive().default(7),
+
+  // Sign-in goes through Privy. Without PRIVY_APP_ID, POST /sessions answers 503.
+  PRIVY_APP_ID: optionalString,
+  /** Server-side secret, used to look up a user's embedded wallet. Never ship it to the web app. */
+  PRIVY_APP_SECRET: optionalString,
+  /** PEM verification key from the Privy dashboard. When unset, keys come from Privy's JWKS URL. */
+  PRIVY_VERIFICATION_KEY: optionalString,
 
   CHAIN_ID: z.coerce.number().int().default(10143),
   RPC_URL: z.string().url().default('https://testnet-rpc.monad.xyz'),

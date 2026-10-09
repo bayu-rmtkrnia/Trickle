@@ -28,6 +28,10 @@
     {
       "key": "familyInviteCode",
       "value": ""
+    },
+    {
+      "key": "privyAccessToken",
+      "value": ""
     }
   ],
   "item": [
@@ -88,10 +92,10 @@
       ]
     },
     {
-      "name": "2. Auth",
+      "name": "2. Sessions & users",
       "item": [
         {
-          "name": "Challenge",
+          "name": "Sign in with Privy",
           "request": {
             "method": "POST",
             "header": [
@@ -101,22 +105,23 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/challenge",
+              "raw": "{{baseUrl}}/api/v1/sessions",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "auth", "challenge"]
+              "path": ["api", "v1", "sessions"]
             },
             "auth": {
               "type": "noauth"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"address\": \"0x66818500d7c295d61D613C55269089e0C3D73fCf\"\n}",
+              "raw": "{\n  \"accessToken\": \"{{privyAccessToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "Set {{privyAccessToken}} to the value of `await getAccessToken()` in the web app (or the `privy:token` entry in its localStorage). For the role tokens below, run `pnpm session employer|worker|family` in apps/api instead."
           },
           "event": [
             {
@@ -129,7 +134,7 @@
           ]
         },
         {
-          "name": "Challenge - invalid address (422)",
+          "name": "Sign in - invalid Privy token (401)",
           "request": {
             "method": "POST",
             "header": [
@@ -139,16 +144,58 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/challenge",
+              "raw": "{{baseUrl}}/api/v1/sessions",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "auth", "challenge"]
+              "path": ["api", "v1", "sessions"]
             },
             "auth": {
               "type": "noauth"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"address\": \"0x123\"\n}",
+              "raw": "{\n  \"accessToken\": \"not-a-privy-token\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Answers 503 PRIVY_NOT_CONFIGURED when the server has no PRIVY_APP_ID."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in - missing token (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "sessions"]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -170,179 +217,14 @@
           ]
         },
         {
-          "name": "Verify (employer)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/verify",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "auth", "verify"]
-            },
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"message\": \"paste from: pnpm sign employer\",\n  \"signature\": \"0x...\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Postman cannot sign messages. In apps/api run `pnpm sign employer` and paste the printed JSON as the body. The token is saved to {{employerToken}}."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.collectionVariables.set('employerToken', pm.response.json().token);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Verify (worker)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/verify",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "auth", "verify"]
-            },
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"message\": \"paste from: pnpm sign worker\",\n  \"signature\": \"0x...\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Postman cannot sign messages. In apps/api run `pnpm sign worker` and paste the printed JSON as the body. The token is saved to {{workerToken}}."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.collectionVariables.set('workerToken', pm.response.json().token);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Verify (family)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/verify",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "auth", "verify"]
-            },
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"message\": \"paste from: pnpm sign family\",\n  \"signature\": \"0x...\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Postman cannot sign messages. In apps/api run `pnpm sign family` and paste the printed JSON as the body. The token is saved to {{familyToken}}."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.collectionVariables.set('familyToken', pm.response.json().token);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Verify - replayed signature (401)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/verify",
-              "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "auth", "verify"]
-            },
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"message\": \"paste a body that was already used\",\n  \"signature\": \"0x...\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Send the same body as an earlier successful verify. Nonces are single-use."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": ["pm.test('status 401', () => pm.response.to.have.status(401));"]
-              }
-            }
-          ]
-        },
-        {
           "name": "Me",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "raw": "{{baseUrl}}/api/v1/users/me",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "auth", "me"]
+              "path": ["api", "v1", "users", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -371,9 +253,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "raw": "{{baseUrl}}/api/v1/users/me",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "auth", "me"]
+              "path": ["api", "v1", "users", "me"]
             },
             "auth": {
               "type": "noauth"
@@ -387,6 +269,99 @@
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
                   "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update me",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Siti Rahma\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update me - empty name (422)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
                 ]
               }
             }
@@ -1056,9 +1031,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/auth/me",
+              "raw": "{{baseUrl}}/api/v1/users/me",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "auth", "me"]
+              "path": ["api", "v1", "users", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -1180,6 +1155,76 @@
               "script": {
                 "type": "text/javascript",
                 "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Sign out",
+      "item": [
+        {
+          "name": "Sign out",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/current",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "sessions", "current"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me after sign out (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));"
+                ]
               }
             }
           ]

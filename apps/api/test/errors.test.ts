@@ -7,7 +7,6 @@ describe('error responses', () => {
   const env = loadEnv({
     NODE_ENV: 'test',
     DATABASE_URL: 'postgresql://unused:unused@localhost:5432/unused',
-    JWT_SECRET: 'test-secret-test-secret-test-secret',
   })
   let app: Awaited<ReturnType<typeof buildApp>>
 
@@ -22,15 +21,15 @@ describe('error responses', () => {
   it('returns 422 with field details when the body fails validation', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/v1/auth/challenge',
-      payload: { address: 'nope' },
+      url: '/api/v1/sessions',
+      payload: { accessToken: 42 },
     })
     expect(res.statusCode).toBe(422)
     expect(res.json()).toEqual({
       error: {
         code: 'VALIDATION_ERROR',
-        message: expect.stringContaining('body.address'),
-        details: [{ field: 'body.address', message: expect.any(String) }],
+        message: expect.stringContaining('body.accessToken'),
+        details: [{ field: 'body.accessToken', message: expect.any(String) }],
       },
     })
   })
@@ -38,16 +37,16 @@ describe('error responses', () => {
   it('returns 400 when the body is not valid JSON', async () => {
     const res = await app.inject({
       method: 'POST',
-      url: '/api/v1/auth/challenge',
+      url: '/api/v1/sessions',
       headers: { 'content-type': 'application/json' },
-      payload: '{"address":',
+      payload: '{"accessToken":',
     })
     expect(res.statusCode).toBe(400)
     expect(res.json().error.code).toBe('MALFORMED_REQUEST')
   })
 
   it('returns 401 in the envelope when the session is missing', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/auth/me' })
+    const res = await app.inject({ method: 'GET', url: '/api/v1/users/me' })
     expect(res.statusCode).toBe(401)
     expect(res.json()).toEqual({
       error: { code: 'UNAUTHORIZED', message: expect.any(String) },
@@ -63,7 +62,7 @@ describe('error responses', () => {
   })
 
   it('serves resource routes only under /api/v1', async () => {
-    const res = await app.inject({ method: 'GET', url: '/auth/me' })
+    const res = await app.inject({ method: 'GET', url: '/users/me' })
     expect(res.statusCode).toBe(404)
     expect(res.json().error.code).toBe('ROUTE_NOT_FOUND')
   })

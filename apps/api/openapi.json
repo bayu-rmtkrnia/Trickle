@@ -3,14 +3,13 @@
   "info": {
     "title": "Trickle API",
     "version": "1.1.0",
-    "description": "Metadata API for Trickle: auth, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
+    "description": "Metadata API for Trickle: sessions, users, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\nSign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
   },
   "components": {
     "securitySchemes": {
       "bearerAuth": {
         "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
+        "scheme": "bearer"
       }
     },
     "schemas": {
@@ -34,25 +33,6 @@
           }
         },
         "required": ["error"]
-      },
-      "UserInput": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "address": {
-            "type": "string"
-          },
-          "displayName": {
-            "nullable": true,
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string"
-          }
-        },
-        "required": ["id", "address", "displayName", "createdAt"]
       },
       "EmployerInput": {
         "type": "object",
@@ -204,6 +184,59 @@
           "createdAt"
         ]
       },
+      "UserInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "address", "displayName", "createdAt"]
+      },
+      "MeInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "object",
+            "properties": {
+              "employer": {
+                "type": "boolean"
+              },
+              "worker": {
+                "type": "boolean"
+              },
+              "family": {
+                "type": "boolean"
+              }
+            },
+            "required": ["employer", "worker", "family"]
+          }
+        },
+        "required": ["id", "address", "displayName", "createdAt", "roles"]
+      },
       "Error": {
         "type": "object",
         "properties": {
@@ -225,26 +258,6 @@
           }
         },
         "required": ["error"],
-        "additionalProperties": false
-      },
-      "User": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "address": {
-            "type": "string"
-          },
-          "displayName": {
-            "nullable": true,
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string"
-          }
-        },
-        "required": ["id", "address", "displayName", "createdAt"],
         "additionalProperties": false
       },
       "Employer": {
@@ -401,6 +414,62 @@
           "createdAt"
         ],
         "additionalProperties": false
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "address", "displayName", "createdAt"],
+        "additionalProperties": false
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "object",
+            "properties": {
+              "employer": {
+                "type": "boolean"
+              },
+              "worker": {
+                "type": "boolean"
+              },
+              "family": {
+                "type": "boolean"
+              }
+            },
+            "required": ["employer", "worker", "family"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "address", "displayName", "createdAt", "roles"],
+        "additionalProperties": false
       }
     }
   },
@@ -469,11 +538,11 @@
         }
       }
     },
-    "/api/v1/auth/challenge": {
+    "/api/v1/sessions": {
       "post": {
-        "summary": "Get a sign-in message for an address",
-        "tags": ["Auth"],
-        "description": "Returns an EIP-4361 (Sign-In with Ethereum) message. The client signs `message` with the Mera account and sends it to `/api/v1/auth/verify`. Nonces are single-use and expire after a few minutes.",
+        "summary": "Sign in with a Privy access token",
+        "tags": ["Sessions"],
+        "description": "Exchanges the access token from Privy (`getAccessToken()` in the web app) for a Trickle session token. Send it as `Authorization: Bearer <token>` on protected endpoints. The account is keyed to the Privy embedded wallet; 409 `WALLET_NOT_READY` means Privy has not created that wallet yet, so retry shortly.",
         "requestBody": {
           "required": true,
           "content": {
@@ -481,12 +550,12 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "address": {
+                  "accessToken": {
                     "type": "string",
-                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                    "minLength": 1
                   }
                 },
-                "required": ["address"]
+                "required": ["accessToken"]
               }
             }
           }
@@ -499,96 +568,18 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "nonce": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
+                    "token": {
+                      "type": "string",
+                      "description": "Opaque session token. Only its hash is stored server-side"
                     },
                     "expiresAt": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["nonce", "message", "expiresAt"],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/auth/verify": {
-      "post": {
-        "summary": "Exchange a signed challenge for a session token",
-        "tags": ["Auth"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "message": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "signature": {
-                    "type": "string",
-                    "pattern": "^0x[0-9a-fA-F]+$"
-                  }
-                },
-                "required": ["message", "signature"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "token": {
                       "type": "string"
                     },
                     "user": {
                       "$ref": "#/components/schemas/User"
                     }
                   },
-                  "required": ["token", "user"],
+                  "required": ["token", "expiresAt", "user"],
                   "additionalProperties": false
                 }
               }
@@ -614,6 +605,16 @@
               }
             }
           },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "422": {
             "description": "Default Response",
             "content": {
@@ -633,14 +634,70 @@
                 }
               }
             }
+          },
+          "502": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/v1/auth/me": {
+    "/api/v1/sessions/current": {
+      "delete": {
+        "summary": "Sign out (revoke the session token used for this request)",
+        "tags": ["Sessions"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Signed out",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [null],
+                  "description": "Signed out"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me": {
       "get": {
         "summary": "Current user and the roles they hold",
-        "tags": ["Auth"],
+        "tags": ["Users"],
         "security": [
           {
             "bearerAuth": []
@@ -652,45 +709,83 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "address": {
-                      "type": "string"
-                    },
-                    "displayName": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "roles": {
-                      "type": "object",
-                      "properties": {
-                        "employer": {
-                          "type": "boolean"
-                        },
-                        "worker": {
-                          "type": "boolean"
-                        },
-                        "family": {
-                          "type": "boolean"
-                        }
-                      },
-                      "required": ["employer", "worker", "family"],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": ["id", "address", "displayName", "createdAt", "roles"],
-                  "additionalProperties": false
+                  "$ref": "#/components/schemas/Me"
                 }
               }
             }
           },
           "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update my profile",
+        "tags": ["Users"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "nullable": true,
+                    "description": "Name shown to employers and family. `null` clears it",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": ["displayName"]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1541,7 +1636,10 @@
       "name": "System"
     },
     {
-      "name": "Auth"
+      "name": "Sessions"
+    },
+    {
+      "name": "Users"
     },
     {
       "name": "Employers"
