@@ -135,7 +135,7 @@ export function EmployerDashboard({ devState }: { devState?: EmployerState }) {
     >
       <div className="flex flex-col gap-6">
         {runway.level === 'critical' && (
-          <div className="enter enter-1">
+          <div className="enter enter-4">
             <InlineError title={t.criticalTitle(runway.days ?? 0)} message={t.criticalMessage} />
           </div>
         )}
