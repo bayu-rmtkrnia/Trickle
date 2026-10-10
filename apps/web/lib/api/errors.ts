@@ -12,14 +12,32 @@ export type ApiErrorKind =
   | 'unauthorized'
   | 'conflict'
   | 'network'
+  | 'wallet-not-ready'
+  | 'validation'
+  | 'configuration'
+  | 'server'
+
+export interface ApiErrorOptions {
+  status?: number
+  code?: string
+  details?: unknown
+}
 
 export class ApiError extends Error {
+  readonly status?: number
+  readonly code?: string
+  readonly details?: unknown
+
   constructor(
     public readonly kind: ApiErrorKind,
-    message = kind,
+    message: string = kind,
+    options: ApiErrorOptions = {},
   ) {
     super(message)
     this.name = 'ApiError'
+    this.status = options.status
+    this.code = options.code
+    this.details = options.details
   }
 }
 

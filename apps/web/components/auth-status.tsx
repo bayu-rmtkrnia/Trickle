@@ -2,9 +2,11 @@
 
 import { useState } from 'react'
 import { useAccount } from '@/lib/account'
+import { useSession } from '@/providers/session-provider'
 
 export function AuthStatus() {
-  const { configured, ready, authenticated, walletAddress, login, logout } = useAccount()
+  const { configured, ready, authenticated, walletAddress, login } = useAccount()
+  const session = useSession()
   const [error, setError] = useState<string | null>(null)
   const [loggingOut, setLoggingOut] = useState(false)
 
@@ -29,9 +31,9 @@ export function AuthStatus() {
     setError(null)
     setLoggingOut(true)
     try {
-      await logout()
+      await session.logout()
     } catch {
-      setError('Could not log out. Please try again.')
+      setError('Logout was incomplete. Please try again.')
     } finally {
       setLoggingOut(false)
     }
@@ -43,6 +45,7 @@ export function AuthStatus() {
   return (
     <section aria-label="Authentication status" className="mt-6 space-y-4">
       <p role="status">{authenticated ? 'Logged in' : 'Not logged in'}</p>
+      {authenticated && <p>Trickle API: {session.status}</p>}
       {authenticated ? (
         <>
           <p className="break-all">Wallet: {walletAddress ?? 'No embedded wallet yet'}</p>
