@@ -75,6 +75,7 @@ const collection = {
     { key: 'employerToken', value: '' },
     { key: 'workerToken', value: '' },
     { key: 'familyToken', value: '' },
+    { key: 'companyId', value: '' },
     { key: 'workerInviteCode', value: '' },
     { key: 'familyInviteCode', value: '' },
     { key: 'privyAccessToken', value: '' },
@@ -127,45 +128,65 @@ const collection = {
       ],
     },
     {
-      name: '3. Employers',
+      name: '3. Companies',
       item: [
-        req('Create employer', 'POST', '/api/v1/employers', {
+        req('Create company', 'POST', '/api/v1/companies', {
           auth: bearer('employerToken'),
           body: { name: 'PT Maju Jaya', country: 'MY' },
+          description:
+            '409 COMPANY_EXISTS if this account already has a company (e.g. a second run).',
           tests: [status(201)],
         }),
-        req('Create employer - duplicate (409)', 'POST', '/api/v1/employers', {
+        req('Create company - duplicate (409)', 'POST', '/api/v1/companies', {
           auth: bearer('employerToken'),
           body: { name: 'PT Maju Jaya', country: 'MY' },
-          tests: [status(409), errCode('EMPLOYER_EXISTS')],
+          tests: [status(409), errCode('COMPANY_EXISTS')],
         }),
-        req('Create employer - invalid (422)', 'POST', '/api/v1/employers', {
+        req('Create company - invalid (422)', 'POST', '/api/v1/companies', {
           auth: bearer('workerToken'),
           body: { name: 'A', country: 'Malaysia' },
           tests: [status(422), errCode('VALIDATION_ERROR')],
         }),
-        req('Get my employer', 'GET', '/api/v1/employers/me', {
+        req('Me (my company id)', 'GET', '/api/v1/users/me', {
+          auth: bearer('employerToken'),
+          description: 'Saves companyId for the requests below.',
+          tests: [status(200), save('companyId', 'companyId')],
+        }),
+        req('Get company', 'GET', '/api/v1/companies/{{companyId}}', {
           auth: bearer('employerToken'),
           tests: [status(200)],
         }),
-        req('Get my employer - none (404)', 'GET', '/api/v1/employers/me', {
+        req('Get company - not an employer (403)', 'GET', '/api/v1/companies/{{companyId}}', {
           auth: bearer('familyToken'),
-          tests: [status(404), errCode('EMPLOYER_NOT_FOUND')],
+          tests: [status(403), errCode('FORBIDDEN')],
         }),
-        req('Update my employer', 'PATCH', '/api/v1/employers/me', {
+        req('Get company - unknown id (404)', 'GET', '/api/v1/companies/does-not-exist', {
+          auth: bearer('employerToken'),
+          tests: [status(404), errCode('COMPANY_NOT_FOUND')],
+        }),
+        req('Update company', 'PATCH', '/api/v1/companies/{{companyId}}', {
           auth: bearer('employerToken'),
           body: { name: 'PT Maju Jaya Sdn Bhd' },
           tests: [status(200)],
         }),
-        req('Update my employer - not an employer (403)', 'PATCH', '/api/v1/employers/me', {
+        req('Update company - not an employer (403)', 'PATCH', '/api/v1/companies/{{companyId}}', {
           auth: bearer('familyToken'),
           body: { name: 'Hijacked' },
           tests: [status(403), errCode('FORBIDDEN')],
         }),
-        req('List company workers - not an employer (403)', 'GET', '/api/v1/employers/me/workers', {
+        req('Delete company - not an employer (403)', 'DELETE', '/api/v1/companies/{{companyId}}', {
           auth: bearer('workerToken'),
           tests: [status(403), errCode('FORBIDDEN')],
         }),
+        req(
+          'List company workers - not an employer (403)',
+          'GET',
+          '/api/v1/companies/{{companyId}}/workers',
+          {
+            auth: bearer('workerToken'),
+            tests: [status(403), errCode('FORBIDDEN')],
+          },
+        ),
       ],
     },
     {
@@ -217,10 +238,19 @@ const collection = {
           auth: bearer('employerToken'),
           tests: [status(200)],
         }),
-        req('List company workers', 'GET', '/api/v1/employers/me/workers', {
+        req('List company workers', 'GET', '/api/v1/companies/{{companyId}}/workers', {
           auth: bearer('employerToken'),
           tests: [status(200)],
         }),
+        req(
+          'Delete company - still has workers (409)',
+          'DELETE',
+          '/api/v1/companies/{{companyId}}',
+          {
+            auth: bearer('employerToken'),
+            tests: [status(409), errCode('COMPANY_HAS_WORKERS')],
+          },
+        ),
         req('Me (worker roles)', 'GET', '/api/v1/users/me', {
           auth: bearer('workerToken'),
           tests: [status(200)],
