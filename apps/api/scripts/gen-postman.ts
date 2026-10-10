@@ -157,6 +157,15 @@ const collection = {
           body: { name: 'PT Maju Jaya Sdn Bhd' },
           tests: [status(200)],
         }),
+        req('Update my employer - not an employer (403)', 'PATCH', '/api/v1/employers/me', {
+          auth: bearer('familyToken'),
+          body: { name: 'Hijacked' },
+          tests: [status(403), errCode('FORBIDDEN')],
+        }),
+        req('List company workers - not an employer (403)', 'GET', '/api/v1/employers/me/workers', {
+          auth: bearer('workerToken'),
+          tests: [status(403), errCode('FORBIDDEN')],
+        }),
       ],
     },
     {
