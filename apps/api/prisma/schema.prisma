@@ -37,7 +37,7 @@ enum PayoutStatus {
 }
 
 /// Anyone who signed in with Privy. Role is contextual: the same address
-/// can own an employer profile, be a worker, or be family.
+/// can own a company (employer), be a worker, or be family.
 model User {
   id          String    @id @default(cuid())
   /// Lowercased 0x address of the Privy embedded wallet
@@ -48,7 +48,7 @@ model User {
   createdAt   DateTime  @default(now())
   lastLoginAt DateTime?
 
-  employer         Employer?
+  companies        Company[]
   employments      EmployerWorker[]
   familyAsWorker   FamilyLink[]     @relation("FamilyWorker")
   familyAsRelative FamilyLink[]     @relation("FamilyRelative")
@@ -73,31 +73,37 @@ model Session {
   @@index([userId])
 }
 
-model Employer {
-  id        String   @id @default(cuid())
-  ownerId   String   @unique
+/// Company profile of an employer. At most one active (not deleted) company
+/// per owner; the service enforces it.
+model Company {
+  id        String    @id @default(cuid())
+  ownerId   String
   name      String
   country   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  /// Soft delete: the row stays so employments, invites and history keep their company.
+  deletedAt DateTime?
 
   owner   User             @relation(fields: [ownerId], references: [id])
   workers EmployerWorker[]
   invites Invite[]
+
+  @@index([ownerId])
 }
 
 model EmployerWorker {
   id                 String   @id @default(cuid())
-  employerId         String
+  companyId          String
   workerId           String
   displayName        String
   monthlySalaryCents Int
   createdAt          DateTime @default(now())
 
-  employer Employer @relation(fields: [employerId], references: [id])
-  worker   User     @relation(fields: [workerId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+  worker  User    @relation(fields: [workerId], references: [id])
 
-  @@unique([employerId, workerId])
+  @@unique([companyId, workerId])
   @@index([workerId])
 }
 
@@ -117,29 +123,29 @@ model FamilyLink {
 }
 
 model Invite {
-  id          String       @id @default(cuid())
-  code        String       @unique
-  type        InviteType
-  status      InviteStatus @default(PENDING)
-  createdById String
+  id                 String       @id @default(cuid())
+  code               String       @unique
+  type               InviteType
+  status             InviteStatus @default(PENDING)
+  createdById        String
   /// Set for WORKER invites
-  employerId  String?
-  inviteeName String
+  companyId          String?
+  inviteeName        String
   /// Set for WORKER invites
   monthlySalaryCents Int?
   /// Set for FAMILY invites, e.g. "Ibu", "Istri"
-  relation     String?
-  acceptedById String?
-  acceptedAt   DateTime?
-  expiresAt    DateTime
-  createdAt    DateTime  @default(now())
+  relation           String?
+  acceptedById       String?
+  acceptedAt         DateTime?
+  expiresAt          DateTime
+  createdAt          DateTime     @default(now())
 
-  createdBy  User      @relation("InviteCreatedBy", fields: [createdById], references: [id])
-  employer   Employer? @relation(fields: [employerId], references: [id])
-  acceptedBy User?     @relation("InviteAcceptedBy", fields: [acceptedById], references: [id])
+  createdBy  User     @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  company    Company? @relation(fields: [companyId], references: [id])
+  acceptedBy User?    @relation("InviteAcceptedBy", fields: [acceptedById], references: [id])
 
   @@index([createdById])
-  @@index([employerId])
+  @@index([companyId])
 }
 
 /// One drip per address, ever. The unique constraint is the idempotency guard.

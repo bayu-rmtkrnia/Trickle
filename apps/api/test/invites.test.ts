@@ -10,7 +10,7 @@ const invite = (over: Partial<InviteWithRefs> = {}): InviteWithRefs => ({
   type: 'WORKER',
   status: 'PENDING',
   createdById: 'employer-user',
-  employerId: 'emp-1',
+  companyId: 'co-1',
   inviteeName: 'Siti',
   monthlySalaryCents: 150_000,
   relation: null,
@@ -19,7 +19,7 @@ const invite = (over: Partial<InviteWithRefs> = {}): InviteWithRefs => ({
   expiresAt: new Date(Date.now() + 60_000),
   createdAt: new Date('2026-10-01T00:00:00Z'),
   createdBy: { address: '0xboss', displayName: null },
-  employer: { name: 'Acme' },
+  company: { name: 'Acme' },
   ...over,
 })
 
@@ -31,7 +31,7 @@ function service(repo: Partial<InviteRepository>) {
   return createInviteService({
     env,
     repo: {
-      findEmployerIdByOwner: unexpected,
+      findActiveCompanyIdByOwner: unexpected,
       countEmployments: unexpected,
       create: unexpected,
       listByCreator: unexpected,
@@ -44,7 +44,7 @@ function service(repo: Partial<InviteRepository>) {
 
 describe('invite service: create', () => {
   it('forbids worker invites without a company profile', async () => {
-    const s = service({ findEmployerIdByOwner: async () => null })
+    const s = service({ findActiveCompanyIdByOwner: async () => null })
     await expect(
       s.create('u1', { type: 'WORKER', inviteeName: 'Siti', monthlySalaryUsd: 1500 }),
     ).rejects.toMatchObject({ statusCode: 403 })
@@ -61,7 +61,7 @@ describe('invite service: create', () => {
     const create = vi.fn(async (data) =>
       invite({ ...data, monthlySalaryCents: data.monthlySalaryCents }),
     )
-    const s = service({ findEmployerIdByOwner: async () => 'emp-1', create })
+    const s = service({ findActiveCompanyIdByOwner: async () => 'co-1', create })
 
     const dto = await s.create('employer-user', {
       type: 'WORKER',
@@ -70,7 +70,7 @@ describe('invite service: create', () => {
     })
 
     expect(create.mock.calls[0]![0]).toMatchObject({
-      employerId: 'emp-1',
+      companyId: 'co-1',
       monthlySalaryCents: 123456,
     })
     expect(dto.monthlySalaryUsd).toBe(1234.56)
@@ -120,7 +120,7 @@ describe('invite service: accept', () => {
 
   it('maps a duplicate link to 409 ALREADY_LINKED', async () => {
     const s = service({
-      findByCode: async () => invite({ type: 'FAMILY', employer: null }),
+      findByCode: async () => invite({ type: 'FAMILY', company: null }),
       accept: async () => ({ status: 'already-linked' }),
     })
     await expect(s.accept('ABCDEF1234', 'me')).rejects.toMatchObject({

@@ -9,7 +9,7 @@ export function createUserService(repo: UserRepository) {
   async function me(userId: string) {
     const user = await repo.findWithRoleCounts(userId)
     if (!user) throw gone()
-    return { ...toUserDto(user), roles: toRoles(user) }
+    return { ...toUserDto(user), companyId: user.companies[0]?.id ?? null, roles: toRoles(user) }
   }
 
   return {

@@ -6,7 +6,7 @@ import { expect } from 'vitest'
  * that a sensitive endpoint rejects the other roles (rubric K5):
  *
  *   await expectForbidden(app, worker.token, [
- *     { method: 'PATCH', url: '/api/v1/employers/me', payload: { name: 'X' } },
+ *     { method: 'PATCH', url: `/api/v1/companies/${id}`, payload: { name: 'X' } },
  *   ])
  */
 export async function expectForbidden(
