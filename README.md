@@ -69,7 +69,7 @@ Trickle/
 │       │   ├── types.ts            # Fastify type augmentation
 │       │   ├── lib/                # chain (viem), fx, privy, prisma, errors, pagination, roles, tokens, shared schemas
 │       │   ├── plugins/            # auth (session tokens), rbac (requireRole / requireOwnership), uniform error handling
-│       │   └── modules/            # health, sessions, users, employers, invites, gas, fx; each one has:
+│       │   └── modules/            # health, sessions, users, companies, invites, gas, fx; each one has:
 │       │       └── <resource>/     #   routes → controller → service → repository, plus schemas (Zod)
 │       ├── test/                   # Vitest unit + integration tests
 │       ├── openapi.json            # Generated API spec (import into Postman / FE codegen)
@@ -85,7 +85,7 @@ Trickle/
 
 Interactive docs: `http://localhost:4000/docs`. All errors use `{ "error": { "code": "...", "message": "...", "details": ... } }`. Schema validation failures return 422 with one `details` entry per invalid field; unreadable bodies (e.g. broken JSON) return 400.
 
-**Auth** column: – public, ✓ any signed-in user, *Employer* only accounts with a company profile (others get 403). Roles come from data, not a stored field: see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+**Auth** column: – public, ✓ any signed-in user, *Owner* only the employer who owns that company (other roles and other employers get 403). Roles come from data, not a stored field: see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1/users/me`. Only `/health` and `/docs` live at the root. List endpoints (marked *paged*) take `?limit=` (1–100, default 20) and `?cursor=`, and return `{ "data": [...], "nextCursor": "..." }`; pass `nextCursor` back as `cursor` until it is `null`.
 
@@ -94,12 +94,12 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | GET | `/health` (root) | – | Service + database status |
 | POST | `/sessions` | – | Exchange a Privy access token for a session token |
 | DELETE | `/sessions/current` | ✓ | Sign out (revoke this session token) |
-| GET | `/users/me` | ✓ | Current user and roles (employer / worker / family) |
+| GET | `/users/me` | ✓ | Current user, roles (employer / worker / family) and `companyId` |
 | PATCH | `/users/me` | ✓ | Update my display name |
-| POST | `/employers` | ✓ | Create company profile |
-| GET | `/employers/me` | ✓ | Read my company profile (404 if none yet) |
-| PATCH | `/employers/me` | Employer | Update company profile |
-| GET | `/employers/me/workers` | Employer | Workers who joined via invite (paged) |
+| POST | `/companies` | ✓ | Create a company (one active per account) |
+| GET, PATCH | `/companies/:id` | Owner | Read / update a company |
+| DELETE | `/companies/:id` | Owner | Soft delete; 409 while workers are linked |
+| GET | `/companies/:id/workers` | Owner | Workers who joined via invite (paged) |
 | POST | `/invites` | ✓ | Worker invite (employer) or family invite (worker) |
 | GET | `/invites` | ✓ | Invites I created (paged) |
 | GET | `/invites/:code` | – | Public invite details |

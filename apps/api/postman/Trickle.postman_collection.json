@@ -22,6 +22,10 @@
       "value": ""
     },
     {
+      "key": "companyId",
+      "value": ""
+    },
+    {
       "key": "workerInviteCode",
       "value": ""
     },
@@ -370,10 +374,10 @@
       ]
     },
     {
-      "name": "3. Employers",
+      "name": "3. Companies",
       "item": [
         {
-          "name": "Create employer",
+          "name": "Create company",
           "request": {
             "method": "POST",
             "header": [
@@ -383,9 +387,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers",
+              "raw": "{{baseUrl}}/api/v1/companies",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers"]
+              "path": ["api", "v1", "companies"]
             },
             "auth": {
               "type": "bearer",
@@ -405,7 +409,8 @@
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "409 COMPANY_EXISTS if this account already has a company (e.g. a second run)."
           },
           "event": [
             {
@@ -418,7 +423,7 @@
           ]
         },
         {
-          "name": "Create employer - duplicate (409)",
+          "name": "Create company - duplicate (409)",
           "request": {
             "method": "POST",
             "header": [
@@ -428,9 +433,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers",
+              "raw": "{{baseUrl}}/api/v1/companies",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers"]
+              "path": ["api", "v1", "companies"]
             },
             "auth": {
               "type": "bearer",
@@ -459,14 +464,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 409', () => pm.response.to.have.status(409));",
-                  "pm.test('error code EMPLOYER_EXISTS', () => pm.expect(pm.response.json().error.code).to.eql('EMPLOYER_EXISTS'));"
+                  "pm.test('error code COMPANY_EXISTS', () => pm.expect(pm.response.json().error.code).to.eql('COMPANY_EXISTS'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Create employer - invalid (422)",
+          "name": "Create company - invalid (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -476,9 +481,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers",
+              "raw": "{{baseUrl}}/api/v1/companies",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers"]
+              "path": ["api", "v1", "companies"]
             },
             "auth": {
               "type": "bearer",
@@ -514,14 +519,49 @@
           ]
         },
         {
-          "name": "Get my employer",
+          "name": "Me (my company id)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers/me",
+              "raw": "{{baseUrl}}/api/v1/users/me",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers", "me"]
+              "path": ["api", "v1", "users", "me"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Saves companyId for the requests below."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('companyId', pm.response.json().companyId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get company",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companyId}}"]
             },
             "auth": {
               "type": "bearer",
@@ -545,14 +585,14 @@
           ]
         },
         {
-          "name": "Get my employer - none (404)",
+          "name": "Get company - not an employer (403)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers/me",
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers", "me"]
+              "path": ["api", "v1", "companies", "{{companyId}}"]
             },
             "auth": {
               "type": "bearer",
@@ -571,15 +611,49 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 404', () => pm.response.to.have.status(404));",
-                  "pm.test('error code EMPLOYER_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('EMPLOYER_NOT_FOUND'));"
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Update my employer",
+          "name": "Get company - unknown id (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/does-not-exist",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "does-not-exist"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('error code COMPANY_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('COMPANY_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update company",
           "request": {
             "method": "PATCH",
             "header": [
@@ -589,9 +663,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers/me",
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers", "me"]
+              "path": ["api", "v1", "companies", "{{companyId}}"]
             },
             "auth": {
               "type": "bearer",
@@ -624,7 +698,7 @@
           ]
         },
         {
-          "name": "Update my employer - not an employer (403)",
+          "name": "Update company - not an employer (403)",
           "request": {
             "method": "PATCH",
             "header": [
@@ -634,9 +708,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers/me",
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers", "me"]
+              "path": ["api", "v1", "companies", "{{companyId}}"]
             },
             "auth": {
               "type": "bearer",
@@ -672,14 +746,48 @@
           ]
         },
         {
+          "name": "Delete company - not an employer (403)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companyId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "List company workers - not an employer (403)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers/me/workers",
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}/workers",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers", "me", "workers"]
+              "path": ["api", "v1", "companies", "{{companyId}}", "workers"]
             },
             "auth": {
               "type": "bearer",
@@ -1082,9 +1190,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers/me/workers",
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}/workers",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers", "me", "workers"]
+              "path": ["api", "v1", "companies", "{{companyId}}", "workers"]
             },
             "auth": {
               "type": "bearer",
@@ -1103,6 +1211,40 @@
               "script": {
                 "type": "text/javascript",
                 "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete company - still has workers (409)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companyId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('error code COMPANY_HAS_WORKERS', () => pm.expect(pm.response.json().error.code).to.eql('COMPANY_HAS_WORKERS'));"
+                ]
               }
             }
           ]

@@ -3,7 +3,7 @@
   "info": {
     "title": "Trickle API",
     "version": "1.1.0",
-    "description": "Metadata API for Trickle: sessions, users, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\nSign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
+    "description": "Metadata API for Trickle: sessions, users, companies, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\nSign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
   },
   "components": {
     "securitySchemes": {
@@ -34,7 +34,7 @@
         },
         "required": ["error"]
       },
-      "EmployerInput": {
+      "CompanyInput": {
         "type": "object",
         "properties": {
           "id": {
@@ -219,6 +219,11 @@
           "createdAt": {
             "type": "string"
           },
+          "companyId": {
+            "nullable": true,
+            "description": "My active company, for `/api/v1/companies/{id}`. `null` if I am not an employer",
+            "type": "string"
+          },
           "roles": {
             "type": "object",
             "properties": {
@@ -235,7 +240,7 @@
             "required": ["employer", "worker", "family"]
           }
         },
-        "required": ["id", "address", "displayName", "createdAt", "roles"]
+        "required": ["id", "address", "displayName", "createdAt", "companyId", "roles"]
       },
       "Error": {
         "type": "object",
@@ -260,7 +265,7 @@
         "required": ["error"],
         "additionalProperties": false
       },
-      "Employer": {
+      "Company": {
         "type": "object",
         "properties": {
           "id": {
@@ -451,6 +456,11 @@
           "createdAt": {
             "type": "string"
           },
+          "companyId": {
+            "nullable": true,
+            "description": "My active company, for `/api/v1/companies/{id}`. `null` if I am not an employer",
+            "type": "string"
+          },
           "roles": {
             "type": "object",
             "properties": {
@@ -468,7 +478,7 @@
             "additionalProperties": false
           }
         },
-        "required": ["id", "address", "displayName", "createdAt", "roles"],
+        "required": ["id", "address", "displayName", "createdAt", "companyId", "roles"],
         "additionalProperties": false
       }
     }
@@ -798,10 +808,11 @@
         }
       }
     },
-    "/api/v1/employers": {
+    "/api/v1/companies": {
       "post": {
-        "summary": "Create the company profile for the signed-in user",
-        "tags": ["Employers"],
+        "summary": "Create a company (makes the caller an employer)",
+        "tags": ["Companies"],
+        "description": "One active company per account. The new id is also returned as `companyId` by `GET /api/v1/users/me`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -837,7 +848,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Employer"
+                  "$ref": "#/components/schemas/Company"
                 }
               }
             }
@@ -885,10 +896,22 @@
         }
       }
     },
-    "/api/v1/employers/me": {
+    "/api/v1/companies/{id}": {
       "get": {
-        "summary": "The signed-in user's company profile",
-        "tags": ["Employers"],
+        "summary": "Get a company I own",
+        "tags": ["Companies"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -900,12 +923,22 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Employer"
+                  "$ref": "#/components/schemas/Company"
                 }
               }
             }
           },
           "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -924,12 +957,22 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "patch": {
-        "summary": "Update the company profile",
-        "tags": ["Employers"],
+        "summary": "Update a company I own",
+        "tags": ["Companies"],
         "requestBody": {
           "required": true,
           "content": {
@@ -953,6 +996,18 @@
             }
           }
         },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -964,7 +1019,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Employer"
+                  "$ref": "#/components/schemas/Company"
                 }
               }
             }
@@ -1020,12 +1075,99 @@
             }
           }
         }
+      },
+      "delete": {
+        "summary": "Delete a company I own (soft delete)",
+        "tags": ["Companies"],
+        "description": "Refused with 409 `COMPANY_HAS_WORKERS` while workers are still linked. Pending invites are revoked. The row is kept for history, but the company disappears from the API and the caller can create a new one.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [null],
+                  "description": "Deleted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
-    "/api/v1/employers/me/workers": {
+    "/api/v1/companies/{id}/workers": {
       "get": {
         "summary": "Workers who accepted an invite from this company",
-        "tags": ["Employers"],
+        "tags": ["Companies"],
         "description": "Metadata only. Stream balances come from the contract/indexer, never from this API.",
         "parameters": [
           {
@@ -1050,6 +1192,16 @@
             "name": "cursor",
             "required": false,
             "description": "`nextCursor` from the previous page. Omit for the first page."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
           }
         ],
         "security": [
@@ -1662,7 +1814,7 @@
       "name": "Users"
     },
     {
-      "name": "Employers"
+      "name": "Companies"
     },
     {
       "name": "Invites"

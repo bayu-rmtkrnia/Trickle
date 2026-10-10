@@ -4,7 +4,7 @@ Isinya keadaan aplikasi **saat ini**: apa saja yang sudah ada, di mana letaknya,
 
 > **Aturan:** setiap PR yang menambah atau mengubah fitur, endpoint, tabel, env var, atau keputusan desain **wajib memperbarui file ini** di PR yang sama. Kalau ada isi file ini yang tidak lagi sesuai dengan kode, berarti file ini yang salah, jadi perbaiki.
 
-Terakhir diperbarui: 10 Okt 2026 (Fitur 4: RBAC & kepemilikan).
+Terakhir diperbarui: 10 Okt 2026 (Fitur 5: companies).
 
 ---
 
@@ -16,7 +16,7 @@ Ada tiga peran, dan perannya **kontekstual**: satu akun bisa sekaligus employer,
 
 | Peran | Didapat dari |
 | ----- | ------------ |
-| Employer | Punya baris `Employer` (profil perusahaan) |
+| Employer | Punya `Company` yang belum dihapus (`deletedAt` kosong) |
 | Pekerja | Punya `EmployerWorker`, hasil menerima undangan WORKER |
 | Keluarga | Punya `FamilyLink` sebagai relative, hasil menerima undangan FAMILY |
 
@@ -64,18 +64,18 @@ Semua endpoint resource ada di bawah `/api/v1`, kecuali `/health` dan `/docs` (S
 | health | `GET /health` | – | Status DB, dipakai healthcheck Railway |
 | sessions | `POST /sessions` | – | Tukar access token Privy → token sesi. Rate limit 20/menit |
 | | `DELETE /sessions/current` | ✓ | Logout sesi ini saja |
-| users | `GET /users/me`, `PATCH /users/me` | ✓ | Profil + peran; PATCH hanya `displayName` |
-| employers | `POST /employers`, `GET /employers/me` | ✓ | Akan di-rename jadi `companies` (Fitur 5) |
-| | `PATCH /employers/me`, `GET /employers/me/workers` | Employer | Peran lain mendapat 403 |
+| users | `GET /users/me`, `PATCH /users/me` | ✓ | Profil, peran, dan `companyId`; PATCH hanya `displayName` |
+| companies | `POST /companies` | ✓ | Satu perusahaan aktif per akun |
+| | `GET/PATCH/DELETE /companies/:id`, `GET /companies/:id/workers` | Pemilik | Peran lain dan employer lain mendapat 403. DELETE = soft delete |
 | invites | `POST /invites`, `GET /invites`, `GET /invites/:code`, `POST /invites/:code/accept` | ✓ / publik | Detail undangan publik supaya link bisa dibuka sebelum login |
 | gas | `POST /gas/drip`, `GET /gas/status` | ✓ / – | Kirim MON testnet sekali per alamat. Rate limit 5/menit |
 | fx | `GET /fx/usd-idr` | – | Kurs untuk tampilan saja |
 
-Kolom Auth: – publik, ✓ semua user yang login, *Employer* hanya pemilik profil perusahaan.
+Kolom Auth: – publik, ✓ semua user yang login, *Pemilik* hanya employer pemilik resource tersebut.
 
 Detail request dan response: `openapi.json` atau `http://localhost:4000/docs`.
 
-**Belum ada** (lihat roadmap): companies (5), workers CRUD (6), recipients (7), invites v1 (8), rekening bank terenkripsi (9), refactor gas/fx (10), payouts (11), judge mode (12), ERD (13).
+**Belum ada** (lihat roadmap): workers CRUD (6), recipients (7), invites v1 (8), rekening bank terenkripsi (9), refactor gas/fx (10), payouts (11), judge mode (12), ERD (13).
 
 ## 4. Arsitektur API
 
@@ -123,12 +123,19 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Postman memakai `pnpm session <role>`**, yang membuat sesi langsung di DB lokal karena Postman tidak bisa login ke Privy. Script ini menolak jalan dengan `NODE_ENV=production`.
 
 ### Otorisasi (Fitur 4)
-- **Peran diturunkan dari relasi, tidak disimpan.** Punya `Employer` = employer, punya `EmployerWorker` = pekerja, punya `FamilyLink` sebagai relative = keluarga (`toRoles()` di `lib/roles.ts`). Kenapa: tidak bisa tidak sinkron dengan data. Contohnya, begitu perusahaan dibuat, user langsung jadi employer tanpa perlu update kolom atau login ulang.
+- **Peran diturunkan dari relasi, tidak disimpan.** Punya `Company` aktif = employer, punya `EmployerWorker` = pekerja, punya `FamilyLink` sebagai relative = keluarga (`toRoles()` di `lib/roles.ts`). Kenapa: tidak bisa tidak sinkron dengan data. Contohnya, begitu perusahaan dibuat, user langsung jadi employer tanpa perlu update kolom atau login ulang.
 - **Peran dicek per request, tidak dimasukkan ke token sesi.** Kenapa: token opak tidak membawa klaim, dan perubahan peran langsung berlaku. Biayanya satu query per request yang memakai `requireRole`, dan hasilnya disimpan di `req.roles` supaya tidak diulang.
 - **Guard berupa middleware deklaratif di `routes.ts`** (`requireRole` di `onRequest`, `requireOwnership` di `preHandler`). Kenapa: siapa boleh mengakses apa terlihat di satu tempat saat membaca daftar route, dan service tidak perlu mengulang pengecekan yang sama. Aturan yang bergantung pada isi body (misalnya jenis undangan) tetap di service, karena middleware `onRequest` belum bisa membaca body.
 - **403 untuk peran atau pemilik yang salah, 404 kalau resource tidak ada**, keduanya dalam format error seragam (`FORBIDDEN`). Kenapa: rubrik K5 meminta 403 untuk peran lain. `requireOwnership` berjalan di `preHandler` supaya `req.params` sudah divalidasi Zod.
-- **`POST /employers` dan `GET /employers/me` tidak dibatasi peran.** Membuat perusahaan adalah cara menjadi employer, dan 404 di `GET /employers/me` dipakai FE untuk menampilkan onboarding.
+- **`POST /companies` tidak dibatasi peran**, karena membuat perusahaan adalah cara menjadi employer. FE tahu id perusahaannya dari `companyId` di `GET /users/me` (null = tampilkan onboarding).
+- **Endpoint `:id` memakai role check lalu ownership check** (urutan PLAN §6.3). Akibatnya, user yang perusahaannya sudah dihapus mendapat 403 (bukan employer lagi), sedangkan employer yang meminta id tidak dikenal mendapat 404.
 - **Setiap endpoint sensitif wajib punya test 403** untuk peran lain, memakai `expectForbidden()` di `test/helpers.ts`.
+
+### Perusahaan & soft delete (Fitur 5)
+- **`Employer` di-rename jadi `Company`** dengan `RENAME TABLE/COLUMN`, bukan drop + create, supaya data yang sudah ada tidak hilang. Kenapa nama berubah: PLAN §6.3 memakai resource `companies`, dan "employer" adalah peran, bukan datanya.
+- **Hapus = soft delete (`deletedAt`)** (PLAN §4.2). Kenapa: pekerja, undangan, dan riwayat tetap merujuk ke perusahaan yang benar. Semua query baca memfilter `deletedAt: null`, jadi bagi API perusahaan itu sudah tidak ada.
+- **Hapus ditolak 409 selama masih ada pekerja.** Kenapa: gaji mengalir on-chain per pekerja; employer harus melepas pekerjanya dulu (Fitur 6 akan menambah cek stream aktif). Undangan PENDING ikut dicabut supaya link lama tidak bisa dipakai bergabung ke perusahaan yang sudah dihapus.
+- **Satu perusahaan aktif per akun, dijaga di service.** Unique index `ownerId` dilepas supaya perusahaan lama yang dihapus tidak menghalangi membuat yang baru. Partial unique index (`WHERE "deletedAt" IS NULL`) tidak dipakai karena tidak bisa dideklarasikan di skema Prisma, sehingga migrasi berikutnya akan mencoba menghapusnya.
 
 ### Bentuk API
 - **Prefix `/api/v1` dan nama resource berupa kata benda jamak** (rubrik K1).
@@ -150,10 +157,10 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 | ----- | --- |
 | `User` | `address` (lowercase, unik), `privyId` (unik, nullable), `displayName` |
 | `Session` | `tokenHash` (unik), `expiresAt`, `revokedAt`; ikut terhapus saat user dihapus |
-| `Employer` | Profil perusahaan, satu per owner |
-| `EmployerWorker` | Relasi employer–pekerja + gaji referensi (sen) |
+| `Company` | Profil perusahaan; `deletedAt` untuk soft delete; maksimal satu aktif per owner |
+| `EmployerWorker` | Relasi perusahaan–pekerja (`companyId`) + gaji referensi (sen). Di-rename di Fitur 6 |
 | `FamilyLink` | Relasi pekerja–keluarga |
-| `Invite` | Undangan WORKER/FAMILY, status PENDING/ACCEPTED/REVOKED |
+| `Invite` | Undangan WORKER (dengan `companyId`) / FAMILY, status PENDING/ACCEPTED/REVOKED |
 | `GasDrip` | Log drip, satu per alamat |
 | `Payout` | Disiapkan untuk Fitur 11, belum dipakai |
 
