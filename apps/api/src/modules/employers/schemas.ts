@@ -65,7 +65,7 @@ export const updateMyEmployerSchema = {
   summary: 'Update the company profile',
   security,
   body: EmployerInput.partial(),
-  response: { 200: EmployerDto, ...errors(400, 401, 404, 422) },
+  response: { 200: EmployerDto, ...errors(400, 401, 403, 404, 422) },
 } satisfies FastifySchema
 
 export const listMyWorkersSchema = {
@@ -75,5 +75,5 @@ export const listMyWorkersSchema = {
     'Metadata only. Stream balances come from the contract/indexer, never from this API.',
   security,
   querystring: PageQuery,
-  response: { 200: Page(WorkerDto), ...errors(401, 404, 422) },
+  response: { 200: Page(WorkerDto), ...errors(401, 403, 404, 422) },
 } satisfies FastifySchema
