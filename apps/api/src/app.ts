@@ -16,7 +16,7 @@ import { createChain, type Chain } from './lib/chain.js'
 import { createFxService, type FxService } from './lib/fx.js'
 import { createPrisma, type Db } from './lib/prisma.js'
 import { createPrivy, type Privy } from './lib/privy.js'
-import employerRoutes from './modules/employers/routes.js'
+import companyRoutes from './modules/companies/routes.js'
 import fxRoutes from './modules/fx/routes.js'
 import gasRoutes from './modules/gas/routes.js'
 import healthRoutes from './modules/health/routes.js'
@@ -91,7 +91,7 @@ export async function buildApp(deps: AppDeps) {
         title: 'Trickle API',
         version: '1.1.0',
         description:
-          'Metadata API for Trickle: sessions, users, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\n' +
+          'Metadata API for Trickle: sessions, users, companies, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\n' +
           'Sign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\n' +
           'Resource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). ' +
           'List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`.',
@@ -100,7 +100,7 @@ export async function buildApp(deps: AppDeps) {
         { name: 'System' },
         { name: 'Sessions' },
         { name: 'Users' },
-        { name: 'Employers' },
+        { name: 'Companies' },
         { name: 'Invites' },
         { name: 'Gas' },
         { name: 'FX' },
@@ -124,7 +124,7 @@ export async function buildApp(deps: AppDeps) {
     async (v1) => {
       await v1.register(sessionRoutes)
       await v1.register(userRoutes)
-      await v1.register(employerRoutes)
+      await v1.register(companyRoutes)
       await v1.register(inviteRoutes)
       await v1.register(gasRoutes)
       await v1.register(fxRoutes)

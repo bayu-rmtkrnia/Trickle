@@ -4,12 +4,12 @@ import type { Db } from '../../lib/prisma.js'
 
 const include = {
   createdBy: { select: { address: true, displayName: true } },
-  employer: { select: { name: true } },
+  company: { select: { name: true } },
 } as const
 
 export type InviteWithRefs = Invite & {
   createdBy: { address: string; displayName: string | null }
-  employer: { name: string } | null
+  company: { name: string } | null
 }
 
 /** Outcome of an accept attempt; the service turns each one into a response. */
@@ -20,9 +20,12 @@ export type AcceptResult =
 
 export function createInviteRepository(db: Db) {
   return {
-    async findEmployerIdByOwner(ownerId: string) {
-      const employer = await db.employer.findUnique({ where: { ownerId }, select: { id: true } })
-      return employer?.id ?? null
+    async findActiveCompanyIdByOwner(ownerId: string) {
+      const company = await db.company.findFirst({
+        where: { ownerId, deletedAt: null },
+        select: { id: true },
+      })
+      return company?.id ?? null
     },
 
     async countEmployments(workerId: string) {
@@ -58,7 +61,7 @@ export function createInviteRepository(db: Db) {
           if (invite.type === 'WORKER') {
             await tx.employerWorker.create({
               data: {
-                employerId: invite.employerId!,
+                companyId: invite.companyId!,
                 workerId: userId,
                 displayName: invite.inviteeName,
                 monthlySalaryCents: invite.monthlySalaryCents!,

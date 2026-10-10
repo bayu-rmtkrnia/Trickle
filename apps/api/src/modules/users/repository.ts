@@ -1,7 +1,7 @@
 import type { Db } from '../../lib/prisma.js'
 
 const withRoleCounts = {
-  employer: { select: { id: true } },
+  companies: { where: { deletedAt: null }, select: { id: true }, take: 1 },
   _count: { select: { employments: true, familyAsRelative: true } },
 } as const
 

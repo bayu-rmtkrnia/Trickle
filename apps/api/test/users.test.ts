@@ -10,7 +10,7 @@ function setup(exists = true) {
     displayName: null as string | null,
     createdAt: new Date('2026-10-01T00:00:00Z'),
     lastLoginAt: null,
-    employer: null,
+    companies: [{ id: 'co-1' }],
     _count: { employments: 1, familyAsRelative: 0 },
   }
   const repo = {
@@ -27,9 +27,10 @@ function setup(exists = true) {
 }
 
 describe('user service', () => {
-  it('derives roles from relations', async () => {
+  it('derives roles and my company from relations', async () => {
     const me = await setup().me('u1')
-    expect(me.roles).toEqual({ employer: false, worker: true, family: false })
+    expect(me.roles).toEqual({ employer: true, worker: true, family: false })
+    expect(me.companyId).toBe('co-1')
   })
 
   it('updates and clears the display name', async () => {

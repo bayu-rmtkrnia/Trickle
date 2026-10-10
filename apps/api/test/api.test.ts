@@ -52,6 +52,17 @@ describe.skipIf(!url)('api (integration)', () => {
 
   const as = (token: string) => ({ authorization: `Bearer ${token}` })
 
+  async function createCompany(token: string, name = 'PT Maju Jaya') {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/v1/companies',
+      headers: as(token),
+      payload: { name },
+    })
+    expect(res.statusCode).toBe(201)
+    return res.json().id as string
+  }
+
   beforeAll(async () => {
     app = await buildApp({ env, db, chain, fx, privy, rateLimit: false })
   })
@@ -59,7 +70,7 @@ describe.skipIf(!url)('api (integration)', () => {
   beforeEach(async () => {
     sendNative.mockReset()
     await db.$executeRawUnsafe(
-      'TRUNCATE "Payout","GasDrip","Invite","FamilyLink","EmployerWorker","Employer","Session","User" CASCADE',
+      'TRUNCATE "Payout","GasDrip","Invite","FamilyLink","EmployerWorker","Company","Session","User" CASCADE',
     )
   })
 
@@ -178,20 +189,22 @@ describe.skipIf(!url)('api (integration)', () => {
 
       const created = await app.inject({
         method: 'POST',
-        url: '/api/v1/employers',
+        url: '/api/v1/companies',
         headers: as(employer.token),
         payload: { name: 'PT Maju Jaya', country: 'my' },
       })
       expect(created.statusCode).toBe(201)
       expect(created.json().country).toBe('MY')
+      const companyId = created.json().id
 
       const dup = await app.inject({
         method: 'POST',
-        url: '/api/v1/employers',
+        url: '/api/v1/companies',
         headers: as(employer.token),
         payload: { name: 'Another' },
       })
-      expect(dup.json().error.code).toBe('EMPLOYER_EXISTS')
+      expect(dup.statusCode).toBe(409)
+      expect(dup.json().error.code).toBe('COMPANY_EXISTS')
 
       const invite = (
         await app.inject({
@@ -231,7 +244,7 @@ describe.skipIf(!url)('api (integration)', () => {
 
       const workers = await app.inject({
         method: 'GET',
-        url: '/api/v1/employers/me/workers',
+        url: `/api/v1/companies/${companyId}/workers`,
         headers: as(employer.token),
       })
       expect(workers.json()).toEqual({
@@ -276,62 +289,157 @@ describe.skipIf(!url)('api (integration)', () => {
     })
   })
 
-  describe('rbac', () => {
-    it('keeps company management to employers', async () => {
-      const employer = await signIn('employer')
-      const outsider = await signIn('outsider')
-      await app.inject({
-        method: 'POST',
-        url: '/api/v1/employers',
-        headers: as(employer.token),
-        payload: { name: 'PT Maju Jaya' },
-      })
-
-      const employerOnly = [
-        { method: 'PATCH', url: '/api/v1/employers/me', payload: { name: 'Hijacked' } },
-        { method: 'GET', url: '/api/v1/employers/me/workers' },
+  describe('companies', () => {
+    const at = (id: string) =>
+      [
+        { method: 'GET', url: `/api/v1/companies/${id}` },
+        { method: 'PATCH', url: `/api/v1/companies/${id}`, payload: { name: 'Hijacked' } },
+        { method: 'DELETE', url: `/api/v1/companies/${id}` },
+        { method: 'GET', url: `/api/v1/companies/${id}/workers` },
       ] as const
-      await expectForbidden(app, outsider.token, [...employerOnly])
 
-      for (const r of employerOnly) {
-        const res = await app.inject({ ...r, headers: as(employer.token) })
-        expect(res.statusCode, `${r.method} ${r.url}`).toBe(200)
-      }
+    it('lets the owner read, update and list workers', async () => {
+      const owner = await signIn('employer')
+      const id = await createCompany(owner.token)
+
+      const me = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/me',
+        headers: as(owner.token),
+      })
+      expect(me.json()).toMatchObject({ companyId: id, roles: { employer: true } })
+
+      const patched = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/companies/${id}`,
+        headers: as(owner.token),
+        payload: { name: 'PT Maju Jaya Sdn Bhd' },
+      })
+      expect(patched.statusCode).toBe(200)
+      expect(patched.json().name).toBe('PT Maju Jaya Sdn Bhd')
+
+      const got = await app.inject({
+        method: 'GET',
+        url: `/api/v1/companies/${id}`,
+        headers: as(owner.token),
+      })
+      expect(got.json()).toMatchObject({ id, name: 'PT Maju Jaya Sdn Bhd' })
     })
 
-    it('grants the employer role as soon as the company exists', async () => {
-      const user = await signIn('founder')
-      const before = await app.inject({
-        method: 'GET',
-        url: '/api/v1/employers/me/workers',
-        headers: as(user.token),
-      })
-      expect(before.statusCode).toBe(403)
+    it('answers 403 to non-employers and to other employers', async () => {
+      const owner = await signIn('employer')
+      const rival = await signIn('rival')
+      const outsider = await signIn('outsider')
+      const id = await createCompany(owner.token)
+      await createCompany(rival.token, 'PT Saingan')
 
+      // Wrong role, then wrong owner. Each request runs alone, so DELETE does not
+      // remove the company for the next one.
+      await expectForbidden(app, outsider.token, [...at(id)])
+      await expectForbidden(app, rival.token, [...at(id)])
+
+      const still = await app.inject({
+        method: 'GET',
+        url: `/api/v1/companies/${id}`,
+        headers: as(owner.token),
+      })
+      expect(still.json().name).toBe('PT Maju Jaya')
+    })
+
+    it('answers 404 for an unknown company', async () => {
+      const owner = await signIn('employer')
+      await createCompany(owner.token)
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/companies/does-not-exist',
+        headers: as(owner.token),
+      })
+      expect(res.statusCode).toBe(404)
+      expect(res.json().error.code).toBe('COMPANY_NOT_FOUND')
+    })
+
+    it('soft-deletes: revokes pending invites, drops the role, allows a new company', async () => {
+      const owner = await signIn('employer')
+      const id = await createCompany(owner.token)
+      const invite = (
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/invites',
+          headers: as(owner.token),
+          payload: { type: 'WORKER', inviteeName: 'Siti', monthlySalaryUsd: 1000 },
+        })
+      ).json()
+
+      const del = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/companies/${id}`,
+        headers: as(owner.token),
+      })
+      expect(del.statusCode).toBe(204)
+
+      // The row is kept for history, but the API treats it as gone.
+      expect(await db.company.findUnique({ where: { id } })).toMatchObject({
+        deletedAt: expect.any(Date),
+      })
+      const view = await app.inject({ method: 'GET', url: `/api/v1/invites/${invite.code}` })
+      expect(view.json().status).toBe('REVOKED')
+
+      const me = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/me',
+        headers: as(owner.token),
+      })
+      expect(me.json()).toMatchObject({ companyId: null, roles: { employer: false } })
+      // No longer an employer, so the role check answers before the 404.
+      const gone = await app.inject({
+        method: 'GET',
+        url: `/api/v1/companies/${id}`,
+        headers: as(owner.token),
+      })
+      expect(gone.statusCode).toBe(403)
+
+      const fresh = await createCompany(owner.token, 'PT Kedua')
+      expect(fresh).not.toBe(id)
+      const old = await app.inject({
+        method: 'GET',
+        url: `/api/v1/companies/${id}`,
+        headers: as(owner.token),
+      })
+      expect(old.statusCode).toBe(404)
+    })
+
+    it('refuses to delete a company that still has workers', async () => {
+      const owner = await signIn('employer')
+      const worker = await signIn('worker')
+      const id = await createCompany(owner.token)
+      const { code } = (
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/invites',
+          headers: as(owner.token),
+          payload: { type: 'WORKER', inviteeName: 'Siti', monthlySalaryUsd: 1000 },
+        })
+      ).json()
       await app.inject({
         method: 'POST',
-        url: '/api/v1/employers',
-        headers: as(user.token),
-        payload: { name: 'PT Baru' },
+        url: `/api/v1/invites/${code}/accept`,
+        headers: as(worker.token),
       })
-      const after = await app.inject({
-        method: 'GET',
-        url: '/api/v1/employers/me/workers',
-        headers: as(user.token),
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/companies/${id}`,
+        headers: as(owner.token),
       })
-      expect(after.statusCode).toBe(200)
+      expect(res.statusCode).toBe(409)
+      expect(res.json().error.code).toBe('COMPANY_HAS_WORKERS')
     })
   })
 
   describe('pagination', () => {
     it('pages through invites newest first without gaps or repeats', async () => {
       const employer = await signIn('employer')
-      await app.inject({
-        method: 'POST',
-        url: '/api/v1/employers',
-        headers: as(employer.token),
-        payload: { name: 'PT Maju Jaya' },
-      })
+      await createCompany(employer.token)
       for (const name of ['A', 'B', 'C']) {
         await app.inject({
           method: 'POST',

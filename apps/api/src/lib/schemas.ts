@@ -18,3 +18,6 @@ export const Address = z
 /** Standard error responses to spread into a route's `response` map. */
 export const errors = (...codes: (400 | 401 | 403 | 404 | 409 | 410 | 422 | 429 | 502 | 503)[]) =>
   Object.fromEntries(codes.map((c) => [c, ErrorResponse])) as Record<number, typeof ErrorResponse>
+
+/** `:id` path param of a single resource. */
+export const IdParams = z.object({ id: z.string().min(1).max(64) })
