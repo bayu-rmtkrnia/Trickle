@@ -36,12 +36,14 @@ enum PayoutStatus {
   FAILED
 }
 
-/// Anyone who signed in with a Mera passkey account. Role is contextual:
-/// the same address can own an employer profile, be a worker, or be family.
+/// Anyone who signed in with Privy. Role is contextual: the same address
+/// can own an employer profile, be a worker, or be family.
 model User {
   id          String    @id @default(cuid())
-  /// Lowercased 0x address
+  /// Lowercased 0x address of the Privy embedded wallet
   address     String    @unique
+  /// Privy user id (did:privy:...). Null for accounts created before Privy.
+  privyId     String?   @unique
   displayName String?
   createdAt   DateTime  @default(now())
   lastLoginAt DateTime?
@@ -53,17 +55,22 @@ model User {
   invitesCreated   Invite[]         @relation("InviteCreatedBy")
   invitesAccepted  Invite[]         @relation("InviteAcceptedBy")
   payouts          Payout[]
+  sessions         Session[]
 }
 
-/// Single-use sign-in nonce.
-model AuthChallenge {
-  nonce     String    @id
-  address   String
+/// API session. Only the SHA-256 of the bearer token is stored, so a leaked
+/// database cannot be used to sign in.
+model Session {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
   expiresAt DateTime
-  usedAt    DateTime?
+  revokedAt DateTime?
   createdAt DateTime  @default(now())
 
-  @@index([address])
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Employer {

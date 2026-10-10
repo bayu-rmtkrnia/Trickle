@@ -2,49 +2,37 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Trickle API",
-    "version": "0.1.0",
-    "description": "Metadata API for Trickle: auth, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances."
+    "version": "1.1.0",
+    "description": "Metadata API for Trickle: sessions, users, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\nSign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
   },
   "components": {
     "securitySchemes": {
       "bearerAuth": {
         "type": "http",
-        "scheme": "bearer",
-        "bearerFormat": "JWT"
+        "scheme": "bearer"
       }
     },
     "schemas": {
       "ErrorInput": {
         "type": "object",
         "properties": {
-          "code": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "details": {}
-        },
-        "required": ["code", "message"]
-      },
-      "UserInput": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "address": {
-            "type": "string"
-          },
-          "displayName": {
-            "nullable": true,
-            "type": "string"
-          },
-          "createdAt": {
-            "type": "string"
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable code, e.g. INVITE_NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "details": {}
+            },
+            "required": ["code", "message"]
           }
         },
-        "required": ["id", "address", "displayName", "createdAt"]
+        "required": ["error"]
       },
       "EmployerInput": {
         "type": "object",
@@ -196,21 +184,7 @@
           "createdAt"
         ]
       },
-      "Error": {
-        "type": "object",
-        "properties": {
-          "code": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "details": {}
-        },
-        "required": ["code", "message"],
-        "additionalProperties": false
-      },
-      "User": {
+      "UserInput": {
         "type": "object",
         "properties": {
           "id": {
@@ -227,7 +201,63 @@
             "type": "string"
           }
         },
-        "required": ["id", "address", "displayName", "createdAt"],
+        "required": ["id", "address", "displayName", "createdAt"]
+      },
+      "MeInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "object",
+            "properties": {
+              "employer": {
+                "type": "boolean"
+              },
+              "worker": {
+                "type": "boolean"
+              },
+              "family": {
+                "type": "boolean"
+              }
+            },
+            "required": ["employer", "worker", "family"]
+          }
+        },
+        "required": ["id", "address", "displayName", "createdAt", "roles"]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string",
+                "description": "Stable machine-readable code, e.g. INVITE_NOT_FOUND"
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation"
+              },
+              "details": {}
+            },
+            "required": ["code", "message"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["error"],
         "additionalProperties": false
       },
       "Employer": {
@@ -384,6 +414,62 @@
           "createdAt"
         ],
         "additionalProperties": false
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "address", "displayName", "createdAt"],
+        "additionalProperties": false
+      },
+      "Me": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "object",
+            "properties": {
+              "employer": {
+                "type": "boolean"
+              },
+              "worker": {
+                "type": "boolean"
+              },
+              "family": {
+                "type": "boolean"
+              }
+            },
+            "required": ["employer", "worker", "family"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["id", "address", "displayName", "createdAt", "roles"],
+        "additionalProperties": false
       }
     }
   },
@@ -452,11 +538,11 @@
         }
       }
     },
-    "/auth/challenge": {
+    "/api/v1/sessions": {
       "post": {
-        "summary": "Get a sign-in message for an address",
-        "tags": ["Auth"],
-        "description": "Returns an EIP-4361 (Sign-In with Ethereum) message. The client signs `message` with the Mera account and sends it to `/auth/verify`. Nonces are single-use and expire after a few minutes.",
+        "summary": "Sign in with a Privy access token",
+        "tags": ["Sessions"],
+        "description": "Exchanges the access token from Privy (`getAccessToken()` in the web app) for a Trickle session token. Send it as `Authorization: Bearer <token>` on protected endpoints. The account is keyed to the Privy embedded wallet; 409 `WALLET_NOT_READY` means Privy has not created that wallet yet, so retry shortly.",
         "requestBody": {
           "required": true,
           "content": {
@@ -464,12 +550,12 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "address": {
+                  "accessToken": {
                     "type": "string",
-                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                    "minLength": 1
                   }
                 },
-                "required": ["address"]
+                "required": ["accessToken"]
               }
             }
           }
@@ -482,86 +568,18 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "nonce": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
+                    "token": {
+                      "type": "string",
+                      "description": "Opaque session token. Only its hash is stored server-side"
                     },
                     "expiresAt": {
-                      "type": "string"
-                    }
-                  },
-                  "required": ["nonce", "message", "expiresAt"],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/auth/verify": {
-      "post": {
-        "summary": "Exchange a signed challenge for a session token",
-        "tags": ["Auth"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "message": {
-                    "type": "string",
-                    "minLength": 1
-                  },
-                  "signature": {
-                    "type": "string",
-                    "pattern": "^0x[0-9a-fA-F]+$"
-                  }
-                },
-                "required": ["message", "signature"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "token": {
                       "type": "string"
                     },
                     "user": {
                       "$ref": "#/components/schemas/User"
                     }
                   },
-                  "required": ["token", "user"],
+                  "required": ["token", "expiresAt", "user"],
                   "additionalProperties": false
                 }
               }
@@ -587,7 +605,47 @@
               }
             }
           },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
           "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -600,10 +658,46 @@
         }
       }
     },
-    "/auth/me": {
+    "/api/v1/sessions/current": {
+      "delete": {
+        "summary": "Sign out (revoke the session token used for this request)",
+        "tags": ["Sessions"],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Signed out",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [null],
+                  "description": "Signed out"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me": {
       "get": {
         "summary": "Current user and the roles they hold",
-        "tags": ["Auth"],
+        "tags": ["Users"],
         "security": [
           {
             "bearerAuth": []
@@ -615,40 +709,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "address": {
-                      "type": "string"
-                    },
-                    "displayName": {
-                      "nullable": true,
-                      "type": "string"
-                    },
-                    "createdAt": {
-                      "type": "string"
-                    },
-                    "roles": {
-                      "type": "object",
-                      "properties": {
-                        "employer": {
-                          "type": "boolean"
-                        },
-                        "worker": {
-                          "type": "boolean"
-                        },
-                        "family": {
-                          "type": "boolean"
-                        }
-                      },
-                      "required": ["employer", "worker", "family"],
-                      "additionalProperties": false
-                    }
-                  },
-                  "required": ["id", "address", "displayName", "createdAt", "roles"],
-                  "additionalProperties": false
+                  "$ref": "#/components/schemas/Me"
                 }
               }
             }
@@ -664,9 +725,80 @@
             }
           }
         }
+      },
+      "patch": {
+        "summary": "Update my profile",
+        "tags": ["Users"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "nullable": true,
+                    "description": "Name shown to employers and family. `null` clears it",
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  }
+                },
+                "required": ["displayName"]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Me"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
       }
     },
-    "/employers": {
+    "/api/v1/employers": {
       "post": {
         "summary": "Create the company profile for the signed-in user",
         "tags": ["Employers"],
@@ -739,11 +871,21 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/employers/me": {
+    "/api/v1/employers/me": {
       "get": {
         "summary": "The signed-in user's company profile",
         "tags": ["Employers"],
@@ -856,15 +998,50 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/employers/me/workers": {
+    "/api/v1/employers/me/workers": {
       "get": {
         "summary": "Workers who accepted an invite from this company",
         "tags": ["Employers"],
         "description": "Metadata only. Stream balances come from the contract/indexer, never from this API.",
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -878,7 +1055,7 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "workers": {
+                    "data": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -908,9 +1085,14 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
                     }
                   },
-                  "required": ["workers"],
+                  "required": ["data", "nextCursor"],
                   "additionalProperties": false
                 }
               }
@@ -935,11 +1117,21 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/invites": {
+    "/api/v1/invites": {
       "post": {
         "summary": "Create a worker invite (employer) or a family invite (worker)",
         "tags": ["Invites"],
@@ -1043,6 +1235,16 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -1050,6 +1252,29 @@
         "summary": "Invites created by the signed-in user",
         "tags": ["Invites"],
         "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          },
           {
             "schema": {
               "type": "string",
@@ -1073,25 +1298,20 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "invites": {
+                    "data": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Invite"
                       }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
                     }
                   },
-                  "required": ["invites"],
+                  "required": ["data", "nextCursor"],
                   "additionalProperties": false
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -1105,11 +1325,21 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/invites/{code}": {
+    "/api/v1/invites/{code}": {
       "get": {
         "summary": "Public invite details, shown before the invitee creates an account",
         "tags": ["Invites"],
@@ -1135,7 +1365,7 @@
               }
             }
           },
-          "400": {
+          "404": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1145,7 +1375,7 @@
               }
             }
           },
-          "404": {
+          "422": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1158,7 +1388,7 @@
         }
       }
     },
-    "/invites/{code}/accept": {
+    "/api/v1/invites/{code}/accept": {
       "post": {
         "summary": "Accept an invite as the signed-in user",
         "tags": ["Invites"],
@@ -1239,11 +1469,21 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/gas/drip": {
+    "/api/v1/gas/drip": {
       "post": {
         "summary": "Fund the signed-in account's gas, once per address",
         "tags": ["Gas"],
@@ -1317,7 +1557,7 @@
         }
       }
     },
-    "/gas/status": {
+    "/api/v1/gas/status": {
       "get": {
         "summary": "Treasury balance and drip usage, for monitoring",
         "tags": ["Gas"],
@@ -1371,7 +1611,7 @@
         }
       }
     },
-    "/fx/usd-idr": {
+    "/api/v1/fx/usd-idr": {
       "get": {
         "summary": "USD to IDR exchange rate (display and estimates only)",
         "tags": ["FX"],
@@ -1396,7 +1636,10 @@
       "name": "System"
     },
     {
-      "name": "Auth"
+      "name": "Sessions"
+    },
+    {
+      "name": "Users"
     },
     {
       "name": "Employers"

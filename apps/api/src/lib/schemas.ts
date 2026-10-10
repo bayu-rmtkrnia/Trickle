@@ -2,9 +2,11 @@ import { z } from 'zod'
 
 export const ErrorResponse = z
   .object({
-    code: z.string(),
-    message: z.string(),
-    details: z.unknown().optional(),
+    error: z.object({
+      code: z.string().describe('Stable machine-readable code, e.g. INVITE_NOT_FOUND'),
+      message: z.string().describe('Human-readable explanation'),
+      details: z.unknown().optional(),
+    }),
   })
   .meta({ id: 'Error' })
 
@@ -14,5 +16,5 @@ export const Address = z
   .transform((a) => a.toLowerCase() as `0x${string}`)
 
 /** Standard error responses to spread into a route's `response` map. */
-export const errors = (...codes: (400 | 401 | 403 | 404 | 409 | 410 | 429 | 502 | 503)[]) =>
+export const errors = (...codes: (400 | 401 | 403 | 404 | 409 | 410 | 422 | 429 | 502 | 503)[]) =>
   Object.fromEntries(codes.map((c) => [c, ErrorResponse])) as Record<number, typeof ErrorResponse>

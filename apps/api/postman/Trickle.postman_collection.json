@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Trickle API",
-    "description": "Milestone 1 API. Folders follow the golden path: employer invites worker, worker invites family. Set {{baseUrl}} to the deployed URL or http://localhost:4000.",
+    "description": "Trickle API v1 (resource endpoints under /api/v1). Folders follow the golden path: employer invites worker, worker invites family. Set {{baseUrl}} to the deployed URL or http://localhost:4000.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -27,6 +27,10 @@
     },
     {
       "key": "familyInviteCode",
+      "value": ""
+    },
+    {
+      "key": "privyAccessToken",
       "value": ""
     }
   ],
@@ -79,7 +83,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 404', () => pm.response.to.have.status(404));",
-                  "pm.test('error code ROUTE_NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('ROUTE_NOT_FOUND'));"
+                  "pm.test('error code ROUTE_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('ROUTE_NOT_FOUND'));"
                 ]
               }
             }
@@ -88,10 +92,10 @@
       ]
     },
     {
-      "name": "2. Auth",
+      "name": "2. Sessions & users",
       "item": [
         {
-          "name": "Challenge",
+          "name": "Sign in with Privy",
           "request": {
             "method": "POST",
             "header": [
@@ -101,22 +105,23 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/challenge",
+              "raw": "{{baseUrl}}/api/v1/sessions",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "challenge"]
+              "path": ["api", "v1", "sessions"]
             },
             "auth": {
               "type": "noauth"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"address\": \"0x66818500d7c295d61D613C55269089e0C3D73fCf\"\n}",
+              "raw": "{\n  \"accessToken\": \"{{privyAccessToken}}\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "Set {{privyAccessToken}} to the value of `await getAccessToken()` in the web app (or the `privy:token` entry in its localStorage). For the role tokens below, run `pnpm session employer|worker|family` in apps/api instead."
           },
           "event": [
             {
@@ -129,7 +134,7 @@
           ]
         },
         {
-          "name": "Challenge - invalid address (400)",
+          "name": "Sign in - invalid Privy token (401)",
           "request": {
             "method": "POST",
             "header": [
@@ -139,16 +144,58 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/auth/challenge",
+              "raw": "{{baseUrl}}/api/v1/sessions",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "challenge"]
+              "path": ["api", "v1", "sessions"]
             },
             "auth": {
               "type": "noauth"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"address\": \"0x123\"\n}",
+              "raw": "{\n  \"accessToken\": \"not-a-privy-token\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Answers 503 PRIVY_NOT_CONFIGURED when the server has no PRIVY_APP_ID."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Sign in - missing token (422)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "sessions"]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -162,174 +209,9 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 400', () => pm.response.to.have.status(400));",
-                  "pm.test('error code VALIDATION_ERROR', () => pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'));"
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
                 ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Verify (employer)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/verify",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
-            },
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"message\": \"paste from: pnpm sign employer\",\n  \"signature\": \"0x...\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Postman cannot sign messages. In apps/api run `pnpm sign employer` and paste the printed JSON as the body. The token is saved to {{employerToken}}."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.collectionVariables.set('employerToken', pm.response.json().token);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Verify (worker)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/verify",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
-            },
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"message\": \"paste from: pnpm sign worker\",\n  \"signature\": \"0x...\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Postman cannot sign messages. In apps/api run `pnpm sign worker` and paste the printed JSON as the body. The token is saved to {{workerToken}}."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.collectionVariables.set('workerToken', pm.response.json().token);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Verify (family)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/verify",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
-            },
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"message\": \"paste from: pnpm sign family\",\n  \"signature\": \"0x...\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Postman cannot sign messages. In apps/api run `pnpm sign family` and paste the printed JSON as the body. The token is saved to {{familyToken}}."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.collectionVariables.set('familyToken', pm.response.json().token);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "Verify - replayed signature (401)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/verify",
-              "host": ["{{baseUrl}}"],
-              "path": ["auth", "verify"]
-            },
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"message\": \"paste a body that was already used\",\n  \"signature\": \"0x...\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            },
-            "description": "Send the same body as an earlier successful verify. Nonces are single-use."
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": ["pm.test('status 401', () => pm.response.to.have.status(401));"]
               }
             }
           ]
@@ -340,9 +222,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "{{baseUrl}}/api/v1/users/me",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"]
+              "path": ["api", "v1", "users", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -371,9 +253,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "{{baseUrl}}/api/v1/users/me",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"]
+              "path": ["api", "v1", "users", "me"]
             },
             "auth": {
               "type": "noauth"
@@ -386,7 +268,100 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 401', () => pm.response.to.have.status(401));",
-                  "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().code).to.eql('UNAUTHORIZED'));"
+                  "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update me",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Siti Rahma\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update me - empty name (422)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
                 ]
               }
             }
@@ -408,9 +383,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers",
+              "raw": "{{baseUrl}}/api/v1/employers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers"]
+              "path": ["api", "v1", "employers"]
             },
             "auth": {
               "type": "bearer",
@@ -453,9 +428,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers",
+              "raw": "{{baseUrl}}/api/v1/employers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers"]
+              "path": ["api", "v1", "employers"]
             },
             "auth": {
               "type": "bearer",
@@ -484,14 +459,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 409', () => pm.response.to.have.status(409));",
-                  "pm.test('error code EMPLOYER_EXISTS', () => pm.expect(pm.response.json().code).to.eql('EMPLOYER_EXISTS'));"
+                  "pm.test('error code EMPLOYER_EXISTS', () => pm.expect(pm.response.json().error.code).to.eql('EMPLOYER_EXISTS'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Create employer - invalid (400)",
+          "name": "Create employer - invalid (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -501,9 +476,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers",
+              "raw": "{{baseUrl}}/api/v1/employers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers"]
+              "path": ["api", "v1", "employers"]
             },
             "auth": {
               "type": "bearer",
@@ -531,8 +506,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 400', () => pm.response.to.have.status(400));",
-                  "pm.test('error code VALIDATION_ERROR', () => pm.expect(pm.response.json().code).to.eql('VALIDATION_ERROR'));"
+                  "pm.test('status 422', () => pm.response.to.have.status(422));",
+                  "pm.test('error code VALIDATION_ERROR', () => pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR'));"
                 ]
               }
             }
@@ -544,9 +519,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/employers/me",
+              "raw": "{{baseUrl}}/api/v1/employers/me",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me"]
+              "path": ["api", "v1", "employers", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -575,9 +550,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/employers/me",
+              "raw": "{{baseUrl}}/api/v1/employers/me",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me"]
+              "path": ["api", "v1", "employers", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -597,7 +572,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 404', () => pm.response.to.have.status(404));",
-                  "pm.test('error code EMPLOYER_NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('EMPLOYER_NOT_FOUND'));"
+                  "pm.test('error code EMPLOYER_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('EMPLOYER_NOT_FOUND'));"
                 ]
               }
             }
@@ -614,9 +589,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/employers/me",
+              "raw": "{{baseUrl}}/api/v1/employers/me",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me"]
+              "path": ["api", "v1", "employers", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -664,9 +639,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/invites",
+              "raw": "{{baseUrl}}/api/v1/invites",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"]
+              "path": ["api", "v1", "invites"]
             },
             "auth": {
               "type": "bearer",
@@ -712,9 +687,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/invites",
+              "raw": "{{baseUrl}}/api/v1/invites",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"]
+              "path": ["api", "v1", "invites"]
             },
             "auth": {
               "type": "bearer",
@@ -743,7 +718,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 403', () => pm.response.to.have.status(403));",
-                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().code).to.eql('FORBIDDEN'));"
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
                 ]
               }
             }
@@ -755,9 +730,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}"]
             },
             "auth": {
               "type": "noauth"
@@ -779,9 +754,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/ZZZZZZZZZZ",
+              "raw": "{{baseUrl}}/api/v1/invites/ZZZZZZZZZZ",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "ZZZZZZZZZZ"]
+              "path": ["api", "v1", "invites", "ZZZZZZZZZZ"]
             },
             "auth": {
               "type": "noauth"
@@ -794,7 +769,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 404', () => pm.response.to.have.status(404));",
-                  "pm.test('error code INVITE_NOT_FOUND', () => pm.expect(pm.response.json().code).to.eql('INVITE_NOT_FOUND'));"
+                  "pm.test('error code INVITE_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('INVITE_NOT_FOUND'));"
                 ]
               }
             }
@@ -806,9 +781,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -828,7 +803,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 400', () => pm.response.to.have.status(400));",
-                  "pm.test('error code CANNOT_ACCEPT_OWN_INVITE', () => pm.expect(pm.response.json().code).to.eql('CANNOT_ACCEPT_OWN_INVITE'));"
+                  "pm.test('error code CANNOT_ACCEPT_OWN_INVITE', () => pm.expect(pm.response.json().error.code).to.eql('CANNOT_ACCEPT_OWN_INVITE'));"
                 ]
               }
             }
@@ -840,9 +815,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -871,9 +846,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -893,7 +868,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 409', () => pm.response.to.have.status(409));",
-                  "pm.test('error code INVITE_ALREADY_ACCEPTED', () => pm.expect(pm.response.json().code).to.eql('INVITE_ALREADY_ACCEPTED'));"
+                  "pm.test('error code INVITE_ALREADY_ACCEPTED', () => pm.expect(pm.response.json().error.code).to.eql('INVITE_ALREADY_ACCEPTED'));"
                 ]
               }
             }
@@ -910,9 +885,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/invites",
+              "raw": "{{baseUrl}}/api/v1/invites",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"]
+              "path": ["api", "v1", "invites"]
             },
             "auth": {
               "type": "bearer",
@@ -953,9 +928,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites/{{familyInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{familyInviteCode}}/accept",
               "host": ["{{baseUrl}}"],
-              "path": ["invites", "{{familyInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{familyInviteCode}}", "accept"]
             },
             "auth": {
               "type": "bearer",
@@ -984,13 +959,17 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/invites?type=WORKER",
+              "raw": "{{baseUrl}}/api/v1/invites?type=WORKER&limit=10",
               "host": ["{{baseUrl}}"],
-              "path": ["invites"],
+              "path": ["api", "v1", "invites"],
               "query": [
                 {
                   "key": "type",
                   "value": "WORKER"
+                },
+                {
+                  "key": "limit",
+                  "value": "10"
                 }
               ]
             },
@@ -1021,9 +1000,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/employers/me/workers",
+              "raw": "{{baseUrl}}/api/v1/employers/me/workers",
               "host": ["{{baseUrl}}"],
-              "path": ["employers", "me", "workers"]
+              "path": ["api", "v1", "employers", "me", "workers"]
             },
             "auth": {
               "type": "bearer",
@@ -1052,9 +1031,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/auth/me",
+              "raw": "{{baseUrl}}/api/v1/users/me",
               "host": ["{{baseUrl}}"],
-              "path": ["auth", "me"]
+              "path": ["api", "v1", "users", "me"]
             },
             "auth": {
               "type": "bearer",
@@ -1088,9 +1067,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/gas/status",
+              "raw": "{{baseUrl}}/api/v1/gas/status",
               "host": ["{{baseUrl}}"],
-              "path": ["gas", "status"]
+              "path": ["api", "v1", "gas", "status"]
             },
             "auth": {
               "type": "noauth"
@@ -1112,9 +1091,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/gas/drip",
+              "raw": "{{baseUrl}}/api/v1/gas/drip",
               "host": ["{{baseUrl}}"],
-              "path": ["gas", "drip"]
+              "path": ["api", "v1", "gas", "drip"]
             },
             "auth": {
               "type": "bearer",
@@ -1135,9 +1114,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/gas/drip",
+              "raw": "{{baseUrl}}/api/v1/gas/drip",
               "host": ["{{baseUrl}}"],
-              "path": ["gas", "drip"]
+              "path": ["api", "v1", "gas", "drip"]
             },
             "auth": {
               "type": "bearer",
@@ -1162,9 +1141,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/fx/usd-idr",
+              "raw": "{{baseUrl}}/api/v1/fx/usd-idr",
               "host": ["{{baseUrl}}"],
-              "path": ["fx", "usd-idr"]
+              "path": ["api", "v1", "fx", "usd-idr"]
             },
             "auth": {
               "type": "noauth"
@@ -1176,6 +1155,76 @@
               "script": {
                 "type": "text/javascript",
                 "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Sign out",
+      "item": [
+        {
+          "name": "Sign out",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/sessions/current",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "sessions", "current"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me after sign out (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));"
+                ]
               }
             }
           ]

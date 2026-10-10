@@ -8,7 +8,6 @@ import { loadEnv } from '../src/env.js'
 
 const env = loadEnv({
   DATABASE_URL: 'postgresql://unused:unused@localhost:5432/unused',
-  JWT_SECRET: 'x'.repeat(32),
   ...process.env,
   NODE_ENV: 'test',
 })
