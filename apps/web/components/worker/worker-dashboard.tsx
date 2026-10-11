@@ -101,12 +101,14 @@ function DashboardSkeleton() {
 function EmploymentDashboard({ session }: { session: SessionContextValue }) {
   const { page, loading, loadingMore, error, pageError, retryUntil, reload, loadMore } =
     useWorkerEmployments(session)
-  if (loading) return <DashboardSkeleton />
   return (
     <WorkerShell name={session.user?.displayName ?? t.fallbackName}>
       <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8">
         <div className="min-w-0 md:sticky md:top-6 md:w-2/5">
-          <SalaryCard />
+          <SalaryCard
+            walletAddress={session.user?.address ?? null}
+            employments={page?.data ?? []}
+          />
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-8">
           <section aria-labelledby="worker-employer-heading" className="flex flex-col gap-4">
@@ -116,7 +118,12 @@ function EmploymentDashboard({ session }: { session: SessionContextValue }) {
               </h2>
               <p className="mt-1 text-label text-muted">{t.employerBody}</p>
             </div>
-            {error ? (
+            {loading ? (
+              <div role="status" aria-label={t.loading} className="flex flex-col gap-3">
+                <Skeleton className="h-20" />
+                <Skeleton className="h-20" />
+              </div>
+            ) : error ? (
               <>
                 <InlineError {...workerDashboardError(error)} />
                 <Button variant="secondary" block onClick={reload} disabled={retryUntil > 0}>
