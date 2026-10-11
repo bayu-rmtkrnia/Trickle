@@ -11,7 +11,7 @@ function setup(exists = true) {
     createdAt: new Date('2026-10-01T00:00:00Z'),
     lastLoginAt: null,
     companies: [{ id: 'co-1' }],
-    _count: { employments: 1, familyAsRelative: 0 },
+    _count: { employments: 1, recipientOf: 0 },
   }
   const repo = {
     async findWithRoleCounts(id) {
@@ -29,7 +29,7 @@ function setup(exists = true) {
 describe('user service', () => {
   it('derives roles and my company from relations', async () => {
     const me = await setup().me('u1')
-    expect(me.roles).toEqual({ employer: true, worker: true, family: false })
+    expect(me.roles).toEqual({ employer: true, worker: true, recipient: false })
     expect(me.companyId).toBe('co-1')
   })
 

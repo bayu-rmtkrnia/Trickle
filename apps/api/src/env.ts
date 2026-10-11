@@ -40,6 +40,13 @@ const EnvSchema = z.object({
   CHAIN_ID: z.coerce.number().int().default(10143),
   RPC_URL: z.string().url().default('https://testnet-rpc.monad.xyz'),
 
+  /** TricklePayroll contract. When unset, on-chain split checks are skipped (and logged). */
+  PAYROLL_ADDRESS: z
+    .string()
+    .regex(/^0x[0-9a-fA-F]{40}$/, 'must be a 0x-prefixed 20-byte address')
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+
   GAS_TREASURY_PRIVATE_KEY: hexKey.optional().or(z.literal('').transform(() => undefined)),
   GAS_DRIP_AMOUNT_MON: z.string().default('0.05'),
   GAS_DRIP_DAILY_LIMIT: z.coerce.number().int().positive().default(200),

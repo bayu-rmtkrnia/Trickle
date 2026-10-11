@@ -5,7 +5,7 @@ const withRoleCounts = {
   _count: {
     select: {
       employments: { where: { deletedAt: null, company: { deletedAt: null } } },
-      familyAsRelative: true,
+      recipientOf: { where: { deletedAt: null } },
     },
   },
 } as const

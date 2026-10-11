@@ -29,7 +29,7 @@ export const MeDto = UserDto.extend({
   roles: z.object({
     employer: z.boolean(),
     worker: z.boolean(),
-    family: z.boolean(),
+    recipient: z.boolean().describe("Receives part of a worker's salary (family)"),
   }),
 }).meta({ id: 'Me' })
 
@@ -40,7 +40,7 @@ export const UpdateMeInput = z.object({
     .min(1)
     .max(80)
     .nullable()
-    .describe('Name shown to employers and family. `null` clears it'),
+    .describe('Name shown to employers and recipients. `null` clears it'),
 })
 
 export type UpdateMeInput = z.infer<typeof UpdateMeInput>

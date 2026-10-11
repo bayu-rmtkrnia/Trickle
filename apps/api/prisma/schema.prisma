@@ -37,7 +37,7 @@ enum PayoutStatus {
 }
 
 /// Anyone who signed in with Privy. Role is contextual: the same address
-/// can own a company (employer), be a worker, or be family.
+/// can own a company (employer), be a worker, or be a recipient (family).
 model User {
   id          String    @id @default(cuid())
   /// Lowercased 0x address of the Privy embedded wallet
@@ -48,14 +48,16 @@ model User {
   createdAt   DateTime  @default(now())
   lastLoginAt DateTime?
 
-  companies        Company[]
-  employments      Worker[]
-  familyAsWorker   FamilyLink[] @relation("FamilyWorker")
-  familyAsRelative FamilyLink[] @relation("FamilyRelative")
-  invitesCreated   Invite[]     @relation("InviteCreatedBy")
-  invitesAccepted  Invite[]     @relation("InviteAcceptedBy")
-  payouts          Payout[]
-  sessions         Session[]
+  companies       Company[]
+  employments     Worker[]
+  /// People this user (as a worker) sends part of their salary to
+  recipients      Recipient[] @relation("RecipientOwner")
+  /// Workers who added this user as their recipient
+  recipientOf     Recipient[] @relation("RecipientUser")
+  invitesCreated  Invite[]    @relation("InviteCreatedBy")
+  invitesAccepted Invite[]    @relation("InviteAcceptedBy")
+  payouts         Payout[]
+  sessions        Session[]
 }
 
 /// API session. Only the SHA-256 of the bearer token is stored, so a leaked
@@ -114,19 +116,27 @@ model Worker {
   @@index([userId])
 }
 
-model FamilyLink {
-  id          String   @id @default(cuid())
-  workerId    String
-  relativeId  String
+/// A family member a worker sends part of their salary to. The split itself
+/// (who and how many bps) lives on-chain in `setSplit`; this is the address book.
+model Recipient {
+  id          String    @id @default(cuid())
+  /// The worker (user id) who owns this entry
+  ownerId     String
+  /// The recipient's account
+  userId      String
   displayName String
+  /// e.g. "Ibu", "Istri"
   relation    String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  /// Soft delete. Re-adding the same person restores this row.
+  deletedAt   DateTime?
 
-  worker   User @relation("FamilyWorker", fields: [workerId], references: [id])
-  relative User @relation("FamilyRelative", fields: [relativeId], references: [id])
+  owner User @relation("RecipientOwner", fields: [ownerId], references: [id])
+  user  User @relation("RecipientUser", fields: [userId], references: [id])
 
-  @@unique([workerId, relativeId])
-  @@index([relativeId])
+  @@unique([ownerId, userId])
+  @@index([userId])
 }
 
 model Invite {

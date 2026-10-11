@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { StreamReader } from '../src/lib/streams.js'
 import type { WorkerRepository } from '../src/modules/workers/repository.js'
 import type { WorkerWithUser } from '../src/modules/workers/schemas.js'
 import { createWorkerService } from '../src/modules/workers/service.js'
@@ -24,7 +23,7 @@ function setup(repo: Partial<WorkerRepository>, active = false, verified = true)
   const unexpected = () => {
     throw new Error('unexpected repository call')
   }
-  const streams: StreamReader = { verified, hasActiveStream: vi.fn(async () => active) }
+  const streams = { verified, hasActiveStream: vi.fn(async () => active) }
   const service = createWorkerService({
     streams,
     repo: {

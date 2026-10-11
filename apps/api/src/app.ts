@@ -12,11 +12,11 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod'
 import type { Env } from './env.js'
-import { createChain, type Chain } from './lib/chain.js'
+import { createChain, createReadClient, type Chain } from './lib/chain.js'
 import { createFxService, type FxService } from './lib/fx.js'
 import { createPrisma, type Db } from './lib/prisma.js'
 import { createPrivy, type Privy } from './lib/privy.js'
-import { createUnverifiedStreamReader, type StreamReader } from './lib/streams.js'
+import { createStreamReader, type StreamReader } from './lib/streams.js'
 import companyRoutes from './modules/companies/routes.js'
 import fxRoutes from './modules/fx/routes.js'
 import gasRoutes from './modules/gas/routes.js'
@@ -24,6 +24,7 @@ import healthRoutes from './modules/health/routes.js'
 import inviteRoutes from './modules/invites/routes.js'
 import sessionRoutes from './modules/sessions/routes.js'
 import userRoutes from './modules/users/routes.js'
+import recipientRoutes from './modules/recipients/routes.js'
 import workerRoutes from './modules/workers/routes.js'
 import authPlugin from './plugins/auth.js'
 import rbacPlugin from './plugins/rbac.js'
@@ -77,7 +78,14 @@ export async function buildApp(deps: AppDeps) {
         verificationKey: env.PRIVY_VERIFICATION_KEY,
       }),
   )
-  app.decorate('streams', deps.streams ?? createUnverifiedStreamReader())
+  app.decorate(
+    'streams',
+    deps.streams ??
+      createStreamReader({
+        client: createReadClient(env),
+        payroll: env.PAYROLL_ADDRESS as `0x${string}` | undefined,
+      }),
+  )
   if (!deps.db) app.addHook('onClose', () => db.$disconnect())
 
   registerErrorHandling(app)
@@ -106,6 +114,7 @@ export async function buildApp(deps: AppDeps) {
         { name: 'Users' },
         { name: 'Companies' },
         { name: 'Workers' },
+        { name: 'Recipients' },
         { name: 'Invites' },
         { name: 'Gas' },
         { name: 'FX' },
@@ -131,6 +140,7 @@ export async function buildApp(deps: AppDeps) {
       await v1.register(userRoutes)
       await v1.register(companyRoutes)
       await v1.register(workerRoutes)
+      await v1.register(recipientRoutes)
       await v1.register(inviteRoutes)
       await v1.register(gasRoutes)
       await v1.register(fxRoutes)

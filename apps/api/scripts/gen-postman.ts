@@ -78,6 +78,8 @@ const collection = {
     { key: 'companyId', value: '' },
     { key: 'workerId', value: '' },
     { key: 'extraWorkerId', value: '' },
+    { key: 'recipientId', value: '' },
+    { key: 'extraRecipientId', value: '' },
     { key: 'workerInviteCode', value: '' },
     { key: 'familyInviteCode', value: '' },
     { key: 'privyAccessToken', value: '' },
@@ -328,7 +330,70 @@ const collection = {
       ],
     },
     {
-      name: '6. Gas',
+      name: '6. Recipients',
+      item: [
+        req('List my recipients', 'GET', '/api/v1/recipients', {
+          auth: bearer('workerToken'),
+          description: 'Saves the recipient from the family invite as recipientId.',
+          tests: [status(200), save('recipientId', 'data[0].id')],
+        }),
+        req('List recipients - not a worker (403)', 'GET', '/api/v1/recipients', {
+          auth: bearer('employerToken'),
+          tests: [status(403), errCode('FORBIDDEN')],
+        }),
+        req('Get recipient (worker)', 'GET', '/api/v1/recipients/{{recipientId}}', {
+          auth: bearer('workerToken'),
+          tests: [status(200)],
+        }),
+        req('Get recipient (the recipient themself)', 'GET', '/api/v1/recipients/{{recipientId}}', {
+          auth: bearer('familyToken'),
+          tests: [status(200)],
+        }),
+        req('Get recipient - employer (403)', 'GET', '/api/v1/recipients/{{recipientId}}', {
+          auth: bearer('employerToken'),
+          tests: [status(403), errCode('FORBIDDEN')],
+        }),
+        req('Update recipient', 'PATCH', '/api/v1/recipients/{{recipientId}}', {
+          auth: bearer('workerToken'),
+          body: { displayName: 'Mama', relation: 'Ibu' },
+          tests: [status(200)],
+        }),
+        req(
+          'Update recipient - the recipient themself (403)',
+          'PATCH',
+          '/api/v1/recipients/{{recipientId}}',
+          {
+            auth: bearer('familyToken'),
+            body: { displayName: 'Hijacked' },
+            tests: [status(403), errCode('FORBIDDEN')],
+          },
+        ),
+        req('Add recipient by address', 'POST', '/api/v1/recipients', {
+          auth: bearer('workerToken'),
+          body: {
+            address: '0x000000000000000000000000000000000000cAFE',
+            displayName: 'Rina',
+            relation: 'Istri',
+          },
+          description:
+            'Creates the account for this address if needed; it links when that wallet signs in with Privy. Re-running restores the recipient after the delete below.',
+          tests: [status(201), save('extraRecipientId', 'id')],
+        }),
+        req('Add recipient - already added (409)', 'POST', '/api/v1/recipients', {
+          auth: bearer('workerToken'),
+          body: { address: '0x000000000000000000000000000000000000cAFE', displayName: 'Rina' },
+          tests: [status(409), errCode('RECIPIENT_EXISTS')],
+        }),
+        req('Delete recipient', 'DELETE', '/api/v1/recipients/{{extraRecipientId}}', {
+          auth: bearer('workerToken'),
+          description:
+            "409 SPLIT_ACTIVE while the worker's on-chain split (splitOf) still sends to this recipient.",
+          tests: [status(204)],
+        }),
+      ],
+    },
+    {
+      name: '7. Gas',
       item: [
         req('Gas status', 'GET', '/api/v1/gas/status', { tests: [status(200)] }),
         req('Gas drip', 'POST', '/api/v1/gas/drip', {
@@ -342,11 +407,11 @@ const collection = {
       ],
     },
     {
-      name: '7. FX',
+      name: '8. FX',
       item: [req('USD to IDR', 'GET', '/api/v1/fx/usd-idr', { tests: [status(200)] })],
     },
     {
-      name: '8. Sign out',
+      name: '9. Sign out',
       item: [
         req('Sign out', 'DELETE', '/api/v1/sessions/current', {
           auth: bearer('familyToken'),
