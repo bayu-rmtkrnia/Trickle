@@ -7,6 +7,7 @@ import { unauthorized } from '../src/lib/errors.js'
 import type { Privy } from '../src/lib/privy.js'
 import type { Chain } from '../src/lib/chain.js'
 import { createPrisma } from '../src/lib/prisma.js'
+import { expectForbidden } from './helpers.js'
 
 const url = process.env.TEST_DATABASE_URL
 
@@ -272,6 +273,53 @@ describe.skipIf(!url)('api (integration)', () => {
         payload: { type: 'FAMILY', inviteeName: 'Ibu' },
       })
       expect(res.statusCode).toBe(403)
+    })
+  })
+
+  describe('rbac', () => {
+    it('keeps company management to employers', async () => {
+      const employer = await signIn('employer')
+      const outsider = await signIn('outsider')
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/employers',
+        headers: as(employer.token),
+        payload: { name: 'PT Maju Jaya' },
+      })
+
+      const employerOnly = [
+        { method: 'PATCH', url: '/api/v1/employers/me', payload: { name: 'Hijacked' } },
+        { method: 'GET', url: '/api/v1/employers/me/workers' },
+      ] as const
+      await expectForbidden(app, outsider.token, [...employerOnly])
+
+      for (const r of employerOnly) {
+        const res = await app.inject({ ...r, headers: as(employer.token) })
+        expect(res.statusCode, `${r.method} ${r.url}`).toBe(200)
+      }
+    })
+
+    it('grants the employer role as soon as the company exists', async () => {
+      const user = await signIn('founder')
+      const before = await app.inject({
+        method: 'GET',
+        url: '/api/v1/employers/me/workers',
+        headers: as(user.token),
+      })
+      expect(before.statusCode).toBe(403)
+
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/employers',
+        headers: as(user.token),
+        payload: { name: 'PT Baru' },
+      })
+      const after = await app.inject({
+        method: 'GET',
+        url: '/api/v1/employers/me/workers',
+        headers: as(user.token),
+      })
+      expect(after.statusCode).toBe(200)
     })
   })
 

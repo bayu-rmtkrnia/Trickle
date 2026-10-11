@@ -14,13 +14,20 @@ const employers: FastifyPluginAsyncZod = async (app) => {
     createEmployerService(createEmployerRepository(app.db)),
   )
   const secured = { onRequest: [app.authenticate] }
+  const employerOnly = { onRequest: [app.authenticate, app.requireRole('employer')] }
 
+  // Anyone can create a company (that is how you become an employer) and ask for
+  // their own profile (404 tells the web app to show onboarding).
   app.post('/employers', { ...secured, schema: createEmployerSchema }, controller.create)
   app.get('/employers/me', { ...secured, schema: getMyEmployerSchema }, controller.getMine)
-  app.patch('/employers/me', { ...secured, schema: updateMyEmployerSchema }, controller.updateMine)
+  app.patch(
+    '/employers/me',
+    { ...employerOnly, schema: updateMyEmployerSchema },
+    controller.updateMine,
+  )
   app.get(
     '/employers/me/workers',
-    { ...secured, schema: listMyWorkersSchema },
+    { ...employerOnly, schema: listMyWorkersSchema },
     controller.listMyWorkers,
   )
 }

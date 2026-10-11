@@ -1,4 +1,5 @@
 import { unauthorized } from '../../lib/errors.js'
+import { toRoles } from '../../lib/roles.js'
 import type { UserRepository } from './repository.js'
 import { toUserDto, type UpdateMeInput } from './schemas.js'
 
@@ -8,14 +9,7 @@ export function createUserService(repo: UserRepository) {
   async function me(userId: string) {
     const user = await repo.findWithRoleCounts(userId)
     if (!user) throw gone()
-    return {
-      ...toUserDto(user),
-      roles: {
-        employer: Boolean(user.employer),
-        worker: user._count.employments > 0,
-        family: user._count.familyAsRelative > 0,
-      },
-    }
+    return { ...toUserDto(user), roles: toRoles(user) }
   }
 
   return {

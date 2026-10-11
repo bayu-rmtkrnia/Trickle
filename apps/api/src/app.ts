@@ -24,6 +24,7 @@ import inviteRoutes from './modules/invites/routes.js'
 import sessionRoutes from './modules/sessions/routes.js'
 import userRoutes from './modules/users/routes.js'
 import authPlugin from './plugins/auth.js'
+import rbacPlugin from './plugins/rbac.js'
 import { registerErrorHandling } from './plugins/errors.js'
 import './types.js'
 
@@ -116,6 +117,7 @@ export async function buildApp(deps: AppDeps) {
   await app.register(swaggerUi, { routePrefix: '/docs' })
 
   await app.register(authPlugin)
+  await app.register(rbacPlugin)
   // Infrastructure endpoints stay unversioned so the Railway healthcheck and docs URL never move.
   await app.register(healthRoutes)
   await app.register(

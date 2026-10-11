@@ -1,10 +1,10 @@
 # Dokumentasi Arsitektur Trickle
 
-Isinya keadaan aplikasi **saat ini**: apa saja yang sudah ada, di mana letaknya, dan kenapa dibuat begitu. Rencana dan jadwal ada di [`docs/PLAN.md`](docs/PLAN.md), sedangkan progres BE per fitur ada di [`docs/backend/roadmap.md`](docs/backend/roadmap.md).
+Isinya keadaan aplikasi **saat ini**: apa saja yang sudah ada, di mana letaknya, dan kenapa dibuat begitu. Rencana dan jadwal ada di [`docs/PLAN.md`](PLAN.md), sedangkan progres BE per fitur ada di [`docs/backend/roadmap.md`](backend/roadmap.md).
 
 > **Aturan:** setiap PR yang menambah atau mengubah fitur, endpoint, tabel, env var, atau keputusan desain **wajib memperbarui file ini** di PR yang sama. Kalau ada isi file ini yang tidak lagi sesuai dengan kode, berarti file ini yang salah, jadi perbaiki.
 
-Terakhir diperbarui: 9 Okt 2026 (Fitur 3: sesi Privy).
+Terakhir diperbarui: 10 Okt 2026 (Fitur 4: RBAC & kepemilikan).
 
 ---
 
@@ -12,7 +12,7 @@ Terakhir diperbarui: 9 Okt 2026 (Fitur 3: sesi Privy).
 
 Trickle adalah aplikasi gaji streaming untuk pekerja migran. Employer mengalirkan gaji on-chain (Monad testnet), pekerja bisa menarik kapan saja dan berbagi ke keluarga, lalu keluarga bisa mencairkan ke rekening bank (sandbox).
 
-Ada tiga peran, dan perannya **kontekstual**: satu akun bisa sekaligus employer, pekerja, dan keluarga.
+Ada tiga peran, dan perannya **kontekstual**: satu akun bisa sekaligus employer, pekerja, dan keluarga. Peran tidak disimpan sebagai kolom, tapi diturunkan dari relasi berikut (`src/lib/roles.ts`):
 
 | Peran | Didapat dari |
 | ----- | ------------ |
@@ -24,10 +24,10 @@ Ada tiga peran, dan perannya **kontekstual**: satu akun bisa sekaligus employer,
 
 ```
 apps/api/        Backend (Fastify + Prisma + Postgres). Pemilik: BE
-apps/web/        Frontend Next.js + Privy. Masih di branch feat/frontend, belum di main
+apps/web/        Frontend Next.js + Privy (rute /employer, /w, /f). Pemilik: FE. Belum memanggil API (masih data mock)
 contracts/       Smart contract (belum ada). Pemilik: SC
 packages/shared/ ABI + alamat kontrak untuk FE/BE (belum ada)
-docs/            PLAN.md (sumber kebenaran scope), roadmap BE, dokumen kuliah
+docs/            PLAN.md (sumber kebenaran scope), ARCHITECTURE.md (file ini), roadmap BE, dokumen kuliah
 .github/         CI + template PR
 docker-compose.yml   Postgres lokal (port 5433)
 railway.json     Deploy API ke Railway
@@ -42,14 +42,15 @@ src/app.ts               buildApp(): plugin, Swagger, registrasi semua modul di 
 src/env.ts               Validasi env var (Zod). Semua config masuk lewat sini
 src/types.ts             Augmentasi tipe Fastify (app.db, app.privy, req.user, ...)
 src/plugins/auth.ts      app.authenticate: bearer token → req.user
+src/plugins/rbac.ts      app.requireRole, app.requireOwnership (403/404)
 src/plugins/errors.ts    Format error seragam, 400 vs 422
 src/lib/                 Klien infrastruktur dan helper bersama:
   prisma.ts  chain.ts (viem)  privy.ts  fx.ts
-  errors.ts  pagination.ts  tokens.ts  money.ts  codes.ts  schemas.ts  http.ts
+  errors.ts  pagination.ts  roles.ts  tokens.ts  money.ts  codes.ts  schemas.ts  http.ts
 src/modules/<resource>/  Satu folder per resource (lihat §4)
 src/generated/prisma/    Hasil `prisma generate`, jangan diedit
 scripts/                 export-openapi, gen-postman, dev-session
-test/                    Vitest: unit (fake repo) + integrasi (Postgres sungguhan)
+test/                    Vitest: unit (fake repo) + integrasi (Postgres sungguhan); helpers.ts = expectForbidden
 openapi.json             Spec hasil generate. CI gagal kalau tidak sinkron
 postman/                 Koleksi Postman hasil generate
 ```
@@ -64,21 +65,27 @@ Semua endpoint resource ada di bawah `/api/v1`, kecuali `/health` dan `/docs` (S
 | sessions | `POST /sessions` | – | Tukar access token Privy → token sesi. Rate limit 20/menit |
 | | `DELETE /sessions/current` | ✓ | Logout sesi ini saja |
 | users | `GET /users/me`, `PATCH /users/me` | ✓ | Profil + peran; PATCH hanya `displayName` |
-| employers | `POST /employers`, `GET/PATCH /employers/me`, `GET /employers/me/workers` | ✓ | Akan di-rename jadi `companies` (Fitur 5) |
+| employers | `POST /employers`, `GET /employers/me` | ✓ | Akan di-rename jadi `companies` (Fitur 5) |
+| | `PATCH /employers/me`, `GET /employers/me/workers` | Employer | Peran lain mendapat 403 |
 | invites | `POST /invites`, `GET /invites`, `GET /invites/:code`, `POST /invites/:code/accept` | ✓ / publik | Detail undangan publik supaya link bisa dibuka sebelum login |
 | gas | `POST /gas/drip`, `GET /gas/status` | ✓ / – | Kirim MON testnet sekali per alamat. Rate limit 5/menit |
 | fx | `GET /fx/usd-idr` | – | Kurs untuk tampilan saja |
 
+Kolom Auth: – publik, ✓ semua user yang login, *Employer* hanya pemilik profil perusahaan.
+
 Detail request dan response: `openapi.json` atau `http://localhost:4000/docs`.
 
-**Belum ada** (lihat roadmap): RBAC formal (4), companies (5), workers CRUD (6), recipients (7), invites v1 (8), rekening bank terenkripsi (9), refactor gas/fx (10), payouts (11), judge mode (12), ERD (13).
+**Belum ada** (lihat roadmap): companies (5), workers CRUD (6), recipients (7), invites v1 (8), rekening bank terenkripsi (9), refactor gas/fx (10), payouts (11), judge mode (12), ERD (13).
 
 ## 4. Arsitektur API
 
 ### Alur request
 
 ```
-request → helmet/cors/rate-limit → [app.authenticate] → validasi Zod (schemas.ts)
+request → helmet/cors/rate-limit
+        → onRequest: [app.authenticate] → [app.requireRole(...)]      401 / 403
+        → validasi Zod (schemas.ts)                                     422
+        → preHandler: [app.requireOwnership(...)]                       404 / 403
         → controller → service → repository → Prisma → Postgres
 error di mana pun → plugins/errors.ts → { error: { code, message, details? } }
 ```
@@ -114,6 +121,14 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Alamat wallet diambil dari API Privy (butuh `PRIVY_APP_SECRET`), hanya saat login pertama.** Kenapa: access token Privy tidak memuat alamat wallet, sedangkan alamat yang dikirim klien tidak bisa dipercaya. Kalau wallet belum dibuat, API menjawab 409 `WALLET_NOT_READY` dan FE cukup mencoba lagi. Hanya embedded wallet (`wallet_client_type=privy`) yang dipakai, wallet eksternal diabaikan.
 - **User lama ditautkan lewat alamat**: `User.privyId` nullable, dan user lama dengan alamat yang sama otomatis mendapat `privyId` saat login Privy pertama.
 - **Postman memakai `pnpm session <role>`**, yang membuat sesi langsung di DB lokal karena Postman tidak bisa login ke Privy. Script ini menolak jalan dengan `NODE_ENV=production`.
+
+### Otorisasi (Fitur 4)
+- **Peran diturunkan dari relasi, tidak disimpan.** Punya `Employer` = employer, punya `EmployerWorker` = pekerja, punya `FamilyLink` sebagai relative = keluarga (`toRoles()` di `lib/roles.ts`). Kenapa: tidak bisa tidak sinkron dengan data. Contohnya, begitu perusahaan dibuat, user langsung jadi employer tanpa perlu update kolom atau login ulang.
+- **Peran dicek per request, tidak dimasukkan ke token sesi.** Kenapa: token opak tidak membawa klaim, dan perubahan peran langsung berlaku. Biayanya satu query per request yang memakai `requireRole`, dan hasilnya disimpan di `req.roles` supaya tidak diulang.
+- **Guard berupa middleware deklaratif di `routes.ts`** (`requireRole` di `onRequest`, `requireOwnership` di `preHandler`). Kenapa: siapa boleh mengakses apa terlihat di satu tempat saat membaca daftar route, dan service tidak perlu mengulang pengecekan yang sama. Aturan yang bergantung pada isi body (misalnya jenis undangan) tetap di service, karena middleware `onRequest` belum bisa membaca body.
+- **403 untuk peran atau pemilik yang salah, 404 kalau resource tidak ada**, keduanya dalam format error seragam (`FORBIDDEN`). Kenapa: rubrik K5 meminta 403 untuk peran lain. `requireOwnership` berjalan di `preHandler` supaya `req.params` sudah divalidasi Zod.
+- **`POST /employers` dan `GET /employers/me` tidak dibatasi peran.** Membuat perusahaan adalah cara menjadi employer, dan 404 di `GET /employers/me` dipakai FE untuk menampilkan onboarding.
+- **Setiap endpoint sensitif wajib punya test 403** untuk peran lain, memakai `expectForbidden()` di `test/helpers.ts`.
 
 ### Bentuk API
 - **Prefix `/api/v1` dan nama resource berupa kata benda jamak** (rubrik K1).
@@ -169,4 +184,6 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 - `test/api.test.ts` memanggil `loadEnv` di dalam `describe.skipIf`, sehingga `pnpm test` tanpa `TEST_DATABASE_URL` gagal di file itu.
 - Gas drip mengasumsikan akun baru butuh MON (asumsi era Mera). Dengan Privy perlu ditinjau ulang di Fitur 10.
 - Alamat kontrak dan ABI belum ada dari SC, jadi Fitur 6 dan 12 akan memakai interface `StreamReader` dengan implementasi mock.
-- FE (`feat/frontend`) masih perlu menyesuaikan diri dengan endpoint v1 (`/sessions`, `/users/me`).
+- `apps/web` belum memanggil API (masih data mock). Saat integrasi, FE perlu memakai `POST /sessions` + `Authorization: Bearer`, dan `/users/me` untuk peran.
+- Nama peran `family` di `/users/me` berbeda dengan istilah "penerima" (R) di PLAN §6.3 dan resource `recipients` (Fitur 7). Perlu diputuskan apakah di-rename sebelum FE memakainya.
+- D10 (login tanpa kata sandi untuk rubrik K4) masih Open di koordinator.

@@ -38,13 +38,13 @@ Employer tops up payroll (fiat → AUSD via Agora) → contract streams wages pe
 | Backend API | Node.js 22, TypeScript, [Fastify 5](https://fastify.dev) |
 | Validation & API docs | Zod 4, `fastify-type-provider-zod`, OpenAPI 3 via `@fastify/swagger` (served at `/docs`) |
 | Database | PostgreSQL 16, Prisma 7 ORM + migrations |
-| Auth | Sign-In with Ethereum (EIP-4361) over the user's passkey account, JWT sessions |
+| Auth | [Privy](https://privy.io) embedded wallets; the API exchanges the Privy access token for its own revocable session token. Roles derived from DB relations (RBAC guards) |
 | Chain access | [viem](https://viem.sh) on Monad testnet (chain id 10143) |
 | Testing | Vitest (unit + integration against Postgres), Postman collection |
 | Tooling | pnpm workspaces, ESLint, Prettier, GitHub Actions CI, gitleaks secret scanning, Docker Compose |
 | Smart contract (planned) | Solidity + Foundry, `TricklePayroll.sol` |
-| Web app (planned) | Next.js PWA |
-| Integrations (planned) | Mera passkey accounts, AUSD, Xendit/Flip sandbox payouts |
+| Web app (in progress) | Next.js + Privy (`apps/web`) |
+| Integrations (planned) | AUSD, Xendit/Flip sandbox payouts |
 
 ## Project structure
 
@@ -52,7 +52,7 @@ Employer tops up payroll (fiat → AUSD via Agora) → contract streams wages pe
 Trickle/
 ├── .github/workflows/ci.yml        # Lint, typecheck, tests, OpenAPI drift check, secret scan
 ├── apps/
-│   └── api/                        # Backend API (this milestone)
+│   ├── api/                        # Backend API
 │       ├── prisma/
 │       │   ├── schema.prisma       # Database schema (metadata only; money lives on-chain)
 │       │   └── migrations/         # SQL migrations
@@ -67,14 +67,15 @@ Trickle/
 │       │   ├── app.ts              # Fastify app: plugins, Swagger, routes
 │       │   ├── env.ts              # Environment variable validation
 │       │   ├── types.ts            # Fastify type augmentation
-│       │   ├── lib/                # chain (viem), fx, privy, prisma, errors, pagination, tokens, shared schemas
-│       │   ├── plugins/            # auth (session tokens), uniform error handling
+│       │   ├── lib/                # chain (viem), fx, privy, prisma, errors, pagination, roles, tokens, shared schemas
+│       │   ├── plugins/            # auth (session tokens), rbac (requireRole / requireOwnership), uniform error handling
 │       │   └── modules/            # health, sessions, users, employers, invites, gas, fx; each one has:
 │       │       └── <resource>/     #   routes → controller → service → repository, plus schemas (Zod)
 │       ├── test/                   # Vitest unit + integration tests
 │       ├── openapi.json            # Generated API spec (import into Postman / FE codegen)
 │       └── .env.example
-├── docs/                           # Plans and project docs
+│   └── web/                        # Next.js web app (Privy login)
+├── docs/                           # Plans, roadmap, ARCHITECTURE.md
 ├── docker-compose.yml              # Local Postgres
 ├── LICENSE                         # MIT
 └── package.json / pnpm-workspace.yaml
@@ -83,6 +84,8 @@ Trickle/
 ## API (v1)
 
 Interactive docs: `http://localhost:4000/docs`. All errors use `{ "error": { "code": "...", "message": "...", "details": ... } }`. Schema validation failures return 422 with one `details` entry per invalid field; unreadable bodies (e.g. broken JSON) return 400.
+
+**Auth** column: – public, ✓ any signed-in user, *Employer* only accounts with a company profile (others get 403). Roles come from data, not a stored field: see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1/users/me`. Only `/health` and `/docs` live at the root. List endpoints (marked *paged*) take `?limit=` (1–100, default 20) and `?cursor=`, and return `{ "data": [...], "nextCursor": "..." }`; pass `nextCursor` back as `cursor` until it is `null`.
 
@@ -94,8 +97,9 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | GET | `/users/me` | ✓ | Current user and roles (employer / worker / family) |
 | PATCH | `/users/me` | ✓ | Update my display name |
 | POST | `/employers` | ✓ | Create company profile |
-| GET, PATCH | `/employers/me` | ✓ | Read / update company profile |
-| GET | `/employers/me/workers` | ✓ | Workers who joined via invite (paged) |
+| GET | `/employers/me` | ✓ | Read my company profile (404 if none yet) |
+| PATCH | `/employers/me` | Employer | Update company profile |
+| GET | `/employers/me/workers` | Employer | Workers who joined via invite (paged) |
 | POST | `/invites` | ✓ | Worker invite (employer) or family invite (worker) |
 | GET | `/invites` | ✓ | Invites I created (paged) |
 | GET | `/invites/:code` | – | Public invite details |

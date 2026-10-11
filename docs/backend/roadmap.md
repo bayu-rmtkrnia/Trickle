@@ -13,9 +13,9 @@ Aturan main:
 | #   | Fitur              | Branch                         | Isi                                                                                                                  | Target      | Status |
 | --- | ------------------ | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ----------- | ------ |
 | 1   | Fondasi API        | `refactor/api-v1-foundation`   | Prefix `/api/v1`, format error seragam, 400 vs 422, helper pagination                                                | Kam 1 Okt   | ✅     |
-| 2   | Struktur berlapis  | `refactor/api-layered-modules` | Pecah modul ke `modules/<resource>/{routes,controller,service,repository}`. Perilaku tidak berubah, test tetap hijau | Kam 1–Jum 2 | 🔍     |
-| 3   | Sesi & pengguna    | `feat/api-sessions`            | Tabel `Session` (token di-hash), `POST /sessions` (token Privy), `DELETE /sessions/current`, `GET/PATCH /users/me` | Jum 2       | 🔍     |
-| 4   | RBAC & kepemilikan | `feat/api-rbac`                | Middleware `requireRole` dan `requireOwnership`, peran diturunkan dari relasi DB, helper test 403                    | Jum 2       | ⬜     |
+| 2   | Struktur berlapis  | `refactor/api-layered-modules` | Pecah modul ke `modules/<resource>/{routes,controller,service,repository}`. Perilaku tidak berubah, test tetap hijau | Kam 1–Jum 2 | ✅     |
+| 3   | Sesi & pengguna    | `feat/api-sessions`            | Tabel `Session` (token di-hash), `POST /sessions` (token Privy), `DELETE /sessions/current`, `GET/PATCH /users/me` | Jum 2       | ✅     |
+| 4   | RBAC & kepemilikan | `feat/api-rbac`                | Middleware `requireRole` dan `requireOwnership`, peran diturunkan dari relasi DB, helper test 403                    | Jum 2       | 🔍     |
 | 5   | Companies CRUD     | `feat/api-companies`           | Rename Employer → Company, soft delete, test 403                                                                     | Sab 3       | ⬜     |
 | 6   | Workers CRUD       | `feat/api-workers`             | CRUD + 409 kalau stream masih aktif (cek on-chain lewat interface `StreamReader`)                                    | Sab 3       | ⬜     |
 | 7   | Recipients CRUD    | `feat/api-recipients`          | Dari `FamilyLink`, pemiliknya pekerja                                                                                | Min 4       | ⬜     |
@@ -72,6 +72,17 @@ D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `
 | `GET/PATCH /users/me` | Profil + peran (dulu `/auth/me`); PATCH mengubah `displayName` |
 | Data lama | `User.privyId` baru (nullable). User lama dengan alamat yang sama otomatis ditautkan saat login Privy pertama. Tabel `AuthChallenge` dihapus |
 | Postman | `pnpm session <role>` membuat token sesi langsung di database lokal (menggantikan `pnpm sign`) |
+
+## Rincian Fitur 4: RBAC & kepemilikan
+
+| Bagian | Isi |
+| ------ | --- |
+| Peran | `src/lib/roles.ts`: `toRoles()` menurunkan `employer`/`worker`/`family` dari relasi (`Employer`, `EmployerWorker`, `FamilyLink`). Tidak ada kolom peran di DB. `/users/me` memakai fungsi yang sama |
+| `app.requireRole(...peran)` | `src/plugins/rbac.ts`. Dipasang di `onRequest` setelah `app.authenticate`. 403 `FORBIDDEN` kalau tidak punya satu pun peran itu. Peran dimuat sekali per request (`req.roles`) |
+| `app.requireOwnership(ownerOf, onMissing?)` | Dipasang di `preHandler` (params sudah tervalidasi). `ownerOf` mengembalikan id pemilik: null → 404, beda user → 403. Dipakai mulai Fitur 5 untuk endpoint `:id` |
+| Diterapkan | `PATCH /employers/me` dan `GET /employers/me/workers` khusus employer. `POST /employers` dan `GET /employers/me` tetap untuk semua user (cara menjadi employer; 404 = tampilkan onboarding) |
+| Tetap di service | Aturan yang bergantung pada body, misalnya jenis undangan (`WORKER` butuh perusahaan, `FAMILY` butuh status pekerja) |
+| Test | `test/rbac.test.ts` (unit, tanpa DB), `expectForbidden()` di `test/helpers.ts` untuk test 403 di fitur berikutnya, plus test integrasi |
 
 ## Ketergantungan yang belum terjawab
 
