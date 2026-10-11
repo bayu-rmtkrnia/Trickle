@@ -13,7 +13,7 @@ interface Options {
  * Authorization guards. Both run after `app.authenticate`:
  *
  *   onRequest: [app.authenticate, app.requireRole('employer')]
- *   preHandler: [app.requireOwnership((req) => repo.ownerOf(req.params.id))]
+ *   preHandler: [app.requireOwnership((req) => repo.ownerOf(idParam(req)))]
  *
  * Rules that depend on the request body (e.g. which invite type you may send)
  * stay in the service.
@@ -49,14 +49,15 @@ export default fp<Options>(async (app, opts) => {
   app.decorate(
     'requireOwnership',
     (
-      ownerOf: (req: FastifyRequest) => Promise<string | null>,
+      ownerOf: (req: FastifyRequest) => Promise<string | readonly string[] | null>,
       onMissing: () => AppError = () => notFound('NOT_FOUND', 'Resource not found'),
     ) =>
       async (req: FastifyRequest) => {
         if (!req.user) throw unauthorized()
-        const ownerId = await ownerOf(req)
-        if (ownerId === null) throw onMissing()
-        if (ownerId !== req.user.sub) throw forbidden('This belongs to another account')
+        const owners = await ownerOf(req)
+        if (owners === null) throw onMissing()
+        const allowed = typeof owners === 'string' ? [owners] : owners
+        if (!allowed.includes(req.user.sub)) throw forbidden('This belongs to another account')
       },
   )
 })

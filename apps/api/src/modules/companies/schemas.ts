@@ -1,7 +1,6 @@
 import type { FastifySchema } from 'fastify'
 import { z } from 'zod'
 import type { Company, User } from '../../generated/prisma/client.js'
-import { Page, PageQuery } from '../../lib/pagination.js'
 import { errors, IdParams } from '../../lib/schemas.js'
 
 const security = [{ bearerAuth: [] }]
@@ -40,14 +39,6 @@ export const toCompanyDto = (c: CompanyWithOwner) => ({
   createdAt: c.createdAt.toISOString(),
 })
 
-export const WorkerDto = z.object({
-  id: z.string(),
-  displayName: z.string(),
-  address: z.string(),
-  monthlySalaryUsd: z.number(),
-  joinedAt: z.string(),
-})
-
 export const createCompanySchema = {
   tags,
   summary: 'Create a company (makes the caller an employer)',
@@ -84,15 +75,4 @@ export const deleteCompanySchema = {
   security,
   params: IdParams,
   response: { 204: z.null().describe('Deleted'), ...errors(401, 403, 404, 409, 422) },
-} satisfies FastifySchema
-
-export const listCompanyWorkersSchema = {
-  tags,
-  summary: 'Workers who accepted an invite from this company',
-  description:
-    'Metadata only. Stream balances come from the contract/indexer, never from this API.',
-  security,
-  params: IdParams,
-  querystring: PageQuery,
-  response: { 200: Page(WorkerDto), ...errors(401, 403, 404, 422) },
 } satisfies FastifySchema

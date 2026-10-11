@@ -26,7 +26,6 @@ function service(repo: Partial<CompanyRepository>) {
     update: unexpected,
     countWorkers: unexpected,
     softDelete: unexpected,
-    listWorkers: unexpected,
     ...repo,
   } as CompanyRepository)
 }

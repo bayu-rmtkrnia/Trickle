@@ -6,6 +6,7 @@ import type { FxService } from './lib/fx.js'
 import type { Privy } from './lib/privy.js'
 import type { Db } from './lib/prisma.js'
 import type { Role, Roles } from './lib/roles.js'
+import type { StreamReader } from './lib/streams.js'
 
 /** Who is calling, set by `app.authenticate`. */
 export interface AuthUser {
@@ -24,15 +25,17 @@ declare module 'fastify' {
     fx: FxService
     chain: Chain
     privy: Privy
+    streams: StreamReader
     authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
     /** 403 unless the caller holds at least one of `roles`. */
     requireRole: (...roles: Role[]) => Guard
     /**
-     * 404 (`onMissing`) when `ownerOf` returns null, 403 when the owner is
-     * someone else. `ownerOf` returns the owning user id.
+     * 404 (`onMissing`) when `ownerOf` returns null, 403 when the caller is
+     * not among the owners. `ownerOf` returns the owning user id, or several
+     * ids when more than one account may access the resource.
      */
     requireOwnership: (
-      ownerOf: (req: FastifyRequest) => Promise<string | null>,
+      ownerOf: (req: FastifyRequest) => Promise<string | readonly string[] | null>,
       onMissing?: () => AppError,
     ) => Guard
   }

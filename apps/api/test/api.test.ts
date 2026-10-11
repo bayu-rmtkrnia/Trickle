@@ -5,6 +5,7 @@ import { buildApp } from '../src/app.js'
 import { loadEnv } from '../src/env.js'
 import { unauthorized } from '../src/lib/errors.js'
 import type { Privy } from '../src/lib/privy.js'
+import type { StreamReader } from '../src/lib/streams.js'
 import type { Chain } from '../src/lib/chain.js'
 import { createPrisma } from '../src/lib/prisma.js'
 import { expectForbidden } from './helpers.js'
@@ -25,6 +26,8 @@ describe.skipIf(!url)('api (integration)', () => {
     sendNative,
   }
   const fx = { usdIdr: vi.fn() }
+  const hasActiveStream = vi.fn<StreamReader['hasActiveStream']>()
+  const streams: StreamReader = { verified: true, hasActiveStream }
   let app: Awaited<ReturnType<typeof buildApp>>
 
   const account = (name: string) => privateKeyToAccount(keccak256(toHex(`test:${name}`)))
@@ -64,13 +67,14 @@ describe.skipIf(!url)('api (integration)', () => {
   }
 
   beforeAll(async () => {
-    app = await buildApp({ env, db, chain, fx, privy, rateLimit: false })
+    app = await buildApp({ env, db, chain, fx, privy, streams, rateLimit: false })
   })
 
   beforeEach(async () => {
     sendNative.mockReset()
+    hasActiveStream.mockReset().mockResolvedValue(false)
     await db.$executeRawUnsafe(
-      'TRUNCATE "Payout","GasDrip","Invite","FamilyLink","EmployerWorker","Company","Session","User" CASCADE',
+      'TRUNCATE "Payout","GasDrip","Invite","FamilyLink","Worker","Company","Session","User" CASCADE',
     )
   })
 
@@ -433,6 +437,199 @@ describe.skipIf(!url)('api (integration)', () => {
       })
       expect(res.statusCode).toBe(409)
       expect(res.json().error.code).toBe('COMPANY_HAS_WORKERS')
+    })
+  })
+
+  describe('workers', () => {
+    /** Employer with a company and one worker added by address. */
+    async function hire() {
+      const boss = await signIn('employer')
+      const companyId = await createCompany(boss.token)
+      const res = await app.inject({
+        method: 'POST',
+        url: `/api/v1/companies/${companyId}/workers`,
+        headers: as(boss.token),
+        payload: {
+          address: account('siti').address,
+          displayName: 'Siti',
+          position: 'Caregiver',
+          monthlySalaryUsd: 1200,
+        },
+      })
+      expect(res.statusCode).toBe(201)
+      return { boss, companyId, workerId: res.json().id as string }
+    }
+
+    it('adds a worker by address; their account links on first sign-in', async () => {
+      const { boss, companyId, workerId } = await hire()
+
+      const list = await app.inject({
+        method: 'GET',
+        url: `/api/v1/companies/${companyId}/workers`,
+        headers: as(boss.token),
+      })
+      expect(list.json().data).toEqual([
+        expect.objectContaining({
+          id: workerId,
+          companyId,
+          address: account('siti').address.toLowerCase(),
+          position: 'Caregiver',
+          monthlySalaryUsd: 1200,
+        }),
+      ])
+
+      // Siti signs in with Privy later and is already a worker.
+      const siti = await signIn('siti')
+      const me = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/me',
+        headers: as(siti.token),
+      })
+      expect(me.json().roles).toMatchObject({ worker: true })
+
+      const dup = await app.inject({
+        method: 'POST',
+        url: `/api/v1/companies/${companyId}/workers`,
+        headers: as(boss.token),
+        payload: { address: account('siti').address, displayName: 'Siti', monthlySalaryUsd: 1 },
+      })
+      expect(dup.json().error.code).toBe('WORKER_EXISTS')
+    })
+
+    it('lets the employer update and the worker only read themself', async () => {
+      const { boss, workerId } = await hire()
+      const siti = await signIn('siti')
+
+      const patched = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/workers/${workerId}`,
+        headers: as(boss.token),
+        payload: { position: 'Head caregiver', monthlySalaryUsd: 1500 },
+      })
+      expect(patched.json()).toMatchObject({ position: 'Head caregiver', monthlySalaryUsd: 1500 })
+
+      const self = await app.inject({
+        method: 'GET',
+        url: `/api/v1/workers/${workerId}`,
+        headers: as(siti.token),
+      })
+      expect(self.statusCode).toBe(200)
+
+      await expectForbidden(app, siti.token, [
+        { method: 'PATCH', url: `/api/v1/workers/${workerId}`, payload: { displayName: 'Boss' } },
+        { method: 'DELETE', url: `/api/v1/workers/${workerId}` },
+      ])
+    })
+
+    it('answers 403 to other employers, other workers and family', async () => {
+      const { companyId, workerId } = await hire()
+      const rival = await signIn('rival')
+      const rivalCompany = await createCompany(rival.token, 'PT Saingan')
+      // Another worker, at the rival company.
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/companies/${rivalCompany}/workers`,
+        headers: as(rival.token),
+        payload: { address: account('budi').address, displayName: 'Budi', monthlySalaryUsd: 900 },
+      })
+      const budi = await signIn('budi')
+      const outsider = await signIn('outsider')
+
+      const all = [
+        { method: 'GET', url: `/api/v1/workers/${workerId}` },
+        { method: 'PATCH', url: `/api/v1/workers/${workerId}`, payload: { displayName: 'X' } },
+        { method: 'DELETE', url: `/api/v1/workers/${workerId}` },
+        { method: 'GET', url: `/api/v1/companies/${companyId}/workers` },
+        {
+          method: 'POST',
+          url: `/api/v1/companies/${companyId}/workers`,
+          payload: { address: account('x').address, displayName: 'X', monthlySalaryUsd: 1 },
+        },
+      ] as const
+      await expectForbidden(app, rival.token, [...all])
+      await expectForbidden(app, budi.token, [...all])
+      await expectForbidden(app, outsider.token, [...all])
+    })
+
+    it('refuses to remove a worker while their stream is active', async () => {
+      const { boss, companyId, workerId } = await hire()
+      hasActiveStream.mockResolvedValueOnce(true)
+
+      const blocked = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/workers/${workerId}`,
+        headers: as(boss.token),
+      })
+      expect(blocked.statusCode).toBe(409)
+      expect(blocked.json().error.code).toBe('STREAM_ACTIVE')
+      expect(hasActiveStream).toHaveBeenCalledWith(
+        boss.address.toLowerCase(),
+        account('siti').address.toLowerCase(),
+      )
+
+      const removed = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/workers/${workerId}`,
+        headers: as(boss.token),
+      })
+      expect(removed.statusCode).toBe(204)
+
+      const gone = await app.inject({
+        method: 'GET',
+        url: `/api/v1/workers/${workerId}`,
+        headers: as(boss.token),
+      })
+      expect(gone.statusCode).toBe(404)
+      const siti = await signIn('siti')
+      const me = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/me',
+        headers: as(siti.token),
+      })
+      expect(me.json().roles.worker).toBe(false)
+
+      // With no workers left, the company can be deleted.
+      const del = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/companies/${companyId}`,
+        headers: as(boss.token),
+      })
+      expect(del.statusCode).toBe(204)
+    })
+
+    it('restores a removed worker who accepts a new invite', async () => {
+      const { boss, workerId } = await hire()
+      await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/workers/${workerId}`,
+        headers: as(boss.token),
+      })
+      const { code } = (
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/invites',
+          headers: as(boss.token),
+          payload: { type: 'WORKER', inviteeName: 'Siti R.', monthlySalaryUsd: 1300 },
+        })
+      ).json()
+      const siti = await signIn('siti')
+      const accepted = await app.inject({
+        method: 'POST',
+        url: `/api/v1/invites/${code}/accept`,
+        headers: as(siti.token),
+      })
+      expect(accepted.statusCode).toBe(200)
+
+      const back = await app.inject({
+        method: 'GET',
+        url: `/api/v1/workers/${workerId}`,
+        headers: as(siti.token),
+      })
+      expect(back.json()).toMatchObject({
+        id: workerId,
+        displayName: 'Siti R.',
+        monthlySalaryUsd: 1300,
+      })
     })
   })
 

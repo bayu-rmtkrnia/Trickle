@@ -6,7 +6,6 @@ import {
   createCompanySchema,
   deleteCompanySchema,
   getCompanySchema,
-  listCompanyWorkersSchema,
   updateCompanySchema,
 } from './schemas.js'
 import { companyNotFound, createCompanyService } from './service.js'
@@ -22,7 +21,7 @@ const companies: FastifyPluginAsyncZod = async (app) => {
     controller.create,
   )
 
-  // Everything under /companies/:id: role check, then ownership (PLAN §6.3, K5).
+  // /companies/:id: role check, then ownership (PLAN §6.3, K5). Workers live in modules/workers.
   const ownerOnly = {
     onRequest: [app.authenticate, app.requireRole('employer')],
     preHandler: [app.requireOwnership((req) => repo.findOwnerId(idParam(req)), companyNotFound)],
@@ -30,11 +29,6 @@ const companies: FastifyPluginAsyncZod = async (app) => {
   app.get('/companies/:id', { ...ownerOnly, schema: getCompanySchema }, controller.get)
   app.patch('/companies/:id', { ...ownerOnly, schema: updateCompanySchema }, controller.update)
   app.delete('/companies/:id', { ...ownerOnly, schema: deleteCompanySchema }, controller.remove)
-  app.get(
-    '/companies/:id/workers',
-    { ...ownerOnly, schema: listCompanyWorkersSchema },
-    controller.listWorkers,
-  )
 }
 
 export default companies

@@ -13,7 +13,7 @@ const roles: Record<string, Roles> = {
   ibu: { ...none, family: true },
 }
 /** Documents and their owners, for the ownership guard. */
-const docs: Record<string, string> = { 'doc-1': 'boss' }
+const docs: Record<string, string | string[]> = { 'doc-1': 'boss', 'shared-1': ['boss', 'siti'] }
 
 // No database: `x-user` stands in for a signed-in session, roles come from the map above.
 describe('rbac guards', () => {
@@ -94,6 +94,10 @@ describe('rbac guards', () => {
     const other = await get('/docs/doc-1', 'siti')
     expect(other.statusCode).toBe(403)
     expect(other.json().error.code).toBe('FORBIDDEN')
+
+    // Several owners: any of them may pass.
+    expect((await get('/docs/shared-1', 'siti')).statusCode).toBe(200)
+    expect((await get('/docs/shared-1', 'ibu')).statusCode).toBe(403)
 
     const missing = await get('/docs/nope', 'boss')
     expect(missing.statusCode).toBe(404)
