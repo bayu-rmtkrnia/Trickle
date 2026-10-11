@@ -6,11 +6,11 @@ import { registerErrorHandling } from '../src/plugins/errors.js'
 import rbac from '../src/plugins/rbac.js'
 import '../src/types.js'
 
-const none: Roles = { employer: false, worker: false, family: false }
+const none: Roles = { employer: false, worker: false, recipient: false }
 const roles: Record<string, Roles> = {
   boss: { ...none, employer: true },
   siti: { ...none, worker: true },
-  ibu: { ...none, family: true },
+  ibu: { ...none, recipient: true },
 }
 /** Documents and their owners, for the ownership guard. */
 const docs: Record<string, string | string[]> = { 'doc-1': 'boss', 'shared-1': ['boss', 'siti'] }
@@ -31,11 +31,11 @@ describe('rbac guards', () => {
 
     app.get('/employer-only', { onRequest: [signedIn, app.requireRole('employer')] }, ok)
     app.get(
-      '/worker-or-family',
-      { onRequest: [signedIn, app.requireRole('worker', 'family')] },
+      '/worker-or-recipient',
+      { onRequest: [signedIn, app.requireRole('worker', 'recipient')] },
       async (req) => {
         // A second guard on the same request reuses the loaded roles.
-        await app.requireRole('family', 'worker')(req)
+        await app.requireRole('recipient', 'worker')(req)
         return { ok: true }
       },
     )
@@ -77,9 +77,9 @@ describe('rbac guards', () => {
 
   it('accepts any of several roles and loads roles once per request', async () => {
     loadRoles.mockClear()
-    expect((await get('/worker-or-family', 'siti')).statusCode).toBe(200)
-    expect((await get('/worker-or-family', 'ibu')).statusCode).toBe(200)
-    expect((await get('/worker-or-family', 'boss')).statusCode).toBe(403)
+    expect((await get('/worker-or-recipient', 'siti')).statusCode).toBe(200)
+    expect((await get('/worker-or-recipient', 'ibu')).statusCode).toBe(200)
+    expect((await get('/worker-or-recipient', 'boss')).statusCode).toBe(403)
     expect(loadRoles).toHaveBeenCalledTimes(3)
   })
 

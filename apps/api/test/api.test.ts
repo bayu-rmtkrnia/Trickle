@@ -27,7 +27,9 @@ describe.skipIf(!url)('api (integration)', () => {
   }
   const fx = { usdIdr: vi.fn() }
   const hasActiveStream = vi.fn<StreamReader['hasActiveStream']>()
-  const streams: StreamReader = { verified: true, hasActiveStream }
+  const splitOf = vi.fn<StreamReader['splitOf']>()
+  const streams: StreamReader = { verified: true, hasActiveStream, splitOf }
+  const noSplit = { recipient: '0x0000000000000000000000000000000000000000', bps: 0 } as const
   let app: Awaited<ReturnType<typeof buildApp>>
 
   const account = (name: string) => privateKeyToAccount(keccak256(toHex(`test:${name}`)))
@@ -73,8 +75,9 @@ describe.skipIf(!url)('api (integration)', () => {
   beforeEach(async () => {
     sendNative.mockReset()
     hasActiveStream.mockReset().mockResolvedValue(false)
+    splitOf.mockReset().mockResolvedValue(noSplit)
     await db.$executeRawUnsafe(
-      'TRUNCATE "Payout","GasDrip","Invite","FamilyLink","Worker","Company","Session","User" CASCADE',
+      'TRUNCATE "Payout","GasDrip","Invite","Recipient","Worker","Company","Session","User" CASCADE',
     )
   })
 
@@ -278,7 +281,7 @@ describe.skipIf(!url)('api (integration)', () => {
         url: '/api/v1/users/me',
         headers: as(family.token),
       })
-      expect(me.json().roles).toEqual({ employer: false, worker: false, family: true })
+      expect(me.json().roles).toEqual({ employer: false, worker: false, recipient: true })
     })
 
     it('does not let non-workers invite family', async () => {
@@ -630,6 +633,193 @@ describe.skipIf(!url)('api (integration)', () => {
         displayName: 'Siti R.',
         monthlySalaryUsd: 1300,
       })
+    })
+  })
+
+  describe('recipients', () => {
+    /** A worker (hired by address) who adds Ibu as a recipient by address. */
+    async function addIbu() {
+      const boss = await signIn('employer')
+      const companyId = await createCompany(boss.token)
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/companies/${companyId}/workers`,
+        headers: as(boss.token),
+        payload: { address: account('siti').address, displayName: 'Siti', monthlySalaryUsd: 1200 },
+      })
+      const siti = await signIn('siti')
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/recipients',
+        headers: as(siti.token),
+        payload: { address: account('ibu').address, displayName: 'Ibu Aminah', relation: 'Ibu' },
+      })
+      expect(res.statusCode).toBe(201)
+      return { boss, siti, recipientId: res.json().id as string }
+    }
+
+    it('lets a worker add, list and update recipients; the recipient links on sign-in', async () => {
+      const { siti, recipientId } = await addIbu()
+
+      const list = await app.inject({
+        method: 'GET',
+        url: '/api/v1/recipients',
+        headers: as(siti.token),
+      })
+      expect(list.json()).toEqual({
+        data: [
+          expect.objectContaining({
+            id: recipientId,
+            address: account('ibu').address.toLowerCase(),
+            relation: 'Ibu',
+          }),
+        ],
+        nextCursor: null,
+      })
+
+      const patched = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/recipients/${recipientId}`,
+        headers: as(siti.token),
+        payload: { displayName: 'Mama', relation: null },
+      })
+      expect(patched.json()).toMatchObject({ displayName: 'Mama', relation: null })
+
+      const ibu = await signIn('ibu')
+      const me = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/me',
+        headers: as(ibu.token),
+      })
+      expect(me.json().roles).toEqual({ employer: false, worker: false, recipient: true })
+      const self = await app.inject({
+        method: 'GET',
+        url: `/api/v1/recipients/${recipientId}`,
+        headers: as(ibu.token),
+      })
+      expect(self.statusCode).toBe(200)
+
+      const dup = await app.inject({
+        method: 'POST',
+        url: '/api/v1/recipients',
+        headers: as(siti.token),
+        payload: { address: account('ibu').address, displayName: 'Ibu' },
+      })
+      expect(dup.json().error.code).toBe('RECIPIENT_EXISTS')
+      const selfAdd = await app.inject({
+        method: 'POST',
+        url: '/api/v1/recipients',
+        headers: as(siti.token),
+        payload: { address: siti.address, displayName: 'Me' },
+      })
+      expect(selfAdd.json().error.code).toBe('CANNOT_ADD_SELF')
+    })
+
+    it('answers 403 to employers, other workers, the recipient (for writes) and outsiders', async () => {
+      const { boss, recipientId } = await addIbu()
+      const ibu = await signIn('ibu')
+      const rival = await signIn('rival')
+      const rivalCompany = await createCompany(rival.token, 'PT Saingan')
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/companies/${rivalCompany}/workers`,
+        headers: as(rival.token),
+        payload: { address: account('budi').address, displayName: 'Budi', monthlySalaryUsd: 900 },
+      })
+      const budi = await signIn('budi')
+      const outsider = await signIn('outsider')
+
+      const one = [
+        { method: 'GET', url: `/api/v1/recipients/${recipientId}` },
+        {
+          method: 'PATCH',
+          url: `/api/v1/recipients/${recipientId}`,
+          payload: { displayName: 'X' },
+        },
+        { method: 'DELETE', url: `/api/v1/recipients/${recipientId}` },
+      ] as const
+      const collection = [
+        { method: 'GET', url: '/api/v1/recipients' },
+        {
+          method: 'POST',
+          url: '/api/v1/recipients',
+          payload: { address: account('x').address, displayName: 'X' },
+        },
+      ] as const
+      await expectForbidden(app, boss.token, [...one, ...collection])
+      await expectForbidden(app, budi.token, [...one])
+      await expectForbidden(app, outsider.token, [...one, ...collection])
+      await expectForbidden(app, ibu.token, [...one.slice(1), ...collection])
+
+      // Budi is a worker, so his own (empty) list is fine and does not leak Siti's.
+      const budiList = await app.inject({
+        method: 'GET',
+        url: '/api/v1/recipients',
+        headers: as(budi.token),
+      })
+      expect(budiList.json().data).toEqual([])
+    })
+
+    it('refuses to remove a recipient the on-chain split still pays', async () => {
+      const { siti, recipientId } = await addIbu()
+      splitOf.mockResolvedValueOnce({
+        recipient: account('ibu').address.toLowerCase() as Address,
+        bps: 3000,
+      })
+
+      const blocked = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/recipients/${recipientId}`,
+        headers: as(siti.token),
+      })
+      expect(blocked.statusCode).toBe(409)
+      expect(blocked.json().error.code).toBe('SPLIT_ACTIVE')
+      expect(splitOf).toHaveBeenCalledWith(siti.address.toLowerCase())
+
+      const removed = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/recipients/${recipientId}`,
+        headers: as(siti.token),
+      })
+      expect(removed.statusCode).toBe(204)
+      const ibu = await signIn('ibu')
+      const me = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/me',
+        headers: as(ibu.token),
+      })
+      expect(me.json().roles.recipient).toBe(false)
+    })
+
+    it('restores a removed recipient who accepts a new family invite', async () => {
+      const { siti, recipientId } = await addIbu()
+      await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/recipients/${recipientId}`,
+        headers: as(siti.token),
+      })
+      const { code } = (
+        await app.inject({
+          method: 'POST',
+          url: '/api/v1/invites',
+          headers: as(siti.token),
+          payload: { type: 'FAMILY', inviteeName: 'Ibu A.', relation: 'Ibu' },
+        })
+      ).json()
+      const ibu = await signIn('ibu')
+      const accepted = await app.inject({
+        method: 'POST',
+        url: `/api/v1/invites/${code}/accept`,
+        headers: as(ibu.token),
+      })
+      expect(accepted.statusCode).toBe(200)
+
+      const back = await app.inject({
+        method: 'GET',
+        url: `/api/v1/recipients/${recipientId}`,
+        headers: as(siti.token),
+      })
+      expect(back.json()).toMatchObject({ id: recipientId, displayName: 'Ibu A.' })
     })
   })
 

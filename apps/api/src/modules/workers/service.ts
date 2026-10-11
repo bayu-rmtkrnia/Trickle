@@ -12,7 +12,7 @@ type Log = Pick<FastifyBaseLogger, 'warn'>
 
 interface Deps {
   repo: WorkerRepository
-  streams: StreamReader
+  streams: Pick<StreamReader, 'hasActiveStream' | 'verified'>
 }
 
 const toCents = (usd: number) => Math.round(usd * 100)

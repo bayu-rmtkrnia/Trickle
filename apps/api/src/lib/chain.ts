@@ -6,6 +6,7 @@ import {
   http,
   type Address,
   type Hash,
+  type PublicClient,
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 import { monadTestnet } from 'viem/chains'
@@ -19,16 +20,23 @@ export interface Chain {
   sendNative(to: Address, value: bigint): Promise<Hash>
 }
 
+const toViemChain = (env: Pick<Env, 'CHAIN_ID' | 'RPC_URL'>) =>
+  env.CHAIN_ID === monadTestnet.id
+    ? monadTestnet
+    : defineChain({
+        ...monadTestnet,
+        id: env.CHAIN_ID,
+        name: `Chain ${env.CHAIN_ID}`,
+        rpcUrls: { default: { http: [env.RPC_URL] } },
+      })
+
+/** Read-only RPC client, e.g. for contract view calls. */
+export function createReadClient(env: Pick<Env, 'CHAIN_ID' | 'RPC_URL'>): PublicClient {
+  return createPublicClient({ chain: toViemChain(env), transport: http(env.RPC_URL) })
+}
+
 export function createChain(env: Env): Chain {
-  const chain =
-    env.CHAIN_ID === monadTestnet.id
-      ? monadTestnet
-      : defineChain({
-          ...monadTestnet,
-          id: env.CHAIN_ID,
-          name: `Chain ${env.CHAIN_ID}`,
-          rpcUrls: { default: { http: [env.RPC_URL] } },
-        })
+  const chain = toViemChain(env)
   const transport = http(env.RPC_URL)
   const publicClient = createPublicClient({ chain, transport })
   const account = env.GAS_TREASURY_PRIVATE_KEY

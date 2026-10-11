@@ -50,7 +50,7 @@ export function createInviteRepository(db: Db) {
     },
 
     /**
-     * Flips the invite to ACCEPTED and creates the employment or family link in
+     * Flips the invite to ACCEPTED and creates the employment or recipient in
      * one transaction. Only one concurrent request can win the flip.
      */
     async accept(invite: Invite, userId: string): Promise<AcceptResult> {
@@ -78,13 +78,15 @@ export function createInviteRepository(db: Db) {
               update: { ...data, position: null, deletedAt: null, createdAt: new Date() },
             })
           } else {
-            await tx.familyLink.create({
-              data: {
-                workerId: invite.createdById,
-                relativeId: userId,
-                displayName: invite.inviteeName,
-                relation: invite.relation,
-              },
+            const key = { ownerId: invite.createdById, userId }
+            const existing = await tx.recipient.findUnique({ where: { ownerId_userId: key } })
+            if (existing && !existing.deletedAt) throw new AlreadyLinked()
+            const data = { displayName: invite.inviteeName, relation: invite.relation }
+            // Same as workers: a removed recipient is restored.
+            await tx.recipient.upsert({
+              where: { ownerId_userId: key },
+              create: { ...key, ...data },
+              update: { ...data, deletedAt: null, createdAt: new Date() },
             })
           }
           // Name the account after the invite if it has no name yet.

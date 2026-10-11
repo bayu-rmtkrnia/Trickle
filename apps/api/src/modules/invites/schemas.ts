@@ -83,7 +83,7 @@ export const acceptInviteSchema = {
   tags: ['Invites'],
   summary: 'Accept an invite as the signed-in user',
   description:
-    'WORKER invite: the user joins the company. FAMILY invite: the user is linked to the worker as a family recipient.',
+    'WORKER invite: the user joins the company. FAMILY invite: the user becomes a recipient of the worker (`/recipients`).',
   security,
   params: InviteCode,
   response: { 200: InviteDto, ...errors(400, 401, 404, 409, 410, 422) },
