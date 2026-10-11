@@ -17,7 +17,7 @@ Aturan main:
 | 3   | Sesi & pengguna    | `feat/api-sessions`            | Tabel `Session` (token di-hash), `POST /sessions` (token Privy), `DELETE /sessions/current`, `GET/PATCH /users/me` | Jum 2       | ✅     |
 | 4   | RBAC & kepemilikan | `feat/api-rbac`                | Middleware `requireRole` dan `requireOwnership`, peran diturunkan dari relasi DB, helper test 403                    | Jum 2       | 🔍     |
 | 5   | Companies CRUD     | `feat/api-companies`           | Rename Employer → Company, soft delete, test 403                                                                     | Sab 3       | 🔍     |
-| 6   | Workers CRUD       | `feat/api-workers`             | CRUD + 409 kalau stream masih aktif (cek on-chain lewat interface `StreamReader`)                                    | Sab 3       | ⬜     |
+| 6   | Workers CRUD       | `feat/api-workers`             | CRUD + 409 kalau stream masih aktif (cek on-chain lewat interface `StreamReader`)                                    | Sab 3       | 🔍     |
 | 7   | Recipients CRUD    | `feat/api-recipients`          | Dari `FamilyLink`, pemiliknya pekerja                                                                                | Min 4       | ⬜     |
 | 8   | Invites lengkap    | `feat/api-invites-v1`          | `POST /invites/:code/acceptance`, `DELETE /invites/:id`, undangan dari employer dan pekerja                          | Min 4       | ⬜     |
 | 9   | Bank accounts      | `feat/api-bank-accounts`       | AES-256-GCM, hanya 4 digit terakhir yang keluar dari API                                                             | Sen 5       | ⬜     |
@@ -95,11 +95,23 @@ D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `
 | `GET /users/me` | Field baru `companyId` (null kalau bukan employer), supaya FE tahu id untuk `/companies/:id` |
 | Test | Unit `test/companies.test.ts`; integrasi: CRUD pemilik, 403 untuk non-employer dan employer lain (`expectForbidden`), 404, soft delete, 409 |
 
+## Rincian Fitur 6: Workers CRUD
+
+| Bagian | Isi |
+| ------ | --- |
+| Rename | `EmployerWorker` → `Worker`, kolom `workerId` → `userId`, tambah `position`, `updatedAt`, `deletedAt`. Migrasi `20261011090000_workers` memakai `RENAME` |
+| Endpoint | Modul baru `workers`: `POST/GET /companies/:id/workers` (pemilik perusahaan), `GET /workers/:id` (pemilik perusahaan atau pekerja itu sendiri), `PATCH/DELETE /workers/:id` (pemilik perusahaan). List pindah dari modul `companies` |
+| Tambah lewat alamat | `POST` membuat akun untuk alamat wallet kalau belum ada; akun tertaut saat pemilik wallet login Privy (mekanisme Fitur 3). Pekerja yang pernah dihapus dipulihkan, baik lewat `POST` maupun undangan |
+| Stream aktif | `DELETE` bertanya ke `StreamReader` (`src/lib/streams.ts`): stream aktif → 409 `STREAM_ACTIVE`, kalau tidak soft delete. Implementasi default belum memverifikasi (selalu "tidak aktif", dicatat di log) sampai indexer SC ada; RPC publik Monad membatasi `eth_getLogs` ke 100 blok |
+| Peran | `worker` hanya dihitung dari `Worker` aktif di perusahaan aktif. `requireOwnership` sekarang menerima beberapa pemilik |
+| Test | Unit `test/workers.test.ts`, kasus multi-pemilik di `test/rbac.test.ts`, integrasi: tambah lewat alamat + tautan login, 403 untuk employer lain/pekerja lain/keluarga/outsider, pekerja hanya bisa GET dirinya, 409 stream aktif, pemulihan lewat undangan |
+
 ## Ketergantungan yang belum terjawab
 
 | Kebutuhan                       | Dipakai di  | Dari                    | Status |
 | ------------------------------- | ----------- | ----------------------- | ------ |
 | D1: Privy atau Mera             | Fitur 3, 10 | Koordinator + FE-A      | Privy  |
-| Alamat kontrak + ABI            | Fitur 6, 12 | SC (`packages/shared`)  | Belum  |
+| Alamat kontrak + ABI            | Fitur 6, 12 | SC (`packages/shared`)  | Ada di `feat/contracts-payroll` (belum merge) |
+| Indexer stream                  | Fitur 6     | SC                      | Belum  |
 | D5: sandbox Xendit atau Flip    | Fitur 11    | BE                      | Open   |
 | D10: login tanpa kata sandi di K4 | Fitur 3, 4  | Koordinator (pengampu)  | Open   |

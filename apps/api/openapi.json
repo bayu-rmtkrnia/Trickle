@@ -3,7 +3,7 @@
   "info": {
     "title": "Trickle API",
     "version": "1.1.0",
-    "description": "Metadata API for Trickle: sessions, users, companies, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\nSign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
+    "description": "Metadata API for Trickle: sessions, users, companies, workers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\nSign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
   },
   "components": {
     "securitySchemes": {
@@ -242,6 +242,46 @@
         },
         "required": ["id", "address", "displayName", "createdAt", "companyId", "roles"]
       },
+      "WorkerInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "position": {
+            "nullable": true,
+            "type": "string"
+          },
+          "monthlySalaryUsd": {
+            "type": "number"
+          },
+          "joinedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "companyId",
+          "userId",
+          "address",
+          "displayName",
+          "position",
+          "monthlySalaryUsd",
+          "joinedAt"
+        ]
+      },
       "Error": {
         "type": "object",
         "properties": {
@@ -479,6 +519,47 @@
           }
         },
         "required": ["id", "address", "displayName", "createdAt", "companyId", "roles"],
+        "additionalProperties": false
+      },
+      "Worker": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "position": {
+            "nullable": true,
+            "type": "string"
+          },
+          "monthlySalaryUsd": {
+            "type": "number"
+          },
+          "joinedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "companyId",
+          "userId",
+          "address",
+          "displayName",
+          "position",
+          "monthlySalaryUsd",
+          "joinedAt"
+        ],
         "additionalProperties": false
       }
     }
@@ -1165,9 +1246,140 @@
       }
     },
     "/api/v1/companies/{id}/workers": {
+      "post": {
+        "summary": "Add a worker to my company by wallet address",
+        "tags": ["Workers"],
+        "description": "Alternative to a worker invite when the employer already knows the address. Re-adding a removed worker restores them. 409 `WORKER_EXISTS` if they already work here.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "position": {
+                    "description": "Job title",
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "monthlySalaryUsd": {
+                    "type": "number",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 1000000,
+                    "description": "Reference monthly salary in USD, shown in the UI. Pay itself is the on-chain stream"
+                  },
+                  "address": {
+                    "description": "The worker's Trickle (Privy embedded) wallet address",
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  }
+                },
+                "required": ["displayName", "monthlySalaryUsd", "address"]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Worker"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
       "get": {
-        "summary": "Workers who accepted an invite from this company",
-        "tags": ["Companies"],
+        "summary": "My company's workers",
+        "tags": ["Workers"],
         "description": "Metadata only. Stream balances come from the contract/indexer, never from this API.",
         "parameters": [
           {
@@ -1220,32 +1432,7 @@
                     "data": {
                       "type": "array",
                       "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "displayName": {
-                            "type": "string"
-                          },
-                          "address": {
-                            "type": "string"
-                          },
-                          "monthlySalaryUsd": {
-                            "type": "number"
-                          },
-                          "joinedAt": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "displayName",
-                          "address",
-                          "monthlySalaryUsd",
-                          "joinedAt"
-                        ],
-                        "additionalProperties": false
+                        "$ref": "#/components/schemas/Worker"
                       }
                     },
                     "nextCursor": {
@@ -1281,6 +1468,282 @@
             }
           },
           "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workers/{id}": {
+      "get": {
+        "summary": "Get a worker (their employer, or the worker themself)",
+        "tags": ["Workers"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Worker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update a worker of my company",
+        "tags": ["Workers"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "position": {
+                    "description": "Job title",
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "monthlySalaryUsd": {
+                    "type": "number",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 1000000,
+                    "description": "Reference monthly salary in USD, shown in the UI. Pay itself is the on-chain stream"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Worker"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove a worker from my company (soft delete)",
+        "tags": ["Workers"],
+        "description": "Refused with 409 `STREAM_ACTIVE` while the employer still streams salary to this worker on-chain. Cancel the stream first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [null],
+                  "description": "Removed"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1815,6 +2278,9 @@
     },
     {
       "name": "Companies"
+    },
+    {
+      "name": "Workers"
     },
     {
       "name": "Invites"
