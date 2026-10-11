@@ -13,6 +13,7 @@ export type ApiErrorKind =
   | 'conflict'
   | 'network'
   | 'wallet-not-ready'
+  | 'rate-limited'
   | 'validation'
   | 'configuration'
   | 'server'
@@ -21,12 +22,14 @@ export interface ApiErrorOptions {
   status?: number
   code?: string
   details?: unknown
+  retryAfterMs?: number
 }
 
 export class ApiError extends Error {
   readonly status?: number
   readonly code?: string
   readonly details?: unknown
+  readonly retryAfterMs?: number
 
   constructor(
     public readonly kind: ApiErrorKind,
@@ -38,6 +41,7 @@ export class ApiError extends Error {
     this.status = options.status
     this.code = options.code
     this.details = options.details
+    this.retryAfterMs = options.retryAfterMs
   }
 }
 

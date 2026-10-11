@@ -29,6 +29,7 @@ function errorKind(status: number, code: string): ApiErrorKind {
   if (status === 401) return 'unauthorized'
   if (status === 404) return 'not-found'
   if (status === 422) return 'validation'
+  if (status === 429) return 'rate-limited'
   if (status >= 500) return 'server'
   if (code === 'WALLET_NOT_READY') return 'wallet-not-ready'
   if (code === 'INVITE_ALREADY_ACCEPTED') return 'used'
@@ -38,6 +39,18 @@ function errorKind(status: number, code: string): ApiErrorKind {
   if (code === 'ALREADY_LINKED') return 'already-linked'
   if (status === 409) return 'conflict'
   return 'network'
+}
+
+function retryAfterMilliseconds(header: string | null): number | undefined {
+  const value = header?.trim()
+  if (!value) return undefined
+  if (/^\d+$/.test(value)) {
+    const delay = Number(value) * 1000
+    return Number.isFinite(delay) ? delay : undefined
+  }
+  if (!/^[A-Za-z]{3}, /.test(value)) return undefined
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? Math.max(0, timestamp - Date.now()) : undefined
 }
 
 async function responseBody(response: Response): Promise<unknown> {
@@ -90,6 +103,10 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
       status: response.status,
       code,
       details: problem?.details,
+      retryAfterMs:
+        response.status === 429
+          ? retryAfterMilliseconds(response.headers.get('retry-after'))
+          : undefined,
     })
   }
 

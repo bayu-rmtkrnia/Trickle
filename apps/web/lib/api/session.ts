@@ -16,6 +16,7 @@ export interface SessionAccount {
   ready: boolean
   authenticated: boolean
   userId: string | null
+  walletAddress: string | null
   getAccessToken(): Promise<string | null>
 }
 
@@ -26,13 +27,19 @@ export interface SessionSnapshot {
   status: SessionStatus
   user: Me | null
   error: Error | null
+  expiresAt: string | null
+  logoutFailure?: 'server' | 'privy'
 }
 
 const WALLET_RETRY_DELAYS = [1000, 2000, 4000, 8000] as const
-const wait = (milliseconds: number) =>
-  new Promise<void>((resolve) => {
-    globalThis.setTimeout(resolve, milliseconds)
-  })
+const wait = async (milliseconds: number): Promise<void> => {
+  const deadline = Date.now() + milliseconds
+  while (Date.now() < deadline) {
+    await new Promise<void>((resolve) => {
+      globalThis.setTimeout(resolve, Math.min(deadline - Date.now(), 2_147_483_647))
+    })
+  }
+}
 
 export async function createSession(
   accessToken: string,
@@ -54,9 +61,18 @@ export async function revokeSession(token: string, options: ClientOptions = {}):
 }
 
 export class SessionCoordinator {
-  private snapshot: SessionSnapshot = { status: 'unconfigured', user: null, error: null }
+  private snapshot: SessionSnapshot = {
+    status: 'unconfigured',
+    user: null,
+    error: null,
+    expiresAt: null,
+  }
   private account: SessionAccount | null = null
   private token: string | null = null
+  private expiresAt: string | null = null
+  private rateLimitUntil = 0
+  private loggingOut = false
+  private blockedIdentity: string | null = null
   private generation = 0
   private pending: { identity: string; promise: Promise<string | null> } | null = null
   private readonly listeners = new Set<() => void>()
@@ -72,19 +88,32 @@ export class SessionCoordinator {
     return () => this.listeners.delete(listener)
   }
 
-  private setSnapshot(snapshot: SessionSnapshot) {
-    this.snapshot = snapshot
+  private setSnapshot(snapshot: Omit<SessionSnapshot, 'expiresAt'>) {
+    this.snapshot = { ...snapshot, expiresAt: snapshot.status === 'ready' ? this.expiresAt : null }
     for (const listener of this.listeners) listener()
   }
 
   private clearSession() {
     this.generation += 1
     this.token = null
+    this.expiresAt = null
     this.pending = null
+    this.rateLimitUntil = 0
   }
 
   async updateAccount(account: SessionAccount): Promise<void> {
     const previousIdentity = this.account?.userId ?? null
+    const previousWallet = this.account?.walletAddress
+    const previousUsable =
+      this.account?.configured &&
+      this.account.ready &&
+      this.account.authenticated &&
+      this.account.userId &&
+      previousWallet
+    if (!account.authenticated || (account.userId && account.userId !== this.blockedIdentity)) {
+      this.blockedIdentity = null
+    }
+    if (this.loggingOut || (account.userId && account.userId === this.blockedIdentity)) return
     const usable = account.configured && account.ready && account.authenticated && account.userId
     if (previousIdentity !== account.userId || !usable) this.clearSession()
     this.account = account
@@ -102,6 +131,14 @@ export class SessionCoordinator {
       return
     }
 
+    if (
+      previousIdentity === account.userId &&
+      previousUsable &&
+      previousWallet === account.walletAddress &&
+      this.snapshot.status === 'error'
+    )
+      return
+
     await this.ensureSession().then(
       () => undefined,
       () => undefined,
@@ -114,14 +151,17 @@ export class SessionCoordinator {
 
   async refreshMe(): Promise<Me | null> {
     const identity = this.account?.userId
-    const generation = this.generation
-    let token = this.token
     if (!identity) return null
-    if (!token) token = await this.ensureSession()
+    if (!this.token || !this.expiresAt || Date.parse(this.expiresAt) <= Date.now()) {
+      return (await this.ensureSession()) ? this.snapshot.user : null
+    }
+    const token = this.token
+    const generation = this.generation
     if (!token) return null
 
     try {
-      const user = await this.api.getMe(token)
+      const user = await this.rateLimited(() => this.api.getMe(token), identity, generation)
+      if (!user) return null
       if (this.isCurrent(identity, generation)) {
         this.setSnapshot({ status: 'ready', user, error: null })
       }
@@ -129,9 +169,15 @@ export class SessionCoordinator {
     } catch (error) {
       if (isApiError(error) && error.status === 401 && this.isCurrent(identity, generation)) {
         this.token = null
+        this.expiresAt = null
+        this.generation += 1
         return (await this.startExchange(false)) ? this.snapshot.user : null
       }
       if (this.isCurrent(identity, generation)) {
+        this.token = null
+        this.expiresAt = null
+        this.generation += 1
+        this.pending = null
         this.setSnapshot({ status: 'error', user: null, error: asError(error) })
       }
       throw error
@@ -141,6 +187,8 @@ export class SessionCoordinator {
   async logout(logoutPrivy: () => Promise<void>): Promise<void> {
     const token = this.token
     const previousAccount = this.account
+    this.loggingOut = true
+    this.blockedIdentity = previousAccount?.userId ?? this.blockedIdentity
     this.clearSession()
     this.account = previousAccount
       ? { ...previousAccount, authenticated: false, userId: null }
@@ -156,17 +204,49 @@ export class SessionCoordinator {
       }
     }
 
-    await logoutPrivy()
-    if (revokeFailure) throw revokeFailure
+    try {
+      await logoutPrivy()
+    } catch (error) {
+      this.setSnapshot({ status: 'signed-out', user: null, error: null, logoutFailure: 'privy' })
+      throw error
+    } finally {
+      this.loggingOut = false
+    }
+    if (revokeFailure) {
+      this.setSnapshot({ status: 'signed-out', user: null, error: null, logoutFailure: 'server' })
+      throw revokeFailure
+    }
   }
 
   private startExchange(allow401Recovery: boolean): Promise<string | null> {
     const account = this.account
     const identity = account?.userId
-    if (!account?.configured || !account.ready || !account.authenticated || !identity) {
+    if (
+      this.loggingOut ||
+      identity === this.blockedIdentity ||
+      !account?.configured ||
+      !account.ready ||
+      !account.authenticated ||
+      !identity
+    ) {
       return Promise.resolve(null)
     }
-    if (this.token) return Promise.resolve(this.token)
+    if (!account.walletAddress) {
+      const error = new ApiError(
+        'conflict',
+        'Wallet belum siap. Coba lagi setelah wallet tersedia.',
+        {
+          status: 409,
+          code: 'WALLET_NOT_READY',
+        },
+      )
+      this.setSnapshot({ status: 'error', user: null, error })
+      return Promise.reject(error)
+    }
+    if (this.token && this.expiresAt && Date.parse(this.expiresAt) > Date.now()) {
+      return Promise.resolve(this.token)
+    }
+    if (this.token) this.clearSession()
     if (this.pending?.identity === identity) return this.pending.promise
 
     const generation = this.generation
@@ -190,23 +270,25 @@ export class SessionCoordinator {
       let session = await this.exchangeOnce(identity, generation)
       if (!session) return null
 
-      let user: Me
+      let user: Me | null
       try {
-        user = await this.api.getMe(session.token)
+        user = await this.rateLimited(() => this.api.getMe(session!.token), identity, generation)
       } catch (error) {
         if (!(allow401Recovery && isApiError(error) && error.status === 401)) throw error
         session = await this.exchangeOnce(identity, generation)
         if (!session) return null
-        user = await this.api.getMe(session.token)
+        user = await this.rateLimited(() => this.api.getMe(session!.token), identity, generation)
       }
 
-      if (!this.isCurrent(identity, generation)) return null
+      if (!user || !this.isCurrent(identity, generation)) return null
       this.token = session.token
+      this.expiresAt = session.expiresAt
       this.setSnapshot({ status: 'ready', user, error: null })
       return session.token
     } catch (error) {
       if (this.isCurrent(identity, generation)) {
         this.token = null
+        this.expiresAt = null
         this.setSnapshot({ status: 'error', user: null, error: asError(error) })
       }
       throw error
@@ -227,7 +309,19 @@ export class SessionCoordinator {
 
     for (let attempt = 0; ; attempt += 1) {
       try {
-        const session = await this.api.createSession(accessToken)
+        const session = await this.rateLimited(
+          () => this.api.createSession(accessToken),
+          identity,
+          generation,
+        )
+        if (!session) return null
+        if (
+          !session.token ||
+          !Number.isFinite(Date.parse(session.expiresAt)) ||
+          Date.parse(session.expiresAt) <= Date.now()
+        ) {
+          throw new ApiError('server', 'Sesi dari server tidak valid', { code: 'INVALID_SESSION' })
+        }
         return this.isCurrent(identity, generation) ? session : null
       } catch (error) {
         const delay = WALLET_RETRY_DELAYS[attempt]
@@ -236,6 +330,30 @@ export class SessionCoordinator {
         }
         await this.api.sleep(delay)
         if (!this.isCurrent(identity, generation)) return null
+      }
+    }
+  }
+
+  private async rateLimited<T>(
+    operation: () => Promise<T>,
+    identity: string,
+    generation: number,
+  ): Promise<T | null> {
+    for (let attempt = 0; ; attempt += 1) {
+      const remaining = this.rateLimitUntil - Date.now()
+      if (remaining > 0) {
+        await this.api.sleep(remaining)
+        if (!this.isCurrent(identity, generation)) return null
+        this.rateLimitUntil = 0
+      }
+      if (!this.isCurrent(identity, generation)) return null
+      try {
+        return await operation()
+      } catch (error) {
+        if (!this.isCurrent(identity, generation)) return null
+        if (!isApiError(error) || error.status !== 429) throw error
+        this.rateLimitUntil = Date.now() + (error.retryAfterMs ?? 1000 * 2 ** Math.min(attempt, 1))
+        if (attempt >= 2) throw error
       }
     }
   }

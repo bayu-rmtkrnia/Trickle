@@ -40,6 +40,7 @@ export function TrickleSessionProvider({ children }: { children: ReactNode }) {
       ready: account.ready,
       authenticated: account.authenticated,
       userId: identity,
+      walletAddress: account.walletAddress,
       getAccessToken: account.getAccessToken,
     })
   }, [
@@ -47,9 +48,30 @@ export function TrickleSessionProvider({ children }: { children: ReactNode }) {
     account.configured,
     account.getAccessToken,
     account.ready,
+    account.walletAddress,
     coordinator,
     identity,
   ])
+
+  useEffect(() => {
+    if (!snapshot.expiresAt) return
+    let timer: ReturnType<typeof setTimeout>
+    let cancelled = false
+    const renew = () => {
+      if (cancelled) return
+      const remaining = Date.parse(snapshot.expiresAt!) - Date.now()
+      if (remaining > 0) {
+        timer = setTimeout(renew, Math.min(remaining, 2_147_483_647))
+      } else {
+        void coordinator.ensureSession().catch(() => undefined)
+      }
+    }
+    renew()
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [coordinator, snapshot.expiresAt])
 
   const value = useMemo<SessionContextValue>(
     () => ({
