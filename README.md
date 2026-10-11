@@ -67,9 +67,9 @@ Trickle/
 │       │   ├── app.ts              # Fastify app: plugins, Swagger, routes
 │       │   ├── env.ts              # Environment variable validation
 │       │   ├── types.ts            # Fastify type augmentation
-│       │   ├── lib/                # chain (viem), fx, privy, prisma, errors, pagination, roles, tokens, shared schemas
+│       │   ├── lib/                # chain (viem), fx, privy, streams, prisma, errors, pagination, roles, tokens, shared schemas
 │       │   ├── plugins/            # auth (session tokens), rbac (requireRole / requireOwnership), uniform error handling
-│       │   └── modules/            # health, sessions, users, companies, invites, gas, fx; each one has:
+│       │   └── modules/            # health, sessions, users, companies, workers, invites, gas, fx; each one has:
 │       │       └── <resource>/     #   routes → controller → service → repository, plus schemas (Zod)
 │       ├── test/                   # Vitest unit + integration tests
 │       ├── openapi.json            # Generated API spec (import into Postman / FE codegen)
@@ -99,7 +99,11 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | POST | `/companies` | ✓ | Create a company (one active per account) |
 | GET, PATCH | `/companies/:id` | Owner | Read / update a company |
 | DELETE | `/companies/:id` | Owner | Soft delete; 409 while workers are linked |
-| GET | `/companies/:id/workers` | Owner | Workers who joined via invite (paged) |
+| POST | `/companies/:id/workers` | Owner | Add a worker by wallet address (restores a removed one) |
+| GET | `/companies/:id/workers` | Owner | Active workers (paged) |
+| GET | `/workers/:id` | Owner or the worker | Read a worker |
+| PATCH | `/workers/:id` | Owner | Update name, position, reference salary |
+| DELETE | `/workers/:id` | Owner | Soft delete; 409 while their salary stream is active |
 | POST | `/invites` | ✓ | Worker invite (employer) or family invite (worker) |
 | GET | `/invites` | ✓ | Invites I created (paged) |
 | GET | `/invites/:code` | – | Public invite details |

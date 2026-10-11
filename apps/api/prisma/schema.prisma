@@ -49,11 +49,11 @@ model User {
   lastLoginAt DateTime?
 
   companies        Company[]
-  employments      EmployerWorker[]
-  familyAsWorker   FamilyLink[]     @relation("FamilyWorker")
-  familyAsRelative FamilyLink[]     @relation("FamilyRelative")
-  invitesCreated   Invite[]         @relation("InviteCreatedBy")
-  invitesAccepted  Invite[]         @relation("InviteAcceptedBy")
+  employments      Worker[]
+  familyAsWorker   FamilyLink[] @relation("FamilyWorker")
+  familyAsRelative FamilyLink[] @relation("FamilyRelative")
+  invitesCreated   Invite[]     @relation("InviteCreatedBy")
+  invitesAccepted  Invite[]     @relation("InviteAcceptedBy")
   payouts          Payout[]
   sessions         Session[]
 }
@@ -85,26 +85,33 @@ model Company {
   /// Soft delete: the row stays so employments, invites and history keep their company.
   deletedAt DateTime?
 
-  owner   User             @relation(fields: [ownerId], references: [id])
-  workers EmployerWorker[]
+  owner   User     @relation(fields: [ownerId], references: [id])
+  workers Worker[]
   invites Invite[]
 
   @@index([ownerId])
 }
 
-model EmployerWorker {
-  id                 String   @id @default(cuid())
+/// A person employed by a company: their account plus job metadata. The salary
+/// here is a reference for the UI; actual pay is the on-chain stream.
+model Worker {
+  id                 String    @id @default(cuid())
   companyId          String
-  workerId           String
+  userId             String
   displayName        String
+  /// Job title, e.g. "Caregiver"
+  position           String?
   monthlySalaryCents Int
-  createdAt          DateTime @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  /// Soft delete. Re-adding the same person restores this row.
+  deletedAt          DateTime?
 
   company Company @relation(fields: [companyId], references: [id])
-  worker  User    @relation(fields: [workerId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
 
-  @@unique([companyId, workerId])
-  @@index([workerId])
+  @@unique([companyId, userId])
+  @@index([userId])
 }
 
 model FamilyLink {

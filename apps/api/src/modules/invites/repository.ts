@@ -18,6 +18,9 @@ export type AcceptResult =
   | { status: 'already-accepted' }
   | { status: 'already-linked' }
 
+/** Thrown inside the accept transaction to roll it back. */
+class AlreadyLinked extends Error {}
+
 export function createInviteRepository(db: Db) {
   return {
     async findActiveCompanyIdByOwner(ownerId: string) {
@@ -29,7 +32,9 @@ export function createInviteRepository(db: Db) {
     },
 
     async countEmployments(workerId: string) {
-      return db.employerWorker.count({ where: { workerId } })
+      return db.worker.count({
+        where: { userId: workerId, deletedAt: null, company: { deletedAt: null } },
+      })
     },
 
     async create(data: Prisma.InviteUncheckedCreateInput): Promise<InviteWithRefs> {
@@ -59,13 +64,18 @@ export function createInviteRepository(db: Db) {
           if (flipped.count !== 1) return { status: 'already-accepted' }
 
           if (invite.type === 'WORKER') {
-            await tx.employerWorker.create({
-              data: {
-                companyId: invite.companyId!,
-                workerId: userId,
-                displayName: invite.inviteeName,
-                monthlySalaryCents: invite.monthlySalaryCents!,
-              },
+            const key = { companyId: invite.companyId!, userId }
+            const existing = await tx.worker.findUnique({ where: { companyId_userId: key } })
+            if (existing && !existing.deletedAt) throw new AlreadyLinked()
+            const data = {
+              displayName: invite.inviteeName,
+              monthlySalaryCents: invite.monthlySalaryCents!,
+            }
+            // A worker who was removed earlier is restored rather than duplicated.
+            await tx.worker.upsert({
+              where: { companyId_userId: key },
+              create: { ...key, ...data },
+              update: { ...data, position: null, deletedAt: null, createdAt: new Date() },
             })
           } else {
             await tx.familyLink.create({
@@ -87,7 +97,10 @@ export function createInviteRepository(db: Db) {
         })
       } catch (err) {
         // The unique constraint on the link rolls the whole transaction back.
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        if (
+          err instanceof AlreadyLinked ||
+          (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002')
+        ) {
           return { status: 'already-linked' }
         }
         throw err

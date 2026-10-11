@@ -1,6 +1,4 @@
 import { conflict, notFound } from '../../lib/errors.js'
-import { centsToUsd } from '../../lib/money.js'
-import { toPage, type PageQuery } from '../../lib/pagination.js'
 import type { CompanyRepository } from './repository.js'
 import { toCompanyDto, type CompanyInput } from './schemas.js'
 
@@ -46,18 +44,6 @@ export function createCompanyService(repo: CompanyRepository) {
         )
       }
       await repo.softDelete(id)
-    },
-
-    async listWorkers(id: string, page: PageQuery) {
-      await find(id)
-      const rows = await repo.listWorkers(id, page)
-      return toPage(rows, page.limit, (w) => ({
-        id: w.id,
-        displayName: w.displayName,
-        address: w.worker.address,
-        monthlySalaryUsd: centsToUsd(w.monthlySalaryCents),
-        joinedAt: w.createdAt.toISOString(),
-      }))
     },
   }
 }

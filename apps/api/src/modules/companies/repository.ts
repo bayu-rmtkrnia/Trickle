@@ -1,4 +1,3 @@
-import { pageArgs, type PageQuery } from '../../lib/pagination.js'
 import type { Db } from '../../lib/prisma.js'
 import type { CompanyInput, CompanyWithOwner } from './schemas.js'
 
@@ -34,7 +33,7 @@ export function createCompanyRepository(db: Db) {
     },
 
     async countWorkers(companyId: string) {
-      return db.employerWorker.count({ where: { companyId } })
+      return db.worker.count({ where: { companyId, deletedAt: null } })
     },
 
     /** Marks the company deleted and revokes its pending invites in one transaction. */
@@ -46,15 +45,6 @@ export function createCompanyRepository(db: Db) {
           data: { status: 'REVOKED' },
         }),
       ])
-    },
-
-    /** One page of workers, plus one extra row for `toPage` to detect the next page. */
-    async listWorkers(companyId: string, page: PageQuery) {
-      return db.employerWorker.findMany({
-        where: { companyId },
-        include: { worker: { select: { address: true } } },
-        ...pageArgs(page),
-      })
     },
   }
 }

@@ -4,7 +4,7 @@ Isinya keadaan aplikasi **saat ini**: apa saja yang sudah ada, di mana letaknya,
 
 > **Aturan:** setiap PR yang menambah atau mengubah fitur, endpoint, tabel, env var, atau keputusan desain **wajib memperbarui file ini** di PR yang sama. Kalau ada isi file ini yang tidak lagi sesuai dengan kode, berarti file ini yang salah, jadi perbaiki.
 
-Terakhir diperbarui: 10 Okt 2026 (Fitur 5: companies).
+Terakhir diperbarui: 11 Okt 2026 (Fitur 6: workers).
 
 ---
 
@@ -17,7 +17,7 @@ Ada tiga peran, dan perannya **kontekstual**: satu akun bisa sekaligus employer,
 | Peran | Didapat dari |
 | ----- | ------------ |
 | Employer | Punya `Company` yang belum dihapus (`deletedAt` kosong) |
-| Pekerja | Punya `EmployerWorker`, hasil menerima undangan WORKER |
+| Pekerja | Punya `Worker` aktif di perusahaan aktif, hasil undangan WORKER atau ditambahkan employer lewat alamat |
 | Keluarga | Punya `FamilyLink` sebagai relative, hasil menerima undangan FAMILY |
 
 ## 2. Peta repo
@@ -45,7 +45,7 @@ src/plugins/auth.ts      app.authenticate: bearer token → req.user
 src/plugins/rbac.ts      app.requireRole, app.requireOwnership (403/404)
 src/plugins/errors.ts    Format error seragam, 400 vs 422
 src/lib/                 Klien infrastruktur dan helper bersama:
-  prisma.ts  chain.ts (viem)  privy.ts  fx.ts
+  prisma.ts  chain.ts (viem)  privy.ts  fx.ts  streams.ts (StreamReader)
   errors.ts  pagination.ts  roles.ts  tokens.ts  money.ts  codes.ts  schemas.ts  http.ts
 src/modules/<resource>/  Satu folder per resource (lihat §4)
 src/generated/prisma/    Hasil `prisma generate`, jangan diedit
@@ -66,7 +66,10 @@ Semua endpoint resource ada di bawah `/api/v1`, kecuali `/health` dan `/docs` (S
 | | `DELETE /sessions/current` | ✓ | Logout sesi ini saja |
 | users | `GET /users/me`, `PATCH /users/me` | ✓ | Profil, peran, dan `companyId`; PATCH hanya `displayName` |
 | companies | `POST /companies` | ✓ | Satu perusahaan aktif per akun |
-| | `GET/PATCH/DELETE /companies/:id`, `GET /companies/:id/workers` | Pemilik | Peran lain dan employer lain mendapat 403. DELETE = soft delete |
+| | `GET/PATCH/DELETE /companies/:id` | Pemilik | Peran lain dan employer lain mendapat 403. DELETE = soft delete |
+| workers | `POST/GET /companies/:id/workers` | Pemilik perusahaan | POST lewat alamat wallet; memulihkan pekerja yang pernah dihapus |
+| | `GET /workers/:id` | Pemilik perusahaan atau pekerja itu sendiri | |
+| | `PATCH/DELETE /workers/:id` | Pemilik perusahaan | DELETE = soft delete, 409 `STREAM_ACTIVE` kalau stream masih aktif |
 | invites | `POST /invites`, `GET /invites`, `GET /invites/:code`, `POST /invites/:code/accept` | ✓ / publik | Detail undangan publik supaya link bisa dibuka sebelum login |
 | gas | `POST /gas/drip`, `GET /gas/status` | ✓ / – | Kirim MON testnet sekali per alamat. Rate limit 5/menit |
 | fx | `GET /fx/usd-idr` | – | Kurs untuk tampilan saja |
@@ -102,7 +105,7 @@ error di mana pun → plugins/errors.ts → { error: { code, message, details? }
 
 **Kenapa:** service bisa diuji tanpa database dengan memberinya repository palsu (lihat `test/sessions.test.ts`). Prisma juga tidak bocor ke mana-mana, dan setiap lapisan mudah dijelaskan saat tanya jawab kuliah. Modul tanpa DB (fx) tidak punya repository.
 
-**Dependency injection lewat factory.** `buildApp({ env, db, chain, fx, privy })` menerima semua klien eksternal, jadi test bisa mengganti chain, Privy, dan FX dengan versi palsu. Klien infrastruktur ada di `src/lib/`, bukan di dalam modul.
+**Dependency injection lewat factory.** `buildApp({ env, db, chain, fx, privy, streams })` menerima semua klien eksternal, jadi test bisa mengganti chain, Privy, FX, dan pembaca stream dengan versi palsu. Klien infrastruktur ada di `src/lib/`, bukan di dalam modul.
 
 ## 5. Keputusan desain
 
@@ -123,7 +126,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Postman memakai `pnpm session <role>`**, yang membuat sesi langsung di DB lokal karena Postman tidak bisa login ke Privy. Script ini menolak jalan dengan `NODE_ENV=production`.
 
 ### Otorisasi (Fitur 4)
-- **Peran diturunkan dari relasi, tidak disimpan.** Punya `Company` aktif = employer, punya `EmployerWorker` = pekerja, punya `FamilyLink` sebagai relative = keluarga (`toRoles()` di `lib/roles.ts`). Kenapa: tidak bisa tidak sinkron dengan data. Contohnya, begitu perusahaan dibuat, user langsung jadi employer tanpa perlu update kolom atau login ulang.
+- **Peran diturunkan dari relasi, tidak disimpan.** Punya `Company` aktif = employer, punya `Worker` aktif (di perusahaan aktif) = pekerja, punya `FamilyLink` sebagai relative = keluarga (`toRoles()` di `lib/roles.ts`). Kenapa: tidak bisa tidak sinkron dengan data. Contohnya, begitu perusahaan dibuat, user langsung jadi employer tanpa perlu update kolom atau login ulang.
 - **Peran dicek per request, tidak dimasukkan ke token sesi.** Kenapa: token opak tidak membawa klaim, dan perubahan peran langsung berlaku. Biayanya satu query per request yang memakai `requireRole`, dan hasilnya disimpan di `req.roles` supaya tidak diulang.
 - **Guard berupa middleware deklaratif di `routes.ts`** (`requireRole` di `onRequest`, `requireOwnership` di `preHandler`). Kenapa: siapa boleh mengakses apa terlihat di satu tempat saat membaca daftar route, dan service tidak perlu mengulang pengecekan yang sama. Aturan yang bergantung pada isi body (misalnya jenis undangan) tetap di service, karena middleware `onRequest` belum bisa membaca body.
 - **403 untuk peran atau pemilik yang salah, 404 kalau resource tidak ada**, keduanya dalam format error seragam (`FORBIDDEN`). Kenapa: rubrik K5 meminta 403 untuk peran lain. `requireOwnership` berjalan di `preHandler` supaya `req.params` sudah divalidasi Zod.
@@ -134,8 +137,16 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 ### Perusahaan & soft delete (Fitur 5)
 - **`Employer` di-rename jadi `Company`** dengan `RENAME TABLE/COLUMN`, bukan drop + create, supaya data yang sudah ada tidak hilang. Kenapa nama berubah: PLAN §6.3 memakai resource `companies`, dan "employer" adalah peran, bukan datanya.
 - **Hapus = soft delete (`deletedAt`)** (PLAN §4.2). Kenapa: pekerja, undangan, dan riwayat tetap merujuk ke perusahaan yang benar. Semua query baca memfilter `deletedAt: null`, jadi bagi API perusahaan itu sudah tidak ada.
-- **Hapus ditolak 409 selama masih ada pekerja.** Kenapa: gaji mengalir on-chain per pekerja; employer harus melepas pekerjanya dulu (Fitur 6 akan menambah cek stream aktif). Undangan PENDING ikut dicabut supaya link lama tidak bisa dipakai bergabung ke perusahaan yang sudah dihapus.
+- **Hapus ditolak 409 selama masih ada pekerja.** Kenapa: gaji mengalir on-chain per pekerja; employer harus melepas pekerjanya dulu, dan melepas pekerja dicek terhadap stream aktif (lihat Pekerja). Undangan PENDING ikut dicabut supaya link lama tidak bisa dipakai bergabung ke perusahaan yang sudah dihapus.
 - **Satu perusahaan aktif per akun, dijaga di service.** Unique index `ownerId` dilepas supaya perusahaan lama yang dihapus tidak menghalangi membuat yang baru. Partial unique index (`WHERE "deletedAt" IS NULL`) tidak dipakai karena tidak bisa dideklarasikan di skema Prisma, sehingga migrasi berikutnya akan mencoba menghapusnya.
+
+### Pekerja (Fitur 6)
+- **`EmployerWorker` di-rename jadi `Worker`** (resource `workers` di PLAN §6.3), kolom `workerId` jadi `userId` karena isinya id user. Id `Worker` adalah id resource `/workers/:id`, yaitu satu hubungan kerja, bukan id user.
+- **Pekerja bisa ditambahkan lewat alamat wallet** selain lewat undangan. Akun untuk alamat itu dibuat kalau belum ada, lalu tertaut saat pemiliknya login Privy (penautan lewat alamat dari Fitur 3). Kenapa: PLAN meminta CRUD penuh, dan kadang employer sudah tahu alamatnya.
+- **Hapus = soft delete, dan pekerja yang sama dipulihkan kalau ditambah atau diundang lagi.** Kenapa: unique `(companyId, userId)` menjaga satu baris per hubungan kerja, jadi riwayatnya tetap satu.
+- **Hapus ditolak 409 `STREAM_ACTIVE` kalau gaji masih mengalir on-chain** (PLAN §4.2). Pengecekan lewat interface `StreamReader` (`lib/streams.ts`), jadi service tidak tahu apakah jawabannya dari indexer, RPC, atau test.
+- **`StreamReader` default belum memverifikasi apa pun** (selalu "tidak aktif", dan setiap penghapusan dicatat di log sebagai tidak terverifikasi). Kenapa: kontrak `TricklePayroll` tidak punya fungsi "stream per pekerja", dan RPC publik Monad membatasi `eth_getLogs` ke 100 blok, sehingga mencari event `StreamCreated` sejak blok deploy butuh ratusan request per pengecekan. Jawaban yang benar akan datang dari indexer milik SC.
+- **`GET /workers/:id` boleh diakses pekerja itu sendiri**, tapi `PATCH`/`DELETE` hanya employer (PLAN §6.3: "W hanya GET dirinya sendiri"). `requireOwnership` menerima beberapa pemilik untuk kasus seperti ini.
 
 ### Bentuk API
 - **Prefix `/api/v1` dan nama resource berupa kata benda jamak** (rubrik K1).
@@ -158,7 +169,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 | `User` | `address` (lowercase, unik), `privyId` (unik, nullable), `displayName` |
 | `Session` | `tokenHash` (unik), `expiresAt`, `revokedAt`; ikut terhapus saat user dihapus |
 | `Company` | Profil perusahaan; `deletedAt` untuk soft delete; maksimal satu aktif per owner |
-| `EmployerWorker` | Relasi perusahaan–pekerja (`companyId`) + gaji referensi (sen). Di-rename di Fitur 6 |
+| `Worker` | Hubungan kerja: `companyId`, `userId`, `displayName`, `position`, gaji referensi (sen), `deletedAt`. Unik per (perusahaan, user) |
 | `FamilyLink` | Relasi pekerja–keluarga |
 | `Invite` | Undangan WORKER (dengan `companyId`) / FAMILY, status PENDING/ACCEPTED/REVOKED |
 | `GasDrip` | Log drip, satu per alamat |
@@ -190,7 +201,7 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 
 - `test/api.test.ts` memanggil `loadEnv` di dalam `describe.skipIf`, sehingga `pnpm test` tanpa `TEST_DATABASE_URL` gagal di file itu.
 - Gas drip mengasumsikan akun baru butuh MON (asumsi era Mera). Dengan Privy perlu ditinjau ulang di Fitur 10.
-- Alamat kontrak dan ABI belum ada dari SC, jadi Fitur 6 dan 12 akan memakai interface `StreamReader` dengan implementasi mock.
+- **Cek stream aktif saat menghapus pekerja belum terverifikasi.** `StreamReader` default selalu menjawab "tidak aktif" sampai indexer SC tersedia. Kontrak sudah ter-deploy (`0xE7292E79…652e` di Monad testnet, branch `feat/contracts-payroll`, belum di-merge).
 - `apps/web` belum memanggil API (masih data mock). Saat integrasi, FE perlu memakai `POST /sessions` + `Authorization: Bearer`, dan `/users/me` untuk peran.
 - Nama peran `family` di `/users/me` berbeda dengan istilah "penerima" (R) di PLAN §6.3 dan resource `recipients` (Fitur 7). Perlu diputuskan apakah di-rename sebelum FE memakainya.
 - D10 (login tanpa kata sandi untuk rubrik K4) masih Open di koordinator.

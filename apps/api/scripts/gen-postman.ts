@@ -76,6 +76,8 @@ const collection = {
     { key: 'workerToken', value: '' },
     { key: 'familyToken', value: '' },
     { key: 'companyId', value: '' },
+    { key: 'workerId', value: '' },
+    { key: 'extraWorkerId', value: '' },
     { key: 'workerInviteCode', value: '' },
     { key: 'familyInviteCode', value: '' },
     { key: 'privyAccessToken', value: '' },
@@ -240,7 +242,8 @@ const collection = {
         }),
         req('List company workers', 'GET', '/api/v1/companies/{{companyId}}/workers', {
           auth: bearer('employerToken'),
-          tests: [status(200)],
+          description: 'Saves the first worker as workerId for the Workers folder.',
+          tests: [status(200), save('workerId', 'data[0].id')],
         }),
         req(
           'Delete company - still has workers (409)',
@@ -258,7 +261,74 @@ const collection = {
       ],
     },
     {
-      name: '5. Gas',
+      name: '5. Workers',
+      item: [
+        req('Get worker (employer)', 'GET', '/api/v1/workers/{{workerId}}', {
+          auth: bearer('employerToken'),
+          tests: [status(200)],
+        }),
+        req('Get worker (the worker themself)', 'GET', '/api/v1/workers/{{workerId}}', {
+          auth: bearer('workerToken'),
+          tests: [status(200)],
+        }),
+        req('Get worker - family (403)', 'GET', '/api/v1/workers/{{workerId}}', {
+          auth: bearer('familyToken'),
+          tests: [status(403), errCode('FORBIDDEN')],
+        }),
+        req('Get worker - unknown id (404)', 'GET', '/api/v1/workers/does-not-exist', {
+          auth: bearer('employerToken'),
+          tests: [status(404), errCode('WORKER_NOT_FOUND')],
+        }),
+        req('Update worker', 'PATCH', '/api/v1/workers/{{workerId}}', {
+          auth: bearer('employerToken'),
+          body: { position: 'Caregiver', monthlySalaryUsd: 1250 },
+          tests: [status(200)],
+        }),
+        req('Update worker - the worker themself (403)', 'PATCH', '/api/v1/workers/{{workerId}}', {
+          auth: bearer('workerToken'),
+          body: { monthlySalaryUsd: 99999 },
+          tests: [status(403), errCode('FORBIDDEN')],
+        }),
+        req('Delete worker - the worker themself (403)', 'DELETE', '/api/v1/workers/{{workerId}}', {
+          auth: bearer('workerToken'),
+          tests: [status(403), errCode('FORBIDDEN')],
+        }),
+        req('Add worker by address', 'POST', '/api/v1/companies/{{companyId}}/workers', {
+          auth: bearer('employerToken'),
+          body: {
+            address: '0x000000000000000000000000000000000000bEEF',
+            displayName: 'Budi',
+            position: 'Driver',
+            monthlySalaryUsd: 900,
+          },
+          description:
+            'Creates the account for this address if needed; it links when that wallet signs in with Privy. Re-running restores the worker after the delete below.',
+          tests: [status(201), save('extraWorkerId', 'id')],
+        }),
+        req(
+          'Add worker - already works here (409)',
+          'POST',
+          '/api/v1/companies/{{companyId}}/workers',
+          {
+            auth: bearer('employerToken'),
+            body: {
+              address: '0x000000000000000000000000000000000000bEEF',
+              displayName: 'Budi',
+              monthlySalaryUsd: 900,
+            },
+            tests: [status(409), errCode('WORKER_EXISTS')],
+          },
+        ),
+        req('Delete worker', 'DELETE', '/api/v1/workers/{{extraWorkerId}}', {
+          auth: bearer('employerToken'),
+          description:
+            '409 STREAM_ACTIVE when the employer still streams to this worker. The stream check is a placeholder until the indexer exists.',
+          tests: [status(204)],
+        }),
+      ],
+    },
+    {
+      name: '6. Gas',
       item: [
         req('Gas status', 'GET', '/api/v1/gas/status', { tests: [status(200)] }),
         req('Gas drip', 'POST', '/api/v1/gas/drip', {
@@ -272,11 +342,11 @@ const collection = {
       ],
     },
     {
-      name: '6. FX',
+      name: '7. FX',
       item: [req('USD to IDR', 'GET', '/api/v1/fx/usd-idr', { tests: [status(200)] })],
     },
     {
-      name: '7. Sign out',
+      name: '8. Sign out',
       item: [
         req('Sign out', 'DELETE', '/api/v1/sessions/current', {
           auth: bearer('familyToken'),

@@ -3,7 +3,6 @@ import type {
   createCompanySchema,
   deleteCompanySchema,
   getCompanySchema,
-  listCompanyWorkersSchema,
   updateCompanySchema,
 } from './schemas.js'
 import type { CompanyService } from './service.js'
@@ -23,8 +22,5 @@ export function createCompanyController(service: CompanyService) {
     return reply.code(204).send(null)
   }
 
-  const listWorkers: Handler<typeof listCompanyWorkersSchema> = async (req) =>
-    service.listWorkers(req.params.id, req.query)
-
-  return { create, get, update, remove, listWorkers }
+  return { create, get, update, remove }
 }
