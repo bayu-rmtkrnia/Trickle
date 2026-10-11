@@ -16,7 +16,7 @@ Aturan main:
 | 2   | Struktur berlapis  | `refactor/api-layered-modules` | Pecah modul ke `modules/<resource>/{routes,controller,service,repository}`. Perilaku tidak berubah, test tetap hijau | Kam 1–Jum 2 | ✅     |
 | 3   | Sesi & pengguna    | `feat/api-sessions`            | Tabel `Session` (token di-hash), `POST /sessions` (token Privy), `DELETE /sessions/current`, `GET/PATCH /users/me` | Jum 2       | ✅     |
 | 4   | RBAC & kepemilikan | `feat/api-rbac`                | Middleware `requireRole` dan `requireOwnership`, peran diturunkan dari relasi DB, helper test 403                    | Jum 2       | 🔍     |
-| 5   | Companies CRUD     | `feat/api-companies`           | Rename Employer → Company, soft delete, test 403                                                                     | Sab 3       | ⬜     |
+| 5   | Companies CRUD     | `feat/api-companies`           | Rename Employer → Company, soft delete, test 403                                                                     | Sab 3       | 🔍     |
 | 6   | Workers CRUD       | `feat/api-workers`             | CRUD + 409 kalau stream masih aktif (cek on-chain lewat interface `StreamReader`)                                    | Sab 3       | ⬜     |
 | 7   | Recipients CRUD    | `feat/api-recipients`          | Dari `FamilyLink`, pemiliknya pekerja                                                                                | Min 4       | ⬜     |
 | 8   | Invites lengkap    | `feat/api-invites-v1`          | `POST /invites/:code/acceptance`, `DELETE /invites/:id`, undangan dari employer dan pekerja                          | Min 4       | ⬜     |
@@ -83,6 +83,17 @@ D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `
 | Diterapkan | `PATCH /employers/me` dan `GET /employers/me/workers` khusus employer. `POST /employers` dan `GET /employers/me` tetap untuk semua user (cara menjadi employer; 404 = tampilkan onboarding) |
 | Tetap di service | Aturan yang bergantung pada body, misalnya jenis undangan (`WORKER` butuh perusahaan, `FAMILY` butuh status pekerja) |
 | Test | `test/rbac.test.ts` (unit, tanpa DB), `expectForbidden()` di `test/helpers.ts` untuk test 403 di fitur berikutnya, plus test integrasi |
+
+## Rincian Fitur 5: Companies CRUD
+
+| Bagian | Isi |
+| ------ | --- |
+| Rename | Tabel `Employer` → `Company`, kolom `employerId` → `companyId` di `EmployerWorker` dan `Invite`. Migrasi `20261010090000_companies` memakai `RENAME`, jadi data lama tetap ada. Nama model `EmployerWorker` diganti di Fitur 6 |
+| Endpoint | `POST /companies` (cukup login), `GET/PATCH/DELETE /companies/:id` dan `GET /companies/:id/workers` (`requireRole('employer')` + `requireOwnership`). Semua `/employers*` dihapus |
+| Soft delete | Kolom `deletedAt`. `DELETE` → 204, mencabut undangan yang masih PENDING. Ditolak 409 `COMPANY_HAS_WORKERS` selama masih ada pekerja. Perusahaan terhapus = 404 dan tidak memberi peran employer |
+| Satu perusahaan aktif | Unique `ownerId` diganti index biasa; aturan "satu aktif per user" dijaga di service (409 `COMPANY_EXISTS`). Setelah dihapus boleh membuat perusahaan baru |
+| `GET /users/me` | Field baru `companyId` (null kalau bukan employer), supaya FE tahu id untuk `/companies/:id` |
+| Test | Unit `test/companies.test.ts`; integrasi: CRUD pemilik, 403 untuk non-employer dan employer lain (`expectForbidden`), 404, soft delete, 409 |
 
 ## Ketergantungan yang belum terjawab
 

@@ -26,7 +26,7 @@ export function createInviteService({ repo, env }: Deps) {
     monthlySalaryUsd: i.monthlySalaryCents === null ? null : centsToUsd(i.monthlySalaryCents),
     relation: i.relation,
     invitedBy: {
-      name: i.type === 'WORKER' ? (i.employer?.name ?? null) : i.createdBy.displayName,
+      name: i.type === 'WORKER' ? (i.company?.name ?? null) : i.createdBy.displayName,
       address: i.createdBy.address,
     },
     url: `${env.WEB_URL}/${i.type === 'WORKER' ? 'w' : 'f'}/invite/${i.code}`,
@@ -41,13 +41,13 @@ export function createInviteService({ repo, env }: Deps) {
       let data: Prisma.InviteUncheckedCreateInput
 
       if (body.type === 'WORKER') {
-        const employerId = await repo.findEmployerIdByOwner(userId)
-        if (!employerId) throw forbidden('Create a company profile before inviting workers')
+        const companyId = await repo.findActiveCompanyIdByOwner(userId)
+        if (!companyId) throw forbidden('Create a company before inviting workers')
         data = {
           code: inviteCode(),
           type: 'WORKER',
           createdById: userId,
-          employerId,
+          companyId,
           inviteeName: body.inviteeName,
           monthlySalaryCents: Math.round(body.monthlySalaryUsd * 100),
           expiresAt,
