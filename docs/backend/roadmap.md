@@ -18,7 +18,7 @@ Aturan main:
 | 4   | RBAC & kepemilikan | `feat/api-rbac`                | Middleware `requireRole` dan `requireOwnership`, peran diturunkan dari relasi DB, helper test 403                    | Jum 2       | 🔍     |
 | 5   | Companies CRUD     | `feat/api-companies`           | Rename Employer → Company, soft delete, test 403                                                                     | Sab 3       | 🔍     |
 | 6   | Workers CRUD       | `feat/api-workers`             | CRUD + 409 kalau stream masih aktif (cek on-chain lewat interface `StreamReader`)                                    | Sab 3       | 🔍     |
-| 7   | Recipients CRUD    | `feat/api-recipients`          | Dari `FamilyLink`, pemiliknya pekerja                                                                                | Min 4       | ⬜     |
+| 7   | Recipients CRUD    | `feat/api-recipients`          | Dari `FamilyLink`, pemiliknya pekerja                                                                                | Min 4       | 🔍     |
 | 8   | Invites lengkap    | `feat/api-invites-v1`          | `POST /invites/:code/acceptance`, `DELETE /invites/:id`, undangan dari employer dan pekerja                          | Min 4       | ⬜     |
 | 9   | Bank accounts      | `feat/api-bank-accounts`       | AES-256-GCM, hanya 4 digit terakhir yang keluar dari API                                                             | Sen 5       | ⬜     |
 | 10  | Gas & kurs         | `refactor/api-gas-fx-v1`       | `/gas-drips` (rate limit per alamat + IP), `/fx-rates/usd-idr`                                                       | Sen 5       | ⬜     |
@@ -106,12 +106,23 @@ D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `
 | Peran | `worker` hanya dihitung dari `Worker` aktif di perusahaan aktif. `requireOwnership` sekarang menerima beberapa pemilik |
 | Test | Unit `test/workers.test.ts`, kasus multi-pemilik di `test/rbac.test.ts`, integrasi: tambah lewat alamat + tautan login, 403 untuk employer lain/pekerja lain/keluarga/outsider, pekerja hanya bisa GET dirinya, 409 stream aktif, pemulihan lewat undangan |
 
+## Rincian Fitur 7: Recipients CRUD
+
+| Bagian | Isi |
+| ------ | --- |
+| Rename | `FamilyLink` → `Recipient`, kolom `workerId` → `ownerId`, `relativeId` → `userId`, tambah `updatedAt`, `deletedAt`. Migrasi `20261012090000_recipients` memakai `RENAME` |
+| Endpoint | Modul baru `recipients`: `POST/GET /recipients` (pekerja, selalu miliknya sendiri), `GET /recipients/:id` (pekerja pemilik atau penerima itu sendiri), `PATCH/DELETE /recipients/:id` (pekerja pemilik) |
+| Tambah lewat alamat | Sama seperti pekerja: akun dibuat kalau belum ada dan tertaut saat login Privy. Penerima yang pernah dihapus dipulihkan, baik lewat `POST` maupun undangan FAMILY |
+| Split aktif | `DELETE` membaca `splitOf(pekerja)` langsung dari kontrak `TricklePayroll` (satu `eth_call`, `PAYROLL_ADDRESS`). Kalau split masih mengarah ke penerima ini dengan `bps > 0` → 409 `SPLIT_ACTIVE`. Tanpa `PAYROLL_ADDRESS`, hapus tetap jalan dan dicatat di log |
+| Peran | Peran `family` di-rename jadi `recipient` (PLAN K5). Dihitung dari `Recipient` aktif. Jenis undangan `FAMILY` belum diubah (Fitur 8) |
+| Test | Unit `test/recipients.test.ts` dan `test/streams.test.ts`; integrasi: CRUD + tautan login, 403 untuk employer/pekerja lain/outsider/penerima (tulis), 409 split aktif, pemulihan lewat undangan |
+
 ## Ketergantungan yang belum terjawab
 
 | Kebutuhan                       | Dipakai di  | Dari                    | Status |
 | ------------------------------- | ----------- | ----------------------- | ------ |
 | D1: Privy atau Mera             | Fitur 3, 10 | Koordinator + FE-A      | Privy  |
 | Alamat kontrak + ABI            | Fitur 6, 12 | SC (`packages/shared`)  | Ada di `feat/contracts-payroll` (belum merge) |
-| Indexer stream                  | Fitur 6     | SC                      | Belum  |
+| Indexer stream                  | Fitur 6     | SC                      | Belum (Fitur 7 tidak butuh: `splitOf` dibaca langsung) |
 | D5: sandbox Xendit atau Flip    | Fitur 11    | BE                      | Open   |
 | D10: login tanpa kata sandi di K4 | Fitur 3, 4  | Koordinator (pengampu)  | Open   |
