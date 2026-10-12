@@ -20,10 +20,10 @@ Aturan main:
 | 6   | Workers CRUD       | `feat/api-workers`             | CRUD + 409 kalau stream masih aktif (cek on-chain lewat interface `StreamReader`)                                    | Sab 3       | ✅     |
 | 7   | Recipients CRUD    | `feat/api-recipients`          | Dari `FamilyLink`, pemiliknya pekerja                                                                                | Min 4       | ✅     |
 | 8   | Invites lengkap    | `feat/api-invites-v1`          | `POST /invites/:code/acceptance`, `DELETE /invites/:id`, undangan dari employer dan pekerja                          | Min 4       | ✅     |
-| 9   | Bank accounts      | `feat/api-bank-accounts`       | AES-256-GCM, hanya 4 digit terakhir yang keluar dari API                                                             | Sen 5       | ⬜     |
+| 9   | Bank accounts      | `feat/api-bank-accounts`       | AES-256-GCM, hanya 4 digit terakhir yang keluar dari API                                                             | Sen 5       | 🔍     |
 | 10  | Gas & kurs         | `refactor/api-gas-fx-v1`       | `/gas-drips` (rate limit per alamat + IP), `/fx-rates/usd-idr`                                                       | Sen 5       | ⬜     |
 | 11  | Payouts sandbox    | `feat/api-payouts`             | Verifikasi tx → disbursement Xendit/Flip → webhook ber-signature                                                     | Sel 6       | ⬜     |
-| 12  | Judge mode         | `feat/api-demo-streams`        | `POST /demo-streams`, signer demo, rate limit                                                                        | Sel 6–Rab 7 | 🔍     |
+| 12  | Judge mode         | `feat/api-demo-streams`        | `POST /demo-streams`, signer demo, rate limit                                                                        | Sel 6–Rab 7 | ✅     |
 | 13  | ERD & dokumen      | `docs/api-erd`                 | `docs/erd.md`, Postman, README API                                                                                   | Rab 7       | ⬜     |
 
 Kalau waktu mepet, nomor 12 tetap Must dan tidak boleh dipotong (PLAN §10.2). Yang paling aman dipotong adalah pagination di endpoint yang datanya sedikit.
@@ -136,6 +136,16 @@ D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `
 | Data | Tabel `DemoStream`, unik per `userId` (migrasi `20261012110000_demo_streams`). Yang gagal boleh dicoba ulang |
 | Batas | Satu per akun, `DEMO_STREAM_IP_DAILY_LIMIT` per IP per hari, `DEMO_STREAM_DAILY_LIMIT` total per hari, ditambah rate limit 5/menit |
 | Test | Unit di `test/demo-streams.test.ts`. Integrasi: tanpa peran, idempoten, coba ulang setelah gagal, batas per IP, status |
+
+## Rincian Fitur 9: Rekening bank
+
+| Bagian | Isi |
+| ------ | --- |
+| Endpoint | `POST/GET /bank-accounts`, `GET/PATCH/DELETE /bank-accounts/:id`. Hanya peran `recipient`, dan `:id` hanya pemiliknya |
+| Enkripsi | `lib/crypto.ts`: AES-256-GCM dengan IV acak per nilai, user id sebagai AAD. Kunci dari `BANK_ENCRYPTION_KEY` (32 byte hex), subkey diturunkan lewat HKDF. Fingerprint HMAC untuk mendeteksi duplikat tanpa dekripsi |
+| Data | Tabel `BankAccount` (migrasi `20261012120000_bank_accounts`): `numberEncrypted`, `numberLast4`, `numberFingerprint` unik per user, soft delete |
+| Aturan | Respons hanya berisi 4 digit terakhir. 409 `BANK_ACCOUNT_EXISTS`, 409 `BANK_ACCOUNT_LIMIT` (maks 5), 503 tanpa kunci. PATCH hanya nama dan label. Menambah ulang rekening yang dihapus akan memulihkannya |
+| Test | `test/crypto.test.ts` (round trip, IV acak, AAD, tamper, kunci lain), unit service, integrasi: DB tidak berisi nomor asli, duplikat, pulihkan, validasi 422, 403 untuk employer/pekerja/outsider/penerima lain |
 
 ## Ketergantungan yang belum terjawab
 

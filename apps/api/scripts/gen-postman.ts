@@ -83,6 +83,7 @@ const collection = {
     { key: 'workerInviteCode', value: '' },
     { key: 'familyInviteCode', value: '' },
     { key: 'cancelInviteId', value: '' },
+    { key: 'bankAccountId', value: '' },
     { key: 'privyAccessToken', value: '' },
   ],
   item: [
@@ -408,6 +409,54 @@ const collection = {
           auth: bearer('workerToken'),
           description:
             "409 SPLIT_ACTIVE while the worker's on-chain split (splitOf) still sends to this recipient.",
+          tests: [status(204)],
+        }),
+      ],
+    },
+    {
+      name: '6b. Bank accounts',
+      item: [
+        req('Add bank account', 'POST', '/api/v1/bank-accounts', {
+          auth: bearer('familyToken'),
+          description:
+            'Recipient only. The number is encrypted at rest; responses only carry accountNumberLast4. 503 BANK_ACCOUNTS_UNAVAILABLE without BANK_ENCRYPTION_KEY.',
+          body: {
+            bankCode: 'BCA',
+            accountNumber: '1234567890',
+            accountName: 'Ibu Aminah',
+            label: 'Rekening utama',
+          },
+          tests: [status(201), save('bankAccountId', 'id')],
+        }),
+        req('Add bank account - duplicate (409)', 'POST', '/api/v1/bank-accounts', {
+          auth: bearer('familyToken'),
+          body: { bankCode: 'BCA', accountNumber: '1234 5678 90', accountName: 'Ibu Aminah' },
+          tests: [status(409), errCode('BANK_ACCOUNT_EXISTS')],
+        }),
+        req('Add bank account - not a recipient (403)', 'POST', '/api/v1/bank-accounts', {
+          auth: bearer('employerToken'),
+          body: { bankCode: 'BNI', accountNumber: '9876543210', accountName: 'Budi' },
+          tests: [status(403), errCode('FORBIDDEN')],
+        }),
+        req('List my bank accounts', 'GET', '/api/v1/bank-accounts', {
+          auth: bearer('familyToken'),
+          tests: [status(200)],
+        }),
+        req('Get bank account', 'GET', '/api/v1/bank-accounts/{{bankAccountId}}', {
+          auth: bearer('familyToken'),
+          tests: [status(200)],
+        }),
+        req('Get bank account - worker (403)', 'GET', '/api/v1/bank-accounts/{{bankAccountId}}', {
+          auth: bearer('workerToken'),
+          tests: [status(403), errCode('FORBIDDEN')],
+        }),
+        req('Rename bank account', 'PATCH', '/api/v1/bank-accounts/{{bankAccountId}}', {
+          auth: bearer('familyToken'),
+          body: { label: 'Tabungan' },
+          tests: [status(200)],
+        }),
+        req('Remove bank account', 'DELETE', '/api/v1/bank-accounts/{{bankAccountId}}', {
+          auth: bearer('familyToken'),
           tests: [status(204)],
         }),
       ],
