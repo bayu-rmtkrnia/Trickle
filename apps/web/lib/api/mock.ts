@@ -1,9 +1,17 @@
-// Data MOCK sementara backend belum dipakai. Disimpan di memori browser, jadi
-// undangan yang dibuat tetap ada selama pindah halaman, dan hilang saat reload.
+// Data MOCK untuk pratinjau state saat development (`?state=`). Hanya aktif
+// setelah sebuah skenario dipasang; tanpa itu semua fungsi memakai backend.
+// Disimpan di memori: tetap ada selama pindah halaman, hilang saat reload.
 
 import type { EmployerState } from '@/lib/dev-state'
 import { ApiError } from './errors'
-import type { Employer, Invite, PayrollFund, Worker } from './types'
+import type {
+  CreateEmployerInput,
+  CreateWorkerInviteInput,
+  Employer,
+  Invite,
+  PayrollFund,
+  Worker,
+} from './types'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 export const INVITE_TTL_DAYS = 14
@@ -20,7 +28,7 @@ type Store = {
 
 const daysAgo = (d: number) => new Date(Date.now() - d * DAY_MS).toISOString()
 
-export function inviteUrl(type: Invite['type'], code: string) {
+function inviteUrl(type: Invite['type'], code: string) {
   const origin = typeof window === 'undefined' ? 'http://localhost:3000' : window.location.origin
   return `${origin}/${type === 'WORKER' ? 'w' : 'f'}/invite/${code}`
 }
@@ -36,6 +44,7 @@ function workerInvite(
 ): Invite {
   const createdAt = daysAgo(createdDaysAgo)
   return {
+    id: `inv_${code}`,
     code,
     type: 'WORKER',
     status,
@@ -50,7 +59,7 @@ function workerInvite(
   }
 }
 
-function fixture(state: EmployerState | undefined): Store {
+function fixture(state: EmployerState): Store {
   const employer: Employer = { id: 'emp_1', name: COMPANY, country: 'MY', createdAt: daysAgo(30) }
   // Total $2.400/bulan = $80/hari.
   const workers: Worker[] = [
@@ -87,50 +96,94 @@ function fixture(state: EmployerState | undefined): Store {
   }
 }
 
-let store: Store = fixture(undefined)
+let store: Store | null = null
 let appliedState: EmployerState | undefined
 
 /**
- * Pasang skenario dev (`?state=`). Tanpa skenario, data yang ada dibiarkan
- * supaya alur (mis. onboarding → dashboard) tetap nyambung.
+ * Pasang skenario dev. Setelah dipasang, mode mock bertahan sampai halaman
+ * di-reload, supaya alur (mis. onboarding → dashboard) tetap nyambung.
  */
 export function applyMockScenario(state: EmployerState | undefined) {
-  // Tanpa ?state, jangan sampai tersangkut di mode loading/error dari skenario sebelumnya.
-  if (!state && store.mode !== 'normal') {
-    appliedState = undefined
-    store = fixture(undefined)
-    return
-  }
   if (!state || state === appliedState) return
   appliedState = state
   store = fixture(state)
 }
 
-export function getStore() {
+export const isMockMode = () => store !== null
+
+function getStore(): Store {
+  if (!store) throw new Error('Mock mode is not active')
   return store
 }
 
 /** Jeda seperti jaringan sungguhan, plus mode loading/error dari skenario. */
-export async function respond<T>(value: () => T, ms = 450): Promise<T> {
-  if (store.mode === 'loading') return new Promise<T>(() => {})
+async function respond<T>(value: () => T, ms = 450): Promise<T> {
+  if (getStore().mode === 'loading') return new Promise<T>(() => {})
   await new Promise((r) => setTimeout(r, ms))
-  if (store.mode === 'network') throw new ApiError('network')
+  if (getStore().mode === 'network') throw new ApiError('network')
   return value()
 }
 
 /** Status EXPIRED dihitung dari tanggal, sama seperti backend. */
-export function withDerivedStatus(invite: Invite): Invite {
+function withDerivedStatus(invite: Invite): Invite {
   return invite.status === 'PENDING' && new Date(invite.expiresAt).getTime() < Date.now()
     ? { ...invite, status: 'EXPIRED' }
     : invite
 }
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
-export function newInviteCode() {
+function newInviteCode() {
   return Array.from(
     { length: 8 },
     () => CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)],
   ).join('')
 }
 
-export { DAY_MS, MOCK_ADDRESS }
+export const mockApi = {
+  getEmployer: () => respond(() => getStore().employer),
+
+  createEmployer: (input: CreateEmployerInput) =>
+    respond(() => {
+      const s = getStore()
+      if (s.employer) throw new ApiError('conflict', 'conflict', 409, 'COMPANY_EXISTS')
+      s.employer = {
+        id: `emp_${Date.now()}`,
+        name: input.name,
+        country: input.country,
+        createdAt: new Date().toISOString(),
+      }
+      return s.employer
+    }, 700),
+
+  listWorkers: () =>
+    respond(() => [...getStore().workers].sort((a, b) => b.joinedAt.localeCompare(a.joinedAt))),
+
+  getPayrollFund: () => respond((): PayrollFund | null => getStore().fund),
+
+  listInvites: () =>
+    respond(() =>
+      getStore()
+        .invites.map(withDerivedStatus)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    ),
+
+  createInvite: (input: CreateWorkerInviteInput) =>
+    respond(() => {
+      const s = getStore()
+      if (!s.employer) throw new ApiError('forbidden')
+      const invite: Invite = {
+        ...workerInvite(newInviteCode(), input.inviteeName, input.monthlySalaryUsd, 0),
+        invitedBy: { name: s.employer.name, address: MOCK_ADDRESS },
+      }
+      s.invites = [invite, ...s.invites]
+      return invite
+    }, 700),
+
+  revokeInvite: (id: string) =>
+    respond(() => {
+      const invite = getStore().invites.find((i) => i.id === id)
+      if (!invite) throw new ApiError('not-found')
+      if (withDerivedStatus(invite).status !== 'PENDING') throw new ApiError('conflict')
+      invite.status = 'REVOKED'
+    }, 600),
+}

@@ -7,6 +7,7 @@ import { Field, describedBy, inputClass } from '@/components/ui/field'
 import { ChevronDownIcon } from '@/components/ui/icons'
 import { InlineError } from '@/components/ui/inline-error'
 import { createEmployer, isApiError } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/api-error-message'
 import { COUNTRIES, setupCopy as t } from '@/lib/copy/employer'
 
 /** Onboarding employer (DESIGN.md 6.3). */
@@ -17,7 +18,8 @@ export function EmployerSetupForm() {
   const [name, setName] = useState('')
   const [country, setCountry] = useState<string>(COUNTRIES[0].code)
   const [nameError, setNameError] = useState<string>()
-  const [submitError, setSubmitError] = useState<'failed' | 'conflict'>()
+  /** `conflict` = sudah punya perusahaan; selain itu error API apa pun. */
+  const [submitError, setSubmitError] = useState<{ error: unknown } | 'conflict'>()
   const [submitting, setSubmitting] = useState(false)
 
   async function onSubmit(e: FormEvent) {
@@ -35,7 +37,7 @@ export function EmployerSetupForm() {
       await createEmployer({ name: trimmed, country })
       router.push('/employer')
     } catch (err) {
-      setSubmitError(isApiError(err) && err.kind === 'conflict' ? 'conflict' : 'failed')
+      setSubmitError(isApiError(err) && err.kind === 'conflict' ? 'conflict' : { error: err })
       setSubmitting(false)
     }
   }
@@ -84,7 +86,9 @@ export function EmployerSetupForm() {
         </Field>
       </div>
 
-      {submitError === 'failed' && <InlineError title={t.failedTitle} message={t.failedMessage} />}
+      {typeof submitError === 'object' && (
+        <InlineError title={t.failedTitle} message={apiErrorMessage(submitError.error).message} />
+      )}
       {submitError === 'conflict' && (
         <InlineError title={t.conflictTitle} action={{ label: t.toDashboard, href: '/employer' }} />
       )}

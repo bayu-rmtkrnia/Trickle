@@ -30,7 +30,7 @@ export function RevokeInviteSheet({
     setBusy(true)
     setFailed(false)
     try {
-      await revokeInvite(invite.code)
+      await revokeInvite(invite.id)
       onRevoked()
     } catch {
       setFailed(true)

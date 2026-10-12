@@ -6,7 +6,19 @@ import { formatDateShort, formatUsd } from '@/lib/format'
 import { streamedSince } from '@/lib/runway'
 
 /** List kartu di mobile, tabel di layar >= 768px (DESIGN.md 6.6). */
-export function WorkerList({ workers, now }: { workers: Worker[]; now: number }) {
+/**
+ * `showStreamed`: tampilkan gaji yang sudah mengalir. Sementara hanya untuk
+ * pratinjau mock, karena angka aslinya harus dibaca dari kontrak.
+ */
+export function WorkerList({
+  workers,
+  now,
+  showStreamed,
+}: {
+  workers: Worker[]
+  now: number
+  showStreamed: boolean
+}) {
   if (workers.length === 0) {
     return (
       <p className="rounded-xl border-[1.5px] border-dashed border-brand-text bg-surface p-4 text-muted">
@@ -22,10 +34,11 @@ export function WorkerList({ workers, now }: { workers: Worker[]; now: number })
           <li key={w.id}>
             <PersonCard
               name={w.displayName}
-              subtitle={t.workerSince(
-                formatDateShort(w.joinedAt),
-                formatUsd(streamedSince(w, now)),
-              )}
+              subtitle={
+                showStreamed
+                  ? t.workerSince(formatDateShort(w.joinedAt), formatUsd(streamedSince(w, now)))
+                  : t.workerSinceOnly(formatDateShort(w.joinedAt))
+              }
               trailing={
                 <span className="block">
                   <span className="block font-bold text-ink">{formatUsd(w.monthlySalaryUsd)}</span>
@@ -50,9 +63,11 @@ export function WorkerList({ workers, now }: { workers: Worker[]; now: number })
               <th scope="col" className="px-4 py-3 font-medium">
                 {t.colJoined}
               </th>
-              <th scope="col" className="px-4 py-3 text-right font-medium">
-                {t.colStreamed}
-              </th>
+              {showStreamed && (
+                <th scope="col" className="px-4 py-3 text-right font-medium">
+                  {t.colStreamed}
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -68,9 +83,11 @@ export function WorkerList({ workers, now }: { workers: Worker[]; now: number })
                   {formatUsd(w.monthlySalaryUsd)}
                 </td>
                 <td className="px-4 py-3 text-muted">{formatDateShort(w.joinedAt)}</td>
-                <td className="px-4 py-3 text-right tabular-nums">
-                  {formatUsd(streamedSince(w, now))}
-                </td>
+                {showStreamed && (
+                  <td className="px-4 py-3 text-right tabular-nums">
+                    {formatUsd(streamedSince(w, now))}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

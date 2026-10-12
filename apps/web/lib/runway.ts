@@ -1,15 +1,16 @@
 import type { Worker } from '@/lib/api'
 import { dailyFromMonthly } from '@/lib/format'
 
-export type RunwayLevel = 'no-workers' | 'healthy' | 'low' | 'critical' | 'empty'
+export type RunwayLevel = 'unknown' | 'no-workers' | 'healthy' | 'low' | 'critical' | 'empty'
 
 /**
  * Berapa hari dana payroll cukup (DESIGN.md 7.3). Ambang 7 dan 3 hari
- * adalah judgment, bukan standar.
+ * adalah judgment, bukan standar. `balanceUsd` null = saldo belum bisa dibaca.
  */
-export function computeRunway(balanceUsd: number, workers: Worker[]) {
+export function computeRunway(balanceUsd: number | null, workers: Worker[]) {
   const monthlyUsd = workers.reduce((sum, w) => sum + w.monthlySalaryUsd, 0)
   const dailyUsd = dailyFromMonthly(monthlyUsd)
+  if (balanceUsd === null) return { level: 'unknown' as const, days: null, monthlyUsd }
   if (balanceUsd <= 0 && workers.length > 0) return { level: 'empty' as const, days: 0, monthlyUsd }
   if (dailyUsd === 0) return { level: 'no-workers' as const, days: null, monthlyUsd }
   const days = Math.floor(balanceUsd / dailyUsd)
