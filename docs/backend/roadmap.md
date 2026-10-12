@@ -21,8 +21,8 @@ Aturan main:
 | 7   | Recipients CRUD    | `feat/api-recipients`          | Dari `FamilyLink`, pemiliknya pekerja                                                                                | Min 4       | ✅     |
 | 8   | Invites lengkap    | `feat/api-invites-v1`          | `POST /invites/:code/acceptance`, `DELETE /invites/:id`, undangan dari employer dan pekerja                          | Min 4       | ✅     |
 | 9   | Bank accounts      | `feat/api-bank-accounts`       | AES-256-GCM, hanya 4 digit terakhir yang keluar dari API                                                             | Sen 5       | ✅     |
-| 10  | Gas & kurs         | `refactor/api-gas-fx-v1`       | `/gas-drips` (rate limit per alamat + IP), `/fx-rates/usd-idr`                                                       | Sen 5       | 🔍     |
-| 11  | Payouts sandbox    | `feat/api-payouts`             | Verifikasi tx → disbursement Xendit/Flip → webhook ber-signature                                                     | Sel 6       | ⬜     |
+| 10  | Gas & kurs         | `refactor/api-gas-fx-v1`       | `/gas-drips` (rate limit per alamat + IP), `/fx-rates/usd-idr`                                                       | Sen 5       | ✅     |
+| 11  | Payouts sandbox    | `feat/api-payouts`             | Verifikasi tx → disbursement Xendit/Flip → webhook ber-signature                                                     | Sel 6       | 🔍     |
 | 12  | Judge mode         | `feat/api-demo-streams`        | `POST /demo-streams`, signer demo, rate limit                                                                        | Sel 6–Rab 7 | ✅     |
 | 13  | ERD & dokumen      | `docs/api-erd`                 | `docs/erd.md`, Postman, README API                                                                                   | Rab 7       | ⬜     |
 
@@ -155,6 +155,17 @@ D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `
 | Kurs | `GET /fx/usd-idr` → `GET /fx-rates/usd-idr`, sekarang butuh login (PLAN §6.3: E, W, R) tanpa syarat peran. `cache-control: private` |
 | Path lama | Tetap jalan karena FE masih memakainya, ditandai deprecated di OpenAPI dan diberi header `Deprecation` + `Link`. Dihapus di Fitur 13 setelah FE pindah |
 | Test | Unit: batas IP, treasury kosong, saldo gagal dibaca. Integrasi: batas harian dari IP berbeda, batas IP, path lama + header, kurs 401/200 |
+
+## Rincian Fitur 11: Payouts sandbox
+
+| Bagian | Isi |
+| ------ | --- |
+| Endpoint | `POST/GET /payouts`, `GET /payouts/:id` (peran `recipient`, `:id` hanya pemiliknya), `POST /webhooks/payout-provider` (tanpa sesi, ber-signature) |
+| Verifikasi | `lib/transfers.ts` (`TransferVerifier`): membaca receipt tx, menjumlahkan `Transfer` token payroll dari pemanggil ke `PAYOUT_ADDRESS`. Belum ditambang 409 `TX_PENDING`, gagal 400 `TX_FAILED`, bukan transfer payout 400 `TX_NOT_A_PAYOUT` |
+| Provider | `lib/payout-provider.ts` (`PayoutProvider`), baru versi mock (D5 belum diputuskan). Mock tanpa state: hasil disimpan di reference, selesai setelah `MOCK_PAYOUT_SECONDS`, nomor berakhiran `0000` gagal |
+| Status | `GET /payouts/:id` menanyakan provider selama PROCESSING. Webhook HMAC-SHA256 atas `<timestamp>.<raw body>` (`PAYOUT_WEBHOOK_SECRET`), umur maks 5 menit, idempoten |
+| Data | Migrasi `20261012130000_payouts`: kolom rekening teks biasa dihapus, diganti `bankAccountId`; tambah `fxRate`, `fxSource`, `failureReason`, `providerRef` unik |
+| Test | Unit verifier, provider mock, service (semua cabang error, webhook signature). Integrasi: alur lengkap, replay, rekening orang lain 404, webhook unsigned/signed/terlambat/unknown/JSON rusak, 403 |
 
 ## Ketergantungan yang belum terjawab
 

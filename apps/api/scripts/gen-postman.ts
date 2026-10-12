@@ -24,6 +24,8 @@ interface Opts {
   body?: unknown
   auth?: Auth
   tests?: string[]
+  /** Runs before the request, e.g. to sign it. */
+  prerequest?: string[]
   description?: string
 }
 
@@ -54,14 +56,26 @@ function req(name: string, method: string, path: string, opts: Opts = {}) {
     }
   }
   if (opts.description) request.description = opts.description
-  return {
-    name,
-    request,
-    event: opts.tests?.length
+  const event = [
+    ...(opts.prerequest?.length
+      ? [{ listen: 'prerequest', script: { type: 'text/javascript', exec: opts.prerequest } }]
+      : []),
+    ...(opts.tests?.length
       ? [{ listen: 'test', script: { type: 'text/javascript', exec: opts.tests } }]
-      : undefined,
-  }
+      : []),
+  ]
+  return { name, request, event: event.length ? event : undefined }
 }
+
+/** Signs the raw body like the payout provider does (see POST /webhooks/payout-provider). */
+const signPayoutWebhook = [
+  'const ts = Math.floor(Date.now() / 1000).toString();',
+  'const body = pm.request.body.raw;',
+  "const secret = pm.collectionVariables.get('payoutWebhookSecret');",
+  "const sig = CryptoJS.HmacSHA256(ts + '.' + body, secret).toString(CryptoJS.enc.Hex);",
+  "pm.request.headers.upsert({ key: 'x-payout-timestamp', value: ts });",
+  "pm.request.headers.upsert({ key: 'x-payout-signature', value: 'sha256=' + sig });",
+]
 
 const collection = {
   info: {
@@ -84,6 +98,10 @@ const collection = {
     { key: 'familyInviteCode', value: '' },
     { key: 'cancelInviteId', value: '' },
     { key: 'bankAccountId', value: '' },
+    { key: 'payoutTxHash', value: '' },
+    { key: 'payoutId', value: '' },
+    { key: 'payoutRef', value: '' },
+    { key: 'payoutWebhookSecret', value: '' },
     { key: 'privyAccessToken', value: '' },
   ],
   item: [
@@ -458,6 +476,48 @@ const collection = {
         req('Remove bank account', 'DELETE', '/api/v1/bank-accounts/{{bankAccountId}}', {
           auth: bearer('familyToken'),
           tests: [status(204)],
+        }),
+      ],
+    },
+    {
+      name: '6c. Payouts',
+      description:
+        'Needs a real transfer first: from the recipient account, send mock AUSD to PAYOUT_ADDRESS on Monad testnet, then put the tx hash in {{payoutTxHash}} and an active bank account id in {{bankAccountId}}. The mock provider completes after MOCK_PAYOUT_SECONDS; account numbers ending in 0000 fail.',
+      item: [
+        req('Cash out', 'POST', '/api/v1/payouts', {
+          auth: bearer('familyToken'),
+          body: { txHash: '{{payoutTxHash}}', bankAccountId: '{{bankAccountId}}' },
+          description:
+            '201 the first time, 200 when the same hash is sent again. 409 TX_PENDING if not mined yet, 400 TX_NOT_A_PAYOUT if it did not pay the payout address.',
+          tests: [
+            "pm.test('created or replayed', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+            save('payoutId', 'id'),
+            save('payoutRef', 'providerRef'),
+          ],
+        }),
+        req('Cash out - not a recipient (403)', 'POST', '/api/v1/payouts', {
+          auth: bearer('employerToken'),
+          body: { txHash: '0x' + '0'.repeat(64), bankAccountId: 'x' },
+          tests: [status(403), errCode('FORBIDDEN')],
+        }),
+        req('List my payouts', 'GET', '/api/v1/payouts', {
+          auth: bearer('familyToken'),
+          tests: [status(200)],
+        }),
+        req('Get payout (refreshes status)', 'GET', '/api/v1/payouts/{{payoutId}}', {
+          auth: bearer('familyToken'),
+          tests: [status(200)],
+        }),
+        req('Provider webhook - unsigned (401)', 'POST', '/api/v1/webhooks/payout-provider', {
+          body: { providerRef: '{{payoutRef}}', status: 'COMPLETED' },
+          tests: [status(401), errCode('UNAUTHORIZED')],
+        }),
+        req('Provider webhook - signed', 'POST', '/api/v1/webhooks/payout-provider', {
+          body: { providerRef: '{{payoutRef}}', status: 'COMPLETED' },
+          prerequest: signPayoutWebhook,
+          description:
+            'Signed in the pre-request script with {{payoutWebhookSecret}} (= PAYOUT_WEBHOOK_SECRET). A finished payout keeps its status.',
+          tests: [status(200)],
         }),
       ],
     },
