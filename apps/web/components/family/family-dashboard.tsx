@@ -7,14 +7,17 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useBankAccounts } from '@/hooks/use-bank-accounts'
 import { useFamilyBalance } from '@/hooks/use-family-balance'
 import { useFamilyPayout } from '@/hooks/use-family-payout'
+import { useFamilyPayouts } from '@/hooks/use-family-payouts'
 import { useUsdIdr } from '@/hooks/use-usd-idr'
 import { useAccount } from '@/lib/account'
+import { statusPhase } from '@/lib/chain/payout-coordinator'
 import { familyDashboardCopy as t } from '@/lib/copy/family'
 import { payoutCopy as p } from '@/lib/copy/family-payout'
 import { useSession, type SessionContextValue } from '@/providers/session-provider'
 import { BankAccountList } from './bank-account-list'
 import { FamilyBalanceCard } from './family-balance-card'
 import { FamilyShell } from './family-shell'
+import { PayoutHistory } from './payout-history'
 import { PayoutSheet } from './payout-sheet'
 
 export function FamilyDashboard() {
@@ -167,8 +170,23 @@ function FamilyOverview({
       active = false
     }
   }, [phase])
+  const history = useFamilyPayouts(session)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const registered = payout.state.payout
+  const track = history.track
+  // A payout just registered joins the history so its status is polled.
+  useEffect(() => {
+    if (registered) track(registered)
+  }, [registered, track])
+  const latest = history.find(registered?.id)
+  // Status after registration comes from the polled backend DTO only.
+  const live =
+    registered && latest && ['processing', 'completed', 'payout-failed'].includes(phase)
+      ? { ...payout.state, payout: latest, phase: statusPhase(latest) }
+      : payout.state
+  const livePhase = live.phase
   const snapshot = balance.phase === 'ready' ? balance.snapshot : null
-  const inFlight = phase !== 'idle' && phase !== 'confirming'
+  const inFlight = livePhase !== 'idle' && livePhase !== 'confirming'
   const accounts = bank.page?.data ?? []
   const canStart =
     payout.ready &&
@@ -177,7 +195,7 @@ function FamilyOverview({
     snapshot.balance > BigInt(0) &&
     accounts.length > 0
   const hint = inFlight
-    ? p.phases[phase]
+    ? p.phases[livePhase]
     : !payout.configured
       ? p.notConfigured
       : !bank.page
@@ -200,18 +218,20 @@ function FamilyOverview({
         payoutDisabled={!inFlight && !canStart}
         payoutHint={hint}
         onPayout={openPayout}
+        onHistory={() => setHistoryOpen(true)}
       />
       <BankAccountList bank={bank} />
       <PayoutSheet
         open={sheetOpen}
         onClose={() => setSheetOpen(false)}
-        payout={payout}
+        payout={{ ...payout, state: live }}
         accounts={accounts}
         balance={snapshot?.balance ?? null}
         tokenSymbol={snapshot?.tokenSymbol ?? 'mAUSD'}
         quote={fx.quote}
         walletAddress={wallet}
       />
+      <PayoutHistory open={historyOpen} onClose={() => setHistoryOpen(false)} history={history} />
     </div>
   )
 }

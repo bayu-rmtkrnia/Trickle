@@ -60,7 +60,7 @@ export interface PayoutCoordinatorDeps {
 const FINAL_REGISTRATION = ['TX_FAILED', 'TX_NOT_A_PAYOUT', 'PAYOUT_EXISTS']
 const HASH = /^0x[0-9a-fA-F]{64}$/
 
-function statusPhase(payout: PayoutDto): PayoutPhase {
+export function statusPhase(payout: PayoutDto): PayoutPhase {
   if (payout.status === 'COMPLETED') return 'completed'
   if (payout.status === 'FAILED') return 'payout-failed'
   return 'processing'

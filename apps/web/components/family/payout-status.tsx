@@ -18,7 +18,7 @@ const tone = (phase: FamilyPayoutState['phase']): BadgeTone =>
 /** Server payout fields; the IDR amount shown here is the backend's, not an estimate. */
 export function PayoutDetails({ payout }: { payout: PayoutDto }) {
   const rows: [string, string][] = [
-    [t.sentAmount, `${payout.amountUsd} mAUSD`],
+    [t.sentAmount, `${payout.amountUsd.replace('.', ',')} mAUSD`],
     [t.receivedIdr, payout.amountIdr === null ? '–' : formatIdr(payout.amountIdr)],
     [
       t.account,

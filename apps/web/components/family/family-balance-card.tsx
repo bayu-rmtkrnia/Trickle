@@ -30,6 +30,7 @@ export function FamilyBalanceCard({
   payoutDisabled,
   payoutHint,
   onPayout,
+  onHistory,
 }: {
   balance: FamilyBalanceState
   fx: UsdIdrState
@@ -37,6 +38,7 @@ export function FamilyBalanceCard({
   payoutDisabled: boolean
   payoutHint: string
   onPayout: () => void
+  onHistory: () => void
 }) {
   const [detailsOpen, setDetailsOpen] = useState(false)
   const { phase, snapshot, error } = balance
@@ -134,7 +136,7 @@ export function FamilyBalanceCard({
           <Button block disabled={payoutDisabled} onClick={onPayout}>
             {payoutLabel}
           </Button>
-          <Button variant="secondary" block disabled>
+          <Button variant="secondary" block onClick={onHistory}>
             {t.history}
           </Button>
         </div>

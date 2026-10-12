@@ -91,6 +91,35 @@ export const payoutCopy = {
   account: 'Rekening',
   failureReason: 'Alasan',
   errorTitle: 'Pencairan belum dapat dilanjutkan',
+  history: {
+    open: 'Riwayat',
+    title: 'Riwayat pencairan',
+    loading: 'Memuat riwayat...',
+    emptyTitle: 'Belum ada pencairan',
+    emptyBody: 'Pencairan yang kamu kirim akan muncul di sini beserta statusnya.',
+    loadError: 'Riwayat belum dapat dimuat',
+    loadErrorBody: 'Periksa koneksi lalu coba lagi. Ini bukan berarti belum ada pencairan.',
+    pageError: 'Riwayat berikutnya belum dapat dimuat',
+    pollError:
+      'Status terbaru belum dapat diperbarui. Status terakhir yang diketahui tetap ditampilkan.',
+    retry: 'Coba lagi',
+    more: 'Muat riwayat lainnya',
+    loadingMore: 'Memuat riwayat...',
+    back: 'Kembali ke riwayat',
+    detailTitle: 'Detail pencairan',
+    detail: (date: string) => `Detail pencairan ${date}`,
+    idrPending: 'Rupiah menunggu server',
+    statuses: {
+      PENDING: 'Menunggu',
+      PROCESSING: 'Diproses',
+      COMPLETED: 'Selesai',
+      FAILED: 'Gagal',
+    } as Record<string, string>,
+    failedHint:
+      'Token sudah terkirim. Pencairan bank gagal dan token tidak dikembalikan otomatis; hubungi tim dengan hash transfer ini.',
+    providerHint:
+      'Provider uji mensimulasikan transfer bank. Waktu selesai mengikuti konfigurasi server.',
+  },
 }
 
 const messages: Record<string, string> = {
