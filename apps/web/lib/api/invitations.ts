@@ -18,7 +18,7 @@ export function getInvitation(code: string, signal?: AbortSignal, options: Clien
 }
 
 export function acceptInvitation(code: string, token: string, options: ClientOptions = {}) {
-  return apiRequest<Invite>(`invites/${encodeURIComponent(code)}/accept`, {
+  return apiRequest<Invite>(`invites/${encodeURIComponent(code)}/acceptance`, {
     ...options,
     method: 'POST',
     token,
@@ -34,12 +34,12 @@ export function createFamilyInvitation(
     ...options,
     method: 'POST',
     token,
-    body: { ...input, type: 'FAMILY' },
+    body: { ...input, type: 'RECIPIENT' },
   })
 }
 
 export function listFamilyInvitations(token: string, cursor?: string, options: ClientOptions = {}) {
-  const query = new URLSearchParams({ type: 'FAMILY' })
+  const query = new URLSearchParams({ type: 'RECIPIENT' })
   if (cursor) query.set('cursor', cursor)
   return apiRequest<InvitationPage>(`invites?${query}`, { ...options, token })
 }
