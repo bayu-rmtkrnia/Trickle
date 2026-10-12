@@ -9,7 +9,10 @@ import type { StreamReader } from '../src/lib/streams.js'
 import type { Chain } from '../src/lib/chain.js'
 import type { DemoSigner } from '../src/lib/demo.js'
 import { createFieldCipher } from '../src/lib/crypto.js'
+import { createMockPayoutProvider } from '../src/lib/payout-provider.js'
 import { createPrisma } from '../src/lib/prisma.js'
+import type { TransferVerifier } from '../src/lib/transfers.js'
+import { signWebhook } from '../src/modules/payouts/service.js'
 import { expectForbidden } from './helpers.js'
 
 const url = process.env.TEST_DATABASE_URL
@@ -22,6 +25,7 @@ describe.skipIf(!url)('api (integration)', () => {
     GAS_DRIP_IP_DAILY_LIMIT: '2',
     DEMO_STREAM_IP_DAILY_LIMIT: '2',
     BANK_ENCRYPTION_KEY: 'ab'.repeat(32),
+    PAYOUT_WEBHOOK_SECRET: 'w'.repeat(32),
   })
   const db = createPrisma(env.DATABASE_URL)
   const sendNative = vi.fn<Chain['sendNative']>()
@@ -40,6 +44,13 @@ describe.skipIf(!url)('api (integration)', () => {
     getGasBalance: async () => 10n ** 18n,
     createStream,
   }
+  const checkTransfer = vi.fn<TransferVerifier['check']>()
+  const transfers: TransferVerifier = {
+    payoutAddress: '0x00000000000000000000000000000000000000d4',
+    check: checkTransfer,
+  }
+  // Completes on the first status check, so tests need no waiting.
+  const payoutProvider = createMockPayoutProvider({ completeAfterSeconds: 0 })
   const noSplit = { recipient: '0x0000000000000000000000000000000000000000', bps: 0 } as const
   let app: Awaited<ReturnType<typeof buildApp>>
 
@@ -82,11 +93,23 @@ describe.skipIf(!url)('api (integration)', () => {
   // Generous timeout: the first buildApp pays for cold imports, which can pass 10s
   // when every test file starts at once.
   beforeAll(async () => {
-    app = await buildApp({ env, db, chain, fx, privy, streams, demo, rateLimit: false })
+    app = await buildApp({
+      env,
+      db,
+      chain,
+      fx,
+      privy,
+      streams,
+      demo,
+      transfers,
+      payoutProvider,
+      rateLimit: false,
+    })
   }, 30_000)
 
   beforeEach(async () => {
     sendNative.mockReset()
+    checkTransfer.mockReset().mockResolvedValue({ status: 'ok', amount: 50_000_000n })
     createStream.mockReset().mockImplementation(async (_worker, _amount, seconds) => {
       const start = Math.floor(Date.now() / 1000)
       return { streamId: 1n, txHash: `0x${'aa'.repeat(32)}`, start, end: start + seconds }
@@ -1104,6 +1127,186 @@ describe.skipIf(!url)('api (integration)', () => {
       await expectForbidden(app, adik.token, [...byId])
       for (const token of [boss.token, siti.token, outsider.token]) {
         await expectForbidden(app, token, [...byId, ...collection])
+      }
+    })
+  })
+
+  describe('payouts', () => {
+    const txHash = `0x${'77'.repeat(32)}`
+    const quote = {
+      base: 'USD',
+      quote: 'IDR',
+      rate: 16400,
+      source: 'live',
+      rateTime: null,
+      fetchedAt: null,
+    } as const
+
+    /** Ibu is Siti's recipient and has a BCA account; Adik is another recipient of Siti's. */
+    async function ibuWithBank() {
+      fx.usdIdr.mockResolvedValue(quote)
+      const boss = await signIn('employer')
+      const companyId = await createCompany(boss.token)
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/companies/${companyId}/workers`,
+        headers: as(boss.token),
+        payload: { address: account('siti').address, displayName: 'Siti', monthlySalaryUsd: 1200 },
+      })
+      const siti = await signIn('siti')
+      for (const name of ['ibu', 'adik']) {
+        const r = await app.inject({
+          method: 'POST',
+          url: '/api/v1/recipients',
+          headers: as(siti.token),
+          payload: { address: account(name).address, displayName: name },
+        })
+        expect(r.statusCode).toBe(201)
+      }
+      const ibu = await signIn('ibu')
+      const bank = await app.inject({
+        method: 'POST',
+        url: '/api/v1/bank-accounts',
+        headers: as(ibu.token),
+        payload: { bankCode: 'BCA', accountNumber: '1234567890', accountName: 'Aminah' },
+      })
+      expect(bank.statusCode).toBe(201)
+      return {
+        boss,
+        siti,
+        ibu,
+        adik: await signIn('adik'),
+        bankAccountId: bank.json().id as string,
+      }
+    }
+
+    const cashOut = (token: string, bankAccountId: string, hash = txHash) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/payouts',
+        headers: as(token),
+        payload: { txHash: hash, bankAccountId },
+      })
+
+    const webhook = (body: object | string, sign = true) => {
+      const raw = typeof body === 'string' ? body : JSON.stringify(body)
+      const ts = String(Math.floor(Date.now() / 1000))
+      return app.inject({
+        method: 'POST',
+        url: '/api/v1/webhooks/payout-provider',
+        headers: {
+          'content-type': 'application/json',
+          'x-payout-timestamp': ts,
+          ...(sign ? { 'x-payout-signature': signWebhook('w'.repeat(32), ts, raw) } : {}),
+        },
+        payload: raw,
+      })
+    }
+
+    it('cashes out a verified transfer and reports completion', async () => {
+      const { ibu, bankAccountId } = await ibuWithBank()
+
+      const res = await cashOut(ibu.token, bankAccountId)
+      expect(res.statusCode).toBe(201)
+      expect(res.json()).toMatchObject({
+        status: 'PROCESSING',
+        amountUsd: '50',
+        amountIdr: 820_000,
+        fxRate: 16400,
+        fxSource: 'live',
+        sourceTxHash: txHash,
+        bankAccount: { id: bankAccountId, bankCode: 'BCA', accountNumberLast4: '7890' },
+        provider: 'mock',
+        testMode: true,
+      })
+      expect(res.body).not.toContain('1234567890')
+      expect(checkTransfer).toHaveBeenCalledWith(txHash, ibu.address.toLowerCase())
+      const id = res.json().id as string
+
+      const one = await app.inject({
+        method: 'GET',
+        url: `/api/v1/payouts/${id}`,
+        headers: as(ibu.token),
+      })
+      expect(one.json().status).toBe('COMPLETED')
+
+      const again = await cashOut(ibu.token, bankAccountId)
+      expect(again.statusCode).toBe(200)
+      expect(again.json()).toMatchObject({ id, status: 'COMPLETED' })
+
+      const list = await app.inject({
+        method: 'GET',
+        url: '/api/v1/payouts',
+        headers: as(ibu.token),
+      })
+      expect(list.json().data).toHaveLength(1)
+    })
+
+    it('refuses transfers that do not pay out, and accounts that are not mine', async () => {
+      const { ibu, adik, bankAccountId } = await ibuWithBank()
+
+      checkTransfer.mockResolvedValueOnce({ status: 'pending' })
+      const pending = await cashOut(ibu.token, bankAccountId)
+      expect(pending.statusCode).toBe(409)
+      expect(pending.json().error.code).toBe('TX_PENDING')
+
+      checkTransfer.mockResolvedValueOnce({ status: 'ok', amount: 0n })
+      const notPayout = await cashOut(ibu.token, bankAccountId)
+      expect(notPayout.statusCode).toBe(400)
+      expect(notPayout.json().error.code).toBe('TX_NOT_A_PAYOUT')
+
+      // Adik may not cash out to Ibu's account.
+      const theirs = await cashOut(adik.token, bankAccountId)
+      expect(theirs.statusCode).toBe(404)
+      expect(theirs.json().error.code).toBe('BANK_ACCOUNT_NOT_FOUND')
+
+      const badHash = await cashOut(ibu.token, bankAccountId, '0x1234')
+      expect(badHash.statusCode).toBe(422)
+    })
+
+    it('takes signed provider webhooks, once', async () => {
+      const { ibu, bankAccountId } = await ibuWithBank()
+      const id = (await cashOut(ibu.token, bankAccountId)).json().id as string
+      const { providerRef } = await db.payout.findUniqueOrThrow({ where: { id } })
+
+      const unsigned = await webhook({ providerRef, status: 'FAILED' }, false)
+      expect(unsigned.statusCode).toBe(401)
+
+      const failed = await webhook({
+        providerRef,
+        status: 'FAILED',
+        failureReason: 'Closed account',
+      })
+      expect(failed.statusCode).toBe(200)
+      expect(failed.json()).toEqual({ received: true })
+
+      // A late or repeated webhook does not change a finished payout.
+      expect((await webhook({ providerRef, status: 'COMPLETED' })).statusCode).toBe(200)
+      const one = await app.inject({
+        method: 'GET',
+        url: `/api/v1/payouts/${id}`,
+        headers: as(ibu.token),
+      })
+      expect(one.json()).toMatchObject({ status: 'FAILED', failureReason: 'Closed account' })
+
+      expect((await webhook({ providerRef: 'mock_0_s_x', status: 'COMPLETED' })).statusCode).toBe(
+        404,
+      )
+      expect((await webhook('{broken')).statusCode).toBe(400)
+    })
+
+    it('answers 403 to other roles and to other recipients', async () => {
+      const { boss, siti, ibu, adik, bankAccountId } = await ibuWithBank()
+      const id = (await cashOut(ibu.token, bankAccountId)).json().id as string
+      const outsider = await signIn('outsider')
+
+      await expectForbidden(app, adik.token, [{ method: 'GET', url: `/api/v1/payouts/${id}` }])
+      for (const token of [boss.token, siti.token, outsider.token]) {
+        await expectForbidden(app, token, [
+          { method: 'GET', url: `/api/v1/payouts/${id}` },
+          { method: 'GET', url: '/api/v1/payouts' },
+          { method: 'POST', url: '/api/v1/payouts', payload: { txHash, bankAccountId } },
+        ])
       }
     })
   })

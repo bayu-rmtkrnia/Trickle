@@ -7,7 +7,9 @@ import type { FxService } from './lib/fx.js'
 import type { Privy } from './lib/privy.js'
 import type { Db } from './lib/prisma.js'
 import type { Role, Roles } from './lib/roles.js'
+import type { PayoutProvider } from './lib/payout-provider.js'
 import type { StreamReader } from './lib/streams.js'
+import type { TransferVerifier } from './lib/transfers.js'
 
 /** Who is calling, set by `app.authenticate`. */
 export interface AuthUser {
@@ -28,6 +30,8 @@ declare module 'fastify' {
     privy: Privy
     streams: StreamReader
     demo: DemoSigner
+    transfers: TransferVerifier
+    payoutProvider: PayoutProvider
     authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
     /** 403 unless the caller holds at least one of `roles`. */
     requireRole: (...roles: Role[]) => Guard
@@ -47,5 +51,7 @@ declare module 'fastify' {
     user: AuthUser
     /** Filled lazily by `app.requireRole`; null until then. */
     roles: Roles | null
+    /** Unparsed JSON body. Only set where a route needs it to check a signature. */
+    rawBody?: string
   }
 }
