@@ -67,6 +67,7 @@ Semua endpoint resource ada di bawah `/api/v1`, kecuali `/health` dan `/docs` (S
 | sessions | `POST /sessions` | – | Tukar access token Privy → token sesi. Rate limit 20/menit |
 | | `DELETE /sessions/current` | ✓ | Logout sesi ini saja |
 | users | `GET /users/me`, `PATCH /users/me` | ✓ | Profil, peran, dan `companyId`; PATCH hanya `displayName` |
+| | `GET /users/me/employments` | ✓ | Perusahaan tempat saya bekerja (dashboard pekerja), paged, beserta data employer |
 | companies | `POST /companies` | ✓ | Satu perusahaan aktif per akun |
 | | `GET/PATCH/DELETE /companies/:id` | Pemilik | Peran lain dan employer lain mendapat 403. DELETE = soft delete |
 | workers | `POST/GET /companies/:id/workers` | Pemilik perusahaan | POST lewat alamat wallet; memulihkan pekerja yang pernah dihapus |
@@ -164,6 +165,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Hapus = soft delete, dan pekerja yang sama dipulihkan kalau ditambah atau diundang lagi.** Kenapa: unique `(companyId, userId)` menjaga satu baris per hubungan kerja, jadi riwayatnya tetap satu.
 - **Hapus ditolak 409 `STREAM_ACTIVE` kalau gaji masih mengalir on-chain** (PLAN §4.2). Pengecekan lewat interface `StreamReader` (`lib/streams.ts`), jadi service tidak tahu apakah jawabannya dari indexer, RPC, atau test.
 - **`StreamReader` default belum memverifikasi apa pun** (selalu "tidak aktif", dan setiap penghapusan dicatat di log sebagai tidak terverifikasi). Kenapa: kontrak `TricklePayroll` tidak punya fungsi "stream per pekerja", dan RPC publik Monad membatasi `eth_getLogs` ke 100 blok, sehingga mencari event `StreamCreated` sejak blok deploy butuh ratusan request per pengecekan. Jawaban yang benar akan datang dari indexer milik SC.
+- **Pekerja melihat pekerjaannya lewat `GET /users/me/employments`**, bukan `GET /workers?userId=`. Kenapa: datanya selalu milik pemanggil, jadi tidak perlu cek kepemilikan, dan FE tidak perlu tahu id pekerjanya dulu. Tanpa cek peran: akun yang bukan pekerja mendapat `data: []`, bukan 403, supaya dashboard cukup satu panggilan. `employer` memakai bentuk `Company` yang sama (termasuk `ownerAddress`, alamat pengirim stream).
 - **`GET /workers/:id` boleh diakses pekerja itu sendiri**, tapi `PATCH`/`DELETE` hanya employer (PLAN §6.3: "W hanya GET dirinya sendiri"). `requireOwnership` menerima beberapa pemilik untuk kasus seperti ini.
 
 ### Penerima (Fitur 7)

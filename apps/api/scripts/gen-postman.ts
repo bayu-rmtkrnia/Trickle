@@ -299,6 +299,10 @@ const collection = {
           auth: bearer('workerToken'),
           tests: [status(200)],
         }),
+        req('My employments (worker)', 'GET', '/api/v1/users/me/employments', {
+          auth: bearer('workerToken'),
+          tests: [status(200)],
+        }),
       ],
     },
     {

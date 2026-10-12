@@ -447,6 +447,33 @@
         },
         "required": ["id", "address", "displayName", "createdAt", "companyId", "roles"]
       },
+      "EmploymentInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Worker id, for `/api/v1/workers/{id}`"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "My name as this employer knows me"
+          },
+          "position": {
+            "nullable": true,
+            "type": "string"
+          },
+          "monthlySalaryUsd": {
+            "type": "number"
+          },
+          "joinedAt": {
+            "type": "string"
+          },
+          "employer": {
+            "$ref": "#/components/schemas/CompanyInput"
+          }
+        },
+        "required": ["id", "displayName", "position", "monthlySalaryUsd", "joinedAt", "employer"]
+      },
       "RecipientInput": {
         "type": "object",
         "properties": {
@@ -965,6 +992,34 @@
         "required": ["id", "address", "displayName", "createdAt", "companyId", "roles"],
         "additionalProperties": false
       },
+      "Employment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Worker id, for `/api/v1/workers/{id}`"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "My name as this employer knows me"
+          },
+          "position": {
+            "nullable": true,
+            "type": "string"
+          },
+          "monthlySalaryUsd": {
+            "type": "number"
+          },
+          "joinedAt": {
+            "type": "string"
+          },
+          "employer": {
+            "$ref": "#/components/schemas/Company"
+          }
+        },
+        "required": ["id", "displayName", "position", "monthlySalaryUsd", "joinedAt", "employer"],
+        "additionalProperties": false
+      },
       "Recipient": {
         "type": "object",
         "properties": {
@@ -1337,6 +1392,90 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/employments": {
+      "get": {
+        "summary": "Companies I work for (worker dashboard)",
+        "tags": ["Users"],
+        "description": "My active employments, newest first. Answers an empty list for accounts that are not workers. Salary is a reference; the pay itself is the on-chain stream from `employer.ownerAddress`.",
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Employment"
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "nextCursor"],
+                  "additionalProperties": false
                 }
               }
             }

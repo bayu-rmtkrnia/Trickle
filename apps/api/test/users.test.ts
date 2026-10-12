@@ -39,6 +39,53 @@ describe('user service', () => {
     expect((await service.updateMe('u1', { displayName: null })).displayName).toBeNull()
   })
 
+  it('maps employments with their employer and pages them', async () => {
+    const row = (id: string) => ({
+      id,
+      companyId: 'co-1',
+      userId: 'u1',
+      displayName: 'Siti',
+      position: null,
+      monthlySalaryCents: 120_050,
+      createdAt: new Date('2026-10-02T00:00:00Z'),
+      updatedAt: new Date('2026-10-02T00:00:00Z'),
+      deletedAt: null,
+      company: {
+        id: 'co-1',
+        ownerId: 'boss',
+        name: 'PT Maju Jaya',
+        country: 'SG',
+        createdAt: new Date('2026-10-01T00:00:00Z'),
+        updatedAt: new Date('2026-10-01T00:00:00Z'),
+        deletedAt: null,
+        owner: { address: '0xboss' },
+      },
+    })
+    const repo = {
+      listEmployments: async () => [row('w-2'), row('w-1')],
+    } as unknown as UserRepository
+    const page = await createUserService(repo).listEmployments('u1', { limit: 1 })
+    expect(page).toEqual({
+      data: [
+        {
+          id: 'w-2',
+          displayName: 'Siti',
+          position: null,
+          monthlySalaryUsd: 1200.5,
+          joinedAt: '2026-10-02T00:00:00.000Z',
+          employer: {
+            id: 'co-1',
+            name: 'PT Maju Jaya',
+            country: 'SG',
+            ownerAddress: '0xboss',
+            createdAt: '2026-10-01T00:00:00.000Z',
+          },
+        },
+      ],
+      nextCursor: 'w-2',
+    })
+  })
+
   it('returns 401 when the account is gone', async () => {
     const service = setup(false)
     await expect(service.me('u1')).rejects.toMatchObject({ statusCode: 401 })

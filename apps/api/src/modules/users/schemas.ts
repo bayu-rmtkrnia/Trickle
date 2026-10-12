@@ -1,7 +1,10 @@
 import type { FastifySchema } from 'fastify'
 import { z } from 'zod'
-import type { User } from '../../generated/prisma/client.js'
+import type { User, Worker } from '../../generated/prisma/client.js'
+import { centsToUsd } from '../../lib/money.js'
+import { Page, PageQuery } from '../../lib/pagination.js'
 import { errors } from '../../lib/schemas.js'
+import { CompanyDto, toCompanyDto, type CompanyWithOwner } from '../companies/schemas.js'
 
 const security = [{ bearerAuth: [] }]
 
@@ -58,4 +61,37 @@ export const updateMeSchema = {
   security,
   body: UpdateMeInput,
   response: { 200: MeDto, ...errors(400, 401, 422) },
+} satisfies FastifySchema
+
+export const EmploymentDto = z
+  .object({
+    id: z.string().describe('Worker id, for `/api/v1/workers/{id}`'),
+    displayName: z.string().describe('My name as this employer knows me'),
+    position: z.string().nullable(),
+    monthlySalaryUsd: z.number(),
+    joinedAt: z.string(),
+    employer: CompanyDto,
+  })
+  .meta({ id: 'Employment' })
+
+export type EmploymentRow = Worker & { company: CompanyWithOwner }
+
+export const toEmploymentDto = (w: EmploymentRow) => ({
+  id: w.id,
+  displayName: w.displayName,
+  position: w.position,
+  monthlySalaryUsd: centsToUsd(w.monthlySalaryCents),
+  joinedAt: w.createdAt.toISOString(),
+  employer: toCompanyDto(w.company),
+})
+
+export const listMyEmploymentsSchema = {
+  tags: ['Users'],
+  summary: 'Companies I work for (worker dashboard)',
+  description:
+    'My active employments, newest first. Answers an empty list for accounts that are not workers. ' +
+    'Salary is a reference; the pay itself is the on-chain stream from `employer.ownerAddress`.',
+  security,
+  querystring: PageQuery,
+  response: { 200: Page(EmploymentDto), ...errors(401, 422) },
 } satisfies FastifySchema
