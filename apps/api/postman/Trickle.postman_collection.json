@@ -2278,6 +2278,80 @@
       ]
     },
     {
+      "name": "7b. Judge mode",
+      "item": [
+        {
+          "name": "Demo status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/demo-streams/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "demo-streams", "status"]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Start demo stream",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/demo-streams",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "demo-streams"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Real testnet stream from the demo employer to the signed-in account, no role needed. 201 the first time, 200 with alreadyStarted=true afterwards. 503 DEMO_UNAVAILABLE without DEMO_EMPLOYER_PRIVATE_KEY, 429 DEMO_IP_LIMIT / DEMO_DAILY_LIMIT."
+          }
+        },
+        {
+          "name": "Start demo stream - again (idempotent)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/demo-streams",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "demo-streams"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "8. FX",
       "item": [
         {
