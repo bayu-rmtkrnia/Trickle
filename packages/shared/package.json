@@ -1,0 +1,11 @@
+{
+  "name": "@trickle/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Contract artifacts shared by apps/api and apps/web: ABIs, deployments, split helpers.",
+  "scripts": {
+    "abi": "node scripts/gen-abi.mjs",
+    "test": "node --experimental-strip-types --no-warnings --test \"test/*.test.ts\""
+  }
+}
