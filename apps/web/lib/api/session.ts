@@ -378,3 +378,108 @@ export const defaultSessionApi: SessionApi = {
   revokeSession,
   sleep: wait,
 }
+
+// Compatibility surface for the employer API currently on main. The worker
+// dashboard uses SessionCoordinator above; employer callers still configure
+// a token getter and use authed/sessionCache until that API is migrated.
+interface LegacyStoredSession {
+  key: string
+  token: string
+  expiresAt: number
+}
+
+const LEGACY_STORAGE_KEY = 'trickle:session'
+const LEGACY_EXPIRY_MARGIN_MS = 60_000
+let legacyGetter: (() => Promise<string | null>) | null = null
+let legacyAccount: string | null = null
+let legacySession: LegacyStoredSession | null = null
+let legacyPending: Promise<string> | null = null
+let legacyCache = new Map<string, unknown>()
+const legacyListeners = new Set<() => void>()
+
+function readLegacySession(key: string): LegacyStoredSession | null {
+  try {
+    const stored = JSON.parse(sessionStorage.getItem(LEGACY_STORAGE_KEY) ?? 'null') as
+      | LegacyStoredSession
+      | null
+    return stored?.key === key ? stored : null
+  } catch {
+    return null
+  }
+}
+
+function writeLegacySession(value: LegacyStoredSession | null) {
+  try {
+    if (value) sessionStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(value))
+    else sessionStorage.removeItem(LEGACY_STORAGE_KEY)
+  } catch {
+    // The in-memory session still works when browser storage is unavailable.
+  }
+}
+
+export function configureSession(
+  getter: (() => Promise<string | null>) | null,
+  key: string | null,
+) {
+  legacyGetter = getter
+  if (key === legacyAccount) return
+  legacyAccount = key
+  legacySession = key ? readLegacySession(key) : null
+  if (!key) writeLegacySession(null)
+  legacyPending = null
+  legacyCache = new Map()
+  legacyListeners.forEach((listener) => listener())
+}
+
+export function subscribeSession(listener: () => void) {
+  legacyListeners.add(listener)
+  return () => legacyListeners.delete(listener)
+}
+
+export const configuredAccount = () => legacyAccount
+
+async function legacySessionToken(): Promise<string> {
+  const key = legacyAccount
+  if (!key) throw new ApiError('unauthorized')
+  if (legacySession && legacySession.expiresAt - LEGACY_EXPIRY_MARGIN_MS > Date.now()) {
+    return legacySession.token
+  }
+  legacyPending ??= (async () => {
+    const accessToken = await legacyGetter?.()
+    if (!accessToken) throw new ApiError('unauthorized')
+    const result = await apiRequest<SessionResponse>('sessions', {
+      method: 'POST',
+      body: { accessToken },
+    })
+    const next = { key, token: result.token, expiresAt: Date.parse(result.expiresAt) }
+    if (legacyAccount === key) {
+      legacySession = next
+      writeLegacySession(next)
+    }
+    return result.token
+  })().finally(() => {
+    legacyPending = null
+  })
+  return legacyPending
+}
+
+function dropLegacySession() {
+  legacySession = null
+  writeLegacySession(null)
+}
+
+export async function authed<T>(path: string, options: Omit<ApiRequestOptions, 'token'> = {}) {
+  try {
+    return await apiRequest<T>(path, { ...options, token: await legacySessionToken() })
+  } catch (error) {
+    if (!isApiError(error) || error.status !== 401 || !legacySession) throw error
+    dropLegacySession()
+    return apiRequest<T>(path, { ...options, token: await legacySessionToken() })
+  }
+}
+
+export const sessionCache = {
+  get: <T>(name: string) => legacyCache.get(name) as T | undefined,
+  set: (name: string, value: unknown) => void legacyCache.set(name, value),
+  clear: (name: string) => void legacyCache.delete(name),
+}
