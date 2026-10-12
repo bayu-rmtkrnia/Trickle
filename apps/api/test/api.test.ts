@@ -8,6 +8,7 @@ import type { Privy } from '../src/lib/privy.js'
 import type { StreamReader } from '../src/lib/streams.js'
 import type { Chain } from '../src/lib/chain.js'
 import type { DemoSigner } from '../src/lib/demo.js'
+import { createFieldCipher } from '../src/lib/crypto.js'
 import { createPrisma } from '../src/lib/prisma.js'
 import { expectForbidden } from './helpers.js'
 
@@ -19,6 +20,7 @@ describe.skipIf(!url)('api (integration)', () => {
     DATABASE_URL: url,
     GAS_DRIP_DAILY_LIMIT: '3',
     DEMO_STREAM_IP_DAILY_LIMIT: '2',
+    BANK_ENCRYPTION_KEY: 'ab'.repeat(32),
   })
   const db = createPrisma(env.DATABASE_URL)
   const sendNative = vi.fn<Chain['sendNative']>()
@@ -91,7 +93,7 @@ describe.skipIf(!url)('api (integration)', () => {
     hasActiveStream.mockReset().mockResolvedValue(false)
     splitOf.mockReset().mockResolvedValue(noSplit)
     await db.$executeRawUnsafe(
-      'TRUNCATE "Payout","DemoStream","GasDrip","Invite","Recipient","Worker","Company","Session","User" CASCADE',
+      'TRUNCATE "Payout","BankAccount","DemoStream","GasDrip","Invite","Recipient","Worker","Company","Session","User" CASCADE',
     )
   })
 
@@ -951,6 +953,157 @@ describe.skipIf(!url)('api (integration)', () => {
         headers: as(siti.token),
       })
       expect(back.json()).toMatchObject({ id: recipientId, displayName: 'Ibu A.' })
+    })
+  })
+
+  describe('bank accounts', () => {
+    const number = '1234567890'
+
+    /** Siti works for a company and adds Ibu as her recipient, so Ibu has the recipient role. */
+    async function recipientIbu() {
+      const boss = await signIn('employer')
+      const companyId = await createCompany(boss.token)
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/companies/${companyId}/workers`,
+        headers: as(boss.token),
+        payload: { address: account('siti').address, displayName: 'Siti', monthlySalaryUsd: 1200 },
+      })
+      const siti = await signIn('siti')
+      const added = await app.inject({
+        method: 'POST',
+        url: '/api/v1/recipients',
+        headers: as(siti.token),
+        payload: { address: account('ibu').address, displayName: 'Ibu Aminah' },
+      })
+      expect(added.statusCode).toBe(201)
+      return { boss, siti, ibu: await signIn('ibu') }
+    }
+
+    const addBca = (token: string, accountNumber = '1234-5678 90') =>
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/bank-accounts',
+        headers: as(token),
+        payload: { bankCode: 'BCA', accountNumber, accountName: 'Aminah', label: 'Utama' },
+      })
+
+    it('stores the number encrypted and only ever returns the last 4 digits', async () => {
+      const { ibu } = await recipientIbu()
+      const res = await addBca(ibu.token)
+      expect(res.statusCode).toBe(201)
+      expect(res.json()).toMatchObject({
+        bankCode: 'BCA',
+        accountName: 'Aminah',
+        label: 'Utama',
+        accountNumberLast4: '7890',
+      })
+      expect(res.body).not.toContain(number)
+      const id = res.json().id as string
+
+      const row = await db.bankAccount.findUniqueOrThrow({ where: { id } })
+      expect(JSON.stringify(row)).not.toContain(number)
+      const cipher = createFieldCipher(env.BANK_ENCRYPTION_KEY!)
+      expect(cipher.decrypt(row.numberEncrypted, row.userId)).toBe(number)
+
+      const list = await app.inject({
+        method: 'GET',
+        url: '/api/v1/bank-accounts',
+        headers: as(ibu.token),
+      })
+      expect(list.json().data).toHaveLength(1)
+      expect(list.body).not.toContain(number)
+
+      const patched = await app.inject({
+        method: 'PATCH',
+        url: `/api/v1/bank-accounts/${id}`,
+        headers: as(ibu.token),
+        payload: { label: null, accountName: 'Aminah Siregar' },
+      })
+      expect(patched.json()).toMatchObject({ label: null, accountName: 'Aminah Siregar' })
+
+      const one = await app.inject({
+        method: 'GET',
+        url: `/api/v1/bank-accounts/${id}`,
+        headers: as(ibu.token),
+      })
+      expect(one.json().accountNumberLast4).toBe('7890')
+    })
+
+    it('refuses duplicates, and re-adding a removed account restores it', async () => {
+      const { ibu } = await recipientIbu()
+      const first = await addBca(ibu.token)
+      const dup = await addBca(ibu.token, number)
+      expect(dup.statusCode).toBe(409)
+      expect(dup.json().error.code).toBe('BANK_ACCOUNT_EXISTS')
+
+      const id = first.json().id as string
+      const del = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/bank-accounts/${id}`,
+        headers: as(ibu.token),
+      })
+      expect(del.statusCode).toBe(204)
+      const gone = await app.inject({
+        method: 'GET',
+        url: `/api/v1/bank-accounts/${id}`,
+        headers: as(ibu.token),
+      })
+      expect(gone.statusCode).toBe(404)
+
+      const again = await addBca(ibu.token)
+      expect(again.statusCode).toBe(201)
+      expect(again.json().id).toBe(id)
+    })
+
+    it('validates the input', async () => {
+      const { ibu } = await recipientIbu()
+      for (const payload of [
+        { bankCode: 'BCA', accountNumber: '12ab34', accountName: 'Aminah' },
+        { bankCode: 'BCA', accountNumber: '123', accountName: 'Aminah' },
+        { bankCode: 'NOPE', accountNumber: number, accountName: 'Aminah' },
+      ]) {
+        const res = await app.inject({
+          method: 'POST',
+          url: '/api/v1/bank-accounts',
+          headers: as(ibu.token),
+          payload,
+        })
+        expect(res.statusCode, JSON.stringify(payload)).toBe(422)
+      }
+    })
+
+    it('answers 403 to other roles and to other recipients', async () => {
+      const { boss, siti, ibu } = await recipientIbu()
+      const id = (await addBca(ibu.token)).json().id as string
+
+      // Another recipient: Siti also adds her sister, who must not see Ibu's account.
+      await app.inject({
+        method: 'POST',
+        url: '/api/v1/recipients',
+        headers: as(siti.token),
+        payload: { address: account('adik').address, displayName: 'Adik' },
+      })
+      const adik = await signIn('adik')
+      const outsider = await signIn('outsider')
+
+      const byId = [
+        { method: 'GET', url: `/api/v1/bank-accounts/${id}` },
+        { method: 'PATCH', url: `/api/v1/bank-accounts/${id}`, payload: { label: 'x' } },
+        { method: 'DELETE', url: `/api/v1/bank-accounts/${id}` },
+      ] as const
+      const collection = [
+        { method: 'GET', url: '/api/v1/bank-accounts' },
+        {
+          method: 'POST',
+          url: '/api/v1/bank-accounts',
+          payload: { bankCode: 'BNI', accountNumber: '987654321', accountName: 'X' },
+        },
+      ] as const
+      await expectForbidden(app, adik.token, [...byId])
+      for (const token of [boss.token, siti.token, outsider.token]) {
+        await expectForbidden(app, token, [...byId, ...collection])
+      }
     })
   })
 
