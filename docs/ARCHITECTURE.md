@@ -4,7 +4,7 @@ Isinya keadaan aplikasi **saat ini**: apa saja yang sudah ada, di mana letaknya,
 
 > **Aturan:** setiap PR yang menambah atau mengubah fitur, endpoint, tabel, env var, atau keputusan desain **wajib memperbarui file ini** di PR yang sama. Kalau ada isi file ini yang tidak lagi sesuai dengan kode, berarti file ini yang salah, jadi perbaiki.
 
-Terakhir diperbarui: 11 Okt 2026 (Fitur 7: recipients).
+Terakhir diperbarui: 11 Okt 2026 (Fitur 8: invites v1).
 
 ---
 
@@ -18,7 +18,7 @@ Ada tiga peran, dan perannya **kontekstual**: satu akun bisa sekaligus employer,
 | ----- | ------------ |
 | Employer | Punya `Company` yang belum dihapus (`deletedAt` kosong) |
 | Pekerja | Punya `Worker` aktif di perusahaan aktif, hasil undangan WORKER atau ditambahkan employer lewat alamat |
-| Penerima (`recipient`) | Menjadi `Recipient` aktif milik seorang pekerja, hasil undangan FAMILY atau ditambahkan pekerja lewat alamat |
+| Penerima (`recipient`) | Menjadi `Recipient` aktif milik seorang pekerja, hasil undangan RECIPIENT atau ditambahkan pekerja lewat alamat |
 
 ## 2. Peta repo
 
@@ -73,7 +73,10 @@ Semua endpoint resource ada di bawah `/api/v1`, kecuali `/health` dan `/docs` (S
 | recipients | `POST/GET /recipients` | Pekerja | Selalu daftar milik sendiri. POST lewat alamat wallet; memulihkan penerima yang pernah dihapus |
 | | `GET /recipients/:id` | Pekerja pemilik atau penerima itu sendiri | |
 | | `PATCH/DELETE /recipients/:id` | Pekerja pemilik | DELETE = soft delete, 409 `SPLIT_ACTIVE` kalau split on-chain masih ke penerima ini |
-| invites | `POST /invites`, `GET /invites`, `GET /invites/:code`, `POST /invites/:code/accept` | ✓ / publik | Detail undangan publik supaya link bisa dibuka sebelum login |
+| invites | `POST /invites`, `GET /invites` | Employer atau pekerja | Employer mengundang pekerja, pekerja mengundang penerima |
+| | `DELETE /invites/:id` | Pembuat undangan | PENDING → REVOKED; 409 kalau sudah diterima |
+| | `GET /invites/:code` | – | Publik supaya link bisa dibuka sebelum login |
+| | `POST /invites/:code/acceptance` | ✓ | Siapa pun yang login, kecuali pembuatnya |
 | gas | `POST /gas/drip`, `GET /gas/status` | ✓ / – | Kirim MON testnet sekali per alamat. Rate limit 5/menit |
 | fx | `GET /fx/usd-idr` | – | Kurs untuk tampilan saja |
 
@@ -81,7 +84,7 @@ Kolom Auth: – publik, ✓ semua user yang login, *Pemilik* hanya pemilik resou
 
 Detail request dan response: `openapi.json` atau `http://localhost:4000/docs`.
 
-**Belum ada** (lihat roadmap): invites v1 (8), rekening bank terenkripsi (9), refactor gas/fx (10), payouts (11), judge mode (12), ERD (13).
+**Belum ada** (lihat roadmap): rekening bank terenkripsi (9), refactor gas/fx (10), payouts (11), judge mode (12), ERD (13).
 
 ## 4. Arsitektur API
 
@@ -153,11 +156,19 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 
 ### Penerima (Fitur 7)
 - **`FamilyLink` di-rename jadi `Recipient`** (resource `recipients` di PLAN §6.3), kolom `workerId` jadi `ownerId` (pekerja pemilik) dan `relativeId` jadi `userId` (akun penerima). Pola sama dengan `Worker`: unik per (pemilik, user), soft delete, dan dipulihkan kalau ditambah atau diundang lagi.
-- **Peran `family` di-rename jadi `recipient`** di `/users/me` dan `requireRole`, mengikuti PLAN K5. Aman karena FE belum memanggil API. Jenis undangan `FAMILY` sengaja belum diubah; diputuskan di Fitur 8.
+- **Peran `family` di-rename jadi `recipient`** di `/users/me` dan `requireRole`, mengikuti PLAN K5. Aman karena FE belum memanggil API. Jenis undangan ikut di-rename jadi `RECIPIENT` di Fitur 8.
 - **`/recipients` (koleksi) tidak punya `:id` pemilik**: daftar dan tambah selalu memakai pekerja yang login, jadi cukup `requireRole('worker')` tanpa cek kepemilikan. Kenapa: pekerja hanya boleh mengelola penerimanya sendiri, dan ini menghindari id pekerja di URL.
 - **Penerima boleh `GET` dirinya sendiri**, tapi hanya pekerja pemilik yang boleh mengubah atau menghapus (sama seperti `/workers/:id`).
 - **Hapus ditolak 409 `SPLIT_ACTIVE` kalau split on-chain masih mengarah ke penerima ini** (PLAN §4.2). Kenapa berbeda dengan pekerja: kontrak punya view `splitOf(worker)`, jadi cukup satu `eth_call` ke `PAYROLL_ADDRESS` tanpa indexer. ABI-nya cukup satu fragmen di `lib/streams.ts`, supaya tidak menunggu `packages/shared` di-merge.
 - **Tanpa `PAYROLL_ADDRESS`, hapus tetap jalan dan dicatat di log.** Kenapa: development lokal dan test tidak perlu RPC; di deploy env ini wajib diisi.
+
+### Undangan (Fitur 8)
+- **Jenis `FAMILY` di-rename jadi `RECIPIENT`** dengan `ALTER TYPE ... RENAME VALUE`, supaya satu konsep punya satu nama di peran, resource, dan undangan. Link FE tetap `/f/invite/:code`.
+- **Menerima undangan = `POST /invites/:code/acceptance` (201)**, mengikuti PLAN §6.3: yang dibuat adalah "penerimaan", bukan aksi berupa kata kerja di URL (K1).
+- **Membatalkan = `DELETE /invites/:id`, bukan hapus baris.** Statusnya jadi `REVOKED` supaya link lama menjawab 409 `INVITE_REVOKED` (bukan 404 yang membingungkan) dan riwayat tetap ada. Membatalkan dua kali tetap 204 (idempoten); yang sudah diterima 409.
+- **Pembatalan dan penerimaan sama-sama memakai update bersyarat `WHERE status = 'PENDING'`**, jadi kalau keduanya terjadi bersamaan hanya satu yang menang.
+- **Id dipakai untuk membatalkan, kode untuk menerima.** Kode adalah rahasia yang dibagikan ke penerima, sedangkan pembuat mengelola undangannya lewat id seperti resource lain.
+- **`requireRole('employer', 'worker')` di route, aturan per jenis di service.** Route tidak bisa tahu jenis undangan sebelum body divalidasi, jadi service yang menolak employer membuat `RECIPIENT` tanpa jadi pekerja, dan sebaliknya.
 
 ### Bentuk API
 - **Prefix `/api/v1` dan nama resource berupa kata benda jamak** (rubrik K1).
@@ -182,7 +193,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 | `Company` | Profil perusahaan; `deletedAt` untuk soft delete; maksimal satu aktif per owner |
 | `Worker` | Hubungan kerja: `companyId`, `userId`, `displayName`, `position`, gaji referensi (sen), `deletedAt`. Unik per (perusahaan, user) |
 | `Recipient` | Penerima milik pekerja: `ownerId` (pekerja), `userId` (penerima), `displayName`, `relation`, `deletedAt`. Unik per (pemilik, user) |
-| `Invite` | Undangan WORKER (dengan `companyId`) / FAMILY, status PENDING/ACCEPTED/REVOKED |
+| `Invite` | Undangan WORKER (dengan `companyId`) / RECIPIENT, status PENDING/ACCEPTED/REVOKED (EXPIRED dihitung saat dibaca) |
 | `GasDrip` | Log drip, satu per alamat |
 | `Payout` | Disiapkan untuk Fitur 11, belum dipakai |
 
@@ -215,5 +226,4 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 - Gas drip mengasumsikan akun baru butuh MON (asumsi era Mera). Dengan Privy perlu ditinjau ulang di Fitur 10.
 - **Cek stream aktif saat menghapus pekerja belum terverifikasi.** `StreamReader` default selalu menjawab "tidak aktif" sampai indexer SC tersedia. Kontrak sudah ter-deploy (`0xE7292E79…652e` di Monad testnet, branch `feat/contracts-payroll`, belum di-merge).
 - `apps/web` belum memanggil API (masih data mock). Saat integrasi, FE perlu memakai `POST /sessions` + `Authorization: Bearer`, dan `/users/me` untuk peran.
-- Jenis undangan masih `FAMILY`, sedangkan peran dan resource sudah `recipient`. Diputuskan di Fitur 8 (invites v1).
 - D10 (login tanpa kata sandi untuk rubrik K4) masih Open di koordinator.

@@ -49,6 +49,25 @@ export function createInviteRepository(db: Db) {
       return db.invite.findUnique({ where: { code }, include })
     },
 
+    /** Creator of an invite, or null. Guards `DELETE /invites/:id`. */
+    async findCreatorId(id: string) {
+      const invite = await db.invite.findUnique({ where: { id }, select: { createdById: true } })
+      return invite?.createdById ?? null
+    },
+
+    /**
+     * PENDING -> REVOKED. Guarded like `accept`, so a revoke and an accept
+     * racing each other cannot both win. Returns the status it ended with.
+     */
+    async revoke(id: string) {
+      await db.invite.updateMany({
+        where: { id, status: 'PENDING' },
+        data: { status: 'REVOKED' },
+      })
+      const invite = await db.invite.findUnique({ where: { id }, select: { status: true } })
+      return invite?.status ?? null
+    },
+
     /**
      * Flips the invite to ACCEPTED and creates the employment or recipient in
      * one transaction. Only one concurrent request can win the flip.

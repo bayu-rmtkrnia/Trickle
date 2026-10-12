@@ -47,7 +47,7 @@ export const createRecipientSchema = {
   tags,
   summary: 'Add a family recipient by wallet address (worker)',
   description:
-    'Alternative to a FAMILY invite when the worker already knows the address. ' +
+    'Alternative to a RECIPIENT invite when the worker already knows the address. ' +
     'Re-adding a removed recipient restores them. 409 `RECIPIENT_EXISTS` if already added.',
   security,
   body: CreateRecipientInput,

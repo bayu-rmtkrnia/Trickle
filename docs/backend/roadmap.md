@@ -15,11 +15,11 @@ Aturan main:
 | 1   | Fondasi API        | `refactor/api-v1-foundation`   | Prefix `/api/v1`, format error seragam, 400 vs 422, helper pagination                                                | Kam 1 Okt   | ✅     |
 | 2   | Struktur berlapis  | `refactor/api-layered-modules` | Pecah modul ke `modules/<resource>/{routes,controller,service,repository}`. Perilaku tidak berubah, test tetap hijau | Kam 1–Jum 2 | ✅     |
 | 3   | Sesi & pengguna    | `feat/api-sessions`            | Tabel `Session` (token di-hash), `POST /sessions` (token Privy), `DELETE /sessions/current`, `GET/PATCH /users/me` | Jum 2       | ✅     |
-| 4   | RBAC & kepemilikan | `feat/api-rbac`                | Middleware `requireRole` dan `requireOwnership`, peran diturunkan dari relasi DB, helper test 403                    | Jum 2       | 🔍     |
-| 5   | Companies CRUD     | `feat/api-companies`           | Rename Employer → Company, soft delete, test 403                                                                     | Sab 3       | 🔍     |
-| 6   | Workers CRUD       | `feat/api-workers`             | CRUD + 409 kalau stream masih aktif (cek on-chain lewat interface `StreamReader`)                                    | Sab 3       | 🔍     |
-| 7   | Recipients CRUD    | `feat/api-recipients`          | Dari `FamilyLink`, pemiliknya pekerja                                                                                | Min 4       | 🔍     |
-| 8   | Invites lengkap    | `feat/api-invites-v1`          | `POST /invites/:code/acceptance`, `DELETE /invites/:id`, undangan dari employer dan pekerja                          | Min 4       | ⬜     |
+| 4   | RBAC & kepemilikan | `feat/api-rbac`                | Middleware `requireRole` dan `requireOwnership`, peran diturunkan dari relasi DB, helper test 403                    | Jum 2       | ✅     |
+| 5   | Companies CRUD     | `feat/api-companies`           | Rename Employer → Company, soft delete, test 403                                                                     | Sab 3       | ✅     |
+| 6   | Workers CRUD       | `feat/api-workers`             | CRUD + 409 kalau stream masih aktif (cek on-chain lewat interface `StreamReader`)                                    | Sab 3       | ✅     |
+| 7   | Recipients CRUD    | `feat/api-recipients`          | Dari `FamilyLink`, pemiliknya pekerja                                                                                | Min 4       | ✅     |
+| 8   | Invites lengkap    | `feat/api-invites-v1`          | `POST /invites/:code/acceptance`, `DELETE /invites/:id`, undangan dari employer dan pekerja                          | Min 4       | 🔍     |
 | 9   | Bank accounts      | `feat/api-bank-accounts`       | AES-256-GCM, hanya 4 digit terakhir yang keluar dari API                                                             | Sen 5       | ⬜     |
 | 10  | Gas & kurs         | `refactor/api-gas-fx-v1`       | `/gas-drips` (rate limit per alamat + IP), `/fx-rates/usd-idr`                                                       | Sen 5       | ⬜     |
 | 11  | Payouts sandbox    | `feat/api-payouts`             | Verifikasi tx → disbursement Xendit/Flip → webhook ber-signature                                                     | Sel 6       | ⬜     |
@@ -116,6 +116,16 @@ D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `
 | Split aktif | `DELETE` membaca `splitOf(pekerja)` langsung dari kontrak `TricklePayroll` (satu `eth_call`, `PAYROLL_ADDRESS`). Kalau split masih mengarah ke penerima ini dengan `bps > 0` → 409 `SPLIT_ACTIVE`. Tanpa `PAYROLL_ADDRESS`, hapus tetap jalan dan dicatat di log |
 | Peran | Peran `family` di-rename jadi `recipient` (PLAN K5). Dihitung dari `Recipient` aktif. Jenis undangan `FAMILY` belum diubah (Fitur 8) |
 | Test | Unit `test/recipients.test.ts` dan `test/streams.test.ts`; integrasi: CRUD + tautan login, 403 untuk employer/pekerja lain/outsider/penerima (tulis), 409 split aktif, pemulihan lewat undangan |
+
+## Rincian Fitur 8: Invites v1
+
+| Bagian | Isi |
+| ------ | --- |
+| Rename | Jenis undangan `FAMILY` → `RECIPIENT` (migrasi `20261012100000_invites_v1`, `ALTER TYPE ... RENAME VALUE`), seragam dengan peran `recipient` dan resource `recipients` |
+| Terima | `POST /invites/:code/accept` → `POST /invites/:code/acceptance`, sekarang menjawab 201 |
+| Batalkan | Baru: `DELETE /invites/:id`, hanya pembuatnya. PENDING → REVOKED (204, boleh diulang); yang sudah diterima → 409 `INVITE_ALREADY_ACCEPTED`. DTO dapat field `id` |
+| Guard | `POST/GET /invites` dan `DELETE` memakai `requireRole('employer', 'worker')`. Jenis mana yang boleh dibuat tetap dicek service (tergantung body) |
+| Test | Unit revoke di `test/invites.test.ts`; integrasi: batalkan + link mati, batalkan dua kali, 409 setelah diterima, pekerja membatalkan undangan penerimanya, 403 untuk employer lain/pekerja/outsider |
 
 ## Ketergantungan yang belum terjawab
 

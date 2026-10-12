@@ -68,9 +68,11 @@ describe.skipIf(!url)('api (integration)', () => {
     return res.json().id as string
   }
 
+  // Generous timeout: the first buildApp pays for cold imports, which can pass 10s
+  // when every test file starts at once.
   beforeAll(async () => {
     app = await buildApp({ env, db, chain, fx, privy, streams, rateLimit: false })
-  })
+  }, 30_000)
 
   beforeEach(async () => {
     sendNative.mockReset()
@@ -179,8 +181,8 @@ describe.skipIf(!url)('api (integration)', () => {
     })
   })
 
-  describe('employer → worker → family invite flow', () => {
-    it('links a worker and a family member through invites', async () => {
+  describe('employer → worker → recipient invite flow', () => {
+    it('links a worker and a recipient through invites', async () => {
       const employer = await signIn('employer')
       const worker = await signIn('worker')
       const family = await signIn('family')
@@ -229,22 +231,22 @@ describe.skipIf(!url)('api (integration)', () => {
 
       const own = await app.inject({
         method: 'POST',
-        url: `/api/v1/invites/${invite.code}/accept`,
+        url: `/api/v1/invites/${invite.code}/acceptance`,
         headers: as(employer.token),
       })
       expect(own.json().error.code).toBe('CANNOT_ACCEPT_OWN_INVITE')
 
       const accepted = await app.inject({
         method: 'POST',
-        url: `/api/v1/invites/${invite.code}/accept`,
+        url: `/api/v1/invites/${invite.code}/acceptance`,
         headers: as(worker.token),
       })
-      expect(accepted.statusCode).toBe(200)
+      expect(accepted.statusCode).toBe(201)
       expect(accepted.json().status).toBe('ACCEPTED')
 
       const again = await app.inject({
         method: 'POST',
-        url: `/api/v1/invites/${invite.code}/accept`,
+        url: `/api/v1/invites/${invite.code}/acceptance`,
         headers: as(family.token),
       })
       expect(again.statusCode).toBe(409)
@@ -266,14 +268,14 @@ describe.skipIf(!url)('api (integration)', () => {
           method: 'POST',
           url: '/api/v1/invites',
           headers: as(worker.token),
-          payload: { type: 'FAMILY', inviteeName: 'Ibu Aminah', relation: 'Ibu' },
+          payload: { type: 'RECIPIENT', inviteeName: 'Ibu Aminah', relation: 'Ibu' },
         })
       ).json()
       expect(famInvite.invitedBy.name).toBe('Siti')
 
       await app.inject({
         method: 'POST',
-        url: `/api/v1/invites/${famInvite.code}/accept`,
+        url: `/api/v1/invites/${famInvite.code}/acceptance`,
         headers: as(family.token),
       })
       const me = await app.inject({
@@ -284,15 +286,132 @@ describe.skipIf(!url)('api (integration)', () => {
       expect(me.json().roles).toEqual({ employer: false, worker: false, recipient: true })
     })
 
-    it('does not let non-workers invite family', async () => {
+    it('does not let non-workers invite recipients', async () => {
       const stranger = await signIn('stranger')
       const res = await app.inject({
         method: 'POST',
         url: '/api/v1/invites',
         headers: as(stranger.token),
-        payload: { type: 'FAMILY', inviteeName: 'Ibu' },
+        payload: { type: 'RECIPIENT', inviteeName: 'Ibu' },
       })
       expect(res.statusCode).toBe(403)
+    })
+  })
+
+  describe('invite cancellation', () => {
+    async function invite(token: string, payload: object) {
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/invites',
+        headers: as(token),
+        payload,
+      })
+      expect(res.statusCode).toBe(201)
+      return res.json() as { id: string; code: string }
+    }
+
+    it('lets the creator cancel a pending invite; the link stops working', async () => {
+      const boss = await signIn('employer')
+      await createCompany(boss.token)
+      const { id, code } = await invite(boss.token, {
+        type: 'WORKER',
+        inviteeName: 'Siti',
+        monthlySalaryUsd: 1200,
+      })
+
+      const del = () =>
+        app.inject({ method: 'DELETE', url: `/api/v1/invites/${id}`, headers: as(boss.token) })
+      expect((await del()).statusCode).toBe(204)
+      expect((await del()).statusCode).toBe(204)
+
+      const view = await app.inject({ method: 'GET', url: `/api/v1/invites/${code}` })
+      expect(view.json().status).toBe('REVOKED')
+      const siti = await signIn('siti')
+      const accept = await app.inject({
+        method: 'POST',
+        url: `/api/v1/invites/${code}/acceptance`,
+        headers: as(siti.token),
+      })
+      expect(accept.statusCode).toBe(409)
+      expect(accept.json().error.code).toBe('INVITE_REVOKED')
+
+      const unknown = await app.inject({
+        method: 'DELETE',
+        url: '/api/v1/invites/does-not-exist',
+        headers: as(boss.token),
+      })
+      expect(unknown.statusCode).toBe(404)
+    })
+
+    it('refuses to cancel an invite that was already accepted', async () => {
+      const boss = await signIn('employer')
+      await createCompany(boss.token)
+      const { id, code } = await invite(boss.token, {
+        type: 'WORKER',
+        inviteeName: 'Siti',
+        monthlySalaryUsd: 1200,
+      })
+      const siti = await signIn('siti')
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/invites/${code}/acceptance`,
+        headers: as(siti.token),
+      })
+
+      const res = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/invites/${id}`,
+        headers: as(boss.token),
+      })
+      expect(res.statusCode).toBe(409)
+      expect(res.json().error.code).toBe('INVITE_ALREADY_ACCEPTED')
+
+      // The worker can now invite and cancel their own recipient invite.
+      const fam = await invite(siti.token, { type: 'RECIPIENT', inviteeName: 'Ibu' })
+      const own = await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/invites/${fam.id}`,
+        headers: as(siti.token),
+      })
+      expect(own.statusCode).toBe(204)
+    })
+
+    it('answers 403 to everyone but the creator', async () => {
+      const boss = await signIn('employer')
+      await createCompany(boss.token)
+      const { code } = await invite(boss.token, {
+        type: 'WORKER',
+        inviteeName: 'Siti',
+        monthlySalaryUsd: 1200,
+      })
+      const siti = await signIn('siti')
+      await app.inject({
+        method: 'POST',
+        url: `/api/v1/invites/${code}/acceptance`,
+        headers: as(siti.token),
+      })
+      const pending = await invite(boss.token, {
+        type: 'WORKER',
+        inviteeName: 'Budi',
+        monthlySalaryUsd: 900,
+      })
+      const rival = await signIn('rival')
+      await createCompany(rival.token, 'PT Saingan')
+      const outsider = await signIn('outsider')
+
+      const cancel = [{ method: 'DELETE', url: `/api/v1/invites/${pending.id}` }] as const
+      await expectForbidden(app, rival.token, [...cancel])
+      // Siti is a worker (an inviter role) but did not create it.
+      await expectForbidden(app, siti.token, [...cancel])
+      await expectForbidden(app, outsider.token, [
+        ...cancel,
+        { method: 'GET', url: '/api/v1/invites' },
+        {
+          method: 'POST',
+          url: '/api/v1/invites',
+          payload: { type: 'RECIPIENT', inviteeName: 'Ibu' },
+        },
+      ])
     })
   })
 
@@ -429,7 +548,7 @@ describe.skipIf(!url)('api (integration)', () => {
       ).json()
       await app.inject({
         method: 'POST',
-        url: `/api/v1/invites/${code}/accept`,
+        url: `/api/v1/invites/${code}/acceptance`,
         headers: as(worker.token),
       })
 
@@ -618,10 +737,10 @@ describe.skipIf(!url)('api (integration)', () => {
       const siti = await signIn('siti')
       const accepted = await app.inject({
         method: 'POST',
-        url: `/api/v1/invites/${code}/accept`,
+        url: `/api/v1/invites/${code}/acceptance`,
         headers: as(siti.token),
       })
-      expect(accepted.statusCode).toBe(200)
+      expect(accepted.statusCode).toBe(201)
 
       const back = await app.inject({
         method: 'GET',
@@ -803,16 +922,16 @@ describe.skipIf(!url)('api (integration)', () => {
           method: 'POST',
           url: '/api/v1/invites',
           headers: as(siti.token),
-          payload: { type: 'FAMILY', inviteeName: 'Ibu A.', relation: 'Ibu' },
+          payload: { type: 'RECIPIENT', inviteeName: 'Ibu A.', relation: 'Ibu' },
         })
       ).json()
       const ibu = await signIn('ibu')
       const accepted = await app.inject({
         method: 'POST',
-        url: `/api/v1/invites/${code}/accept`,
+        url: `/api/v1/invites/${code}/acceptance`,
         headers: as(ibu.token),
       })
-      expect(accepted.statusCode).toBe(200)
+      expect(accepted.statusCode).toBe(201)
 
       const back = await app.inject({
         method: 'GET',
@@ -858,6 +977,7 @@ describe.skipIf(!url)('api (integration)', () => {
 
     it('rejects an out-of-range limit with 422', async () => {
       const user = await signIn('alice')
+      await createCompany(user.token)
       const res = await app.inject({
         method: 'GET',
         url: '/api/v1/invites?limit=0',

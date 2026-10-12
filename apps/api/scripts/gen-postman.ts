@@ -67,7 +67,7 @@ const collection = {
   info: {
     name: 'Trickle API',
     description:
-      'Trickle API v1 (resource endpoints under /api/v1). Folders follow the golden path: employer invites worker, worker invites family. Set {{baseUrl}} to the deployed URL or http://localhost:4000.',
+      'Trickle API v1 (resource endpoints under /api/v1). Folders follow the golden path: employer invites worker, worker invites recipient. Set {{baseUrl}} to the deployed URL or http://localhost:4000.',
     schema: 'https://schema.getpostman.com/json/collection/v2.1.0/collection.json',
   },
   variable: [
@@ -82,6 +82,7 @@ const collection = {
     { key: 'extraRecipientId', value: '' },
     { key: 'workerInviteCode', value: '' },
     { key: 'familyInviteCode', value: '' },
+    { key: 'cancelInviteId', value: '' },
     { key: 'privyAccessToken', value: '' },
   ],
   item: [
@@ -201,9 +202,9 @@ const collection = {
           body: { type: 'WORKER', inviteeName: 'Siti Rahma', monthlySalaryUsd: 1200 },
           tests: [status(201), save('workerInviteCode', 'code')],
         }),
-        req('Create family invite - not a worker yet (403)', 'POST', '/api/v1/invites', {
+        req('Create recipient invite - not a worker yet (403)', 'POST', '/api/v1/invites', {
           auth: bearer('workerToken'),
-          body: { type: 'FAMILY', inviteeName: 'Ibu Aminah', relation: 'Ibu' },
+          body: { type: 'RECIPIENT', inviteeName: 'Ibu Aminah', relation: 'Ibu' },
           tests: [status(403), errCode('FORBIDDEN')],
         }),
         req('Get invite (public)', 'GET', '/api/v1/invites/{{workerInviteCode}}', {
@@ -212,35 +213,54 @@ const collection = {
         req('Get invite - not found (404)', 'GET', '/api/v1/invites/ZZZZZZZZZZ', {
           tests: [status(404), errCode('INVITE_NOT_FOUND')],
         }),
-        req('Accept own invite (400)', 'POST', '/api/v1/invites/{{workerInviteCode}}/accept', {
+        req('Accept own invite (400)', 'POST', '/api/v1/invites/{{workerInviteCode}}/acceptance', {
           auth: bearer('employerToken'),
           tests: [status(400), errCode('CANNOT_ACCEPT_OWN_INVITE')],
         }),
-        req('Accept worker invite', 'POST', '/api/v1/invites/{{workerInviteCode}}/accept', {
+        req('Accept worker invite', 'POST', '/api/v1/invites/{{workerInviteCode}}/acceptance', {
           auth: bearer('workerToken'),
-          tests: [status(200)],
+          tests: [status(201)],
         }),
         req(
           'Accept worker invite again (409)',
           'POST',
-          '/api/v1/invites/{{workerInviteCode}}/accept',
+          '/api/v1/invites/{{workerInviteCode}}/acceptance',
           {
             auth: bearer('workerToken'),
             tests: [status(409), errCode('INVITE_ALREADY_ACCEPTED')],
           },
         ),
-        req('Create family invite', 'POST', '/api/v1/invites', {
+        req('Create recipient invite', 'POST', '/api/v1/invites', {
           auth: bearer('workerToken'),
-          body: { type: 'FAMILY', inviteeName: 'Ibu Aminah', relation: 'Ibu' },
+          body: { type: 'RECIPIENT', inviteeName: 'Ibu Aminah', relation: 'Ibu' },
           tests: [status(201), save('familyInviteCode', 'code')],
         }),
-        req('Accept family invite', 'POST', '/api/v1/invites/{{familyInviteCode}}/accept', {
+        req('Accept recipient invite', 'POST', '/api/v1/invites/{{familyInviteCode}}/acceptance', {
           auth: bearer('familyToken'),
-          tests: [status(200)],
+          tests: [status(201)],
         }),
         req('List my invites', 'GET', '/api/v1/invites?type=WORKER&limit=10', {
           auth: bearer('employerToken'),
           tests: [status(200)],
+        }),
+        req('Create invite to cancel', 'POST', '/api/v1/invites', {
+          auth: bearer('employerToken'),
+          body: { type: 'WORKER', inviteeName: 'Budi', monthlySalaryUsd: 900 },
+          tests: [status(201), save('cancelInviteId', 'id')],
+        }),
+        req(
+          'Cancel invite - not the creator (403)',
+          'DELETE',
+          '/api/v1/invites/{{cancelInviteId}}',
+          {
+            auth: bearer('workerToken'),
+            tests: [status(403), errCode('FORBIDDEN')],
+          },
+        ),
+        req('Cancel invite', 'DELETE', '/api/v1/invites/{{cancelInviteId}}', {
+          auth: bearer('employerToken'),
+          description: 'Cancelling twice is fine. 409 INVITE_ALREADY_ACCEPTED once it was used.',
+          tests: [status(204)],
         }),
         req('List company workers', 'GET', '/api/v1/companies/{{companyId}}/workers', {
           auth: bearer('employerToken'),

@@ -9,6 +9,7 @@ import type { CreateInvite, InviteDto } from './schemas.js'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const invalidLink = () => notFound('INVITE_NOT_FOUND', 'This invite link is not valid')
+export const inviteNotFound = () => notFound('INVITE_NOT_FOUND', 'Invite not found')
 const alreadyAccepted = () =>
   conflict('INVITE_ALREADY_ACCEPTED', 'This invite has already been used')
 
@@ -19,6 +20,7 @@ interface Deps {
 
 export function createInviteService({ repo, env }: Deps) {
   const toDto = (i: InviteWithRefs): InviteDto => ({
+    id: i.id,
     code: i.code,
     type: i.type,
     status: i.status === 'PENDING' && i.expiresAt < new Date() ? 'EXPIRED' : i.status,
@@ -54,11 +56,11 @@ export function createInviteService({ repo, env }: Deps) {
         }
       } else {
         if ((await repo.countEmployments(userId)) === 0) {
-          throw forbidden('Only workers with an employer can invite family')
+          throw forbidden('Only workers with an employer can invite recipients')
         }
         data = {
           code: inviteCode(),
-          type: 'FAMILY',
+          type: 'RECIPIENT',
           createdById: userId,
           inviteeName: body.inviteeName,
           relation: body.relation ?? null,
@@ -78,6 +80,13 @@ export function createInviteService({ repo, env }: Deps) {
       const invite = await repo.findByCode(code)
       if (!invite) throw invalidLink()
       return toDto(invite)
+    },
+
+    /** Assumes the route checked that `userId` created it. */
+    async revoke(id: string) {
+      const status = await repo.revoke(id)
+      if (!status) throw inviteNotFound()
+      if (status === 'ACCEPTED') throw alreadyAccepted()
     },
 
     async accept(code: string, userId: string) {

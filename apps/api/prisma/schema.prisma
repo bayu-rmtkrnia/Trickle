@@ -14,7 +14,8 @@ datasource db {
 
 enum InviteType {
   WORKER
-  FAMILY
+  /// Invites a family member to become one of the worker's recipients
+  RECIPIENT
 }
 
 enum InviteStatus {
@@ -150,7 +151,7 @@ model Invite {
   inviteeName        String
   /// Set for WORKER invites
   monthlySalaryCents Int?
-  /// Set for FAMILY invites, e.g. "Ibu", "Istri"
+  /// Set for RECIPIENT invites, e.g. "Ibu", "Istri"
   relation           String?
   acceptedById       String?
   acceptedAt         DateTime?

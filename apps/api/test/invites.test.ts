@@ -36,6 +36,8 @@ function service(repo: Partial<InviteRepository>) {
       create: unexpected,
       listByCreator: unexpected,
       findByCode: unexpected,
+      findCreatorId: unexpected,
+      revoke: unexpected,
       accept: unexpected,
       ...repo,
     } as InviteRepository,
@@ -50,9 +52,9 @@ describe('invite service: create', () => {
     ).rejects.toMatchObject({ statusCode: 403 })
   })
 
-  it('forbids family invites from users with no employer', async () => {
+  it('forbids recipient invites from users with no employer', async () => {
     const s = service({ countEmployments: async () => 0 })
-    await expect(s.create('u1', { type: 'FAMILY', inviteeName: 'Ibu' })).rejects.toMatchObject({
+    await expect(s.create('u1', { type: 'RECIPIENT', inviteeName: 'Ibu' })).rejects.toMatchObject({
       statusCode: 403,
     })
   })
@@ -93,6 +95,26 @@ describe('invite service: read', () => {
   })
 })
 
+describe('invite service: revoke', () => {
+  it('cancels a pending invite, and cancelling twice is fine', async () => {
+    const s = service({ revoke: async () => 'REVOKED' })
+    await expect(s.revoke('inv-1')).resolves.toBeUndefined()
+  })
+
+  it('refuses to cancel an invite that was already used', async () => {
+    const s = service({ revoke: async () => 'ACCEPTED' })
+    await expect(s.revoke('inv-1')).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'INVITE_ALREADY_ACCEPTED',
+    })
+  })
+
+  it('answers 404 if the invite vanished', async () => {
+    const s = service({ revoke: async () => null })
+    await expect(s.revoke('inv-1')).rejects.toMatchObject({ statusCode: 404 })
+  })
+})
+
 describe('invite service: accept', () => {
   const cases: [string, Partial<InviteWithRefs>, number, string][] = [
     ['already accepted', { status: 'ACCEPTED' }, 409, 'INVITE_ALREADY_ACCEPTED'],
@@ -120,7 +142,7 @@ describe('invite service: accept', () => {
 
   it('maps a duplicate link to 409 ALREADY_LINKED', async () => {
     const s = service({
-      findByCode: async () => invite({ type: 'FAMILY', company: null }),
+      findByCode: async () => invite({ type: 'RECIPIENT', company: null }),
       accept: async () => ({ status: 'already-linked' }),
     })
     await expect(s.accept('ABCDEF1234', 'me')).rejects.toMatchObject({
