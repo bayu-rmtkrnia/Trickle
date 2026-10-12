@@ -8,8 +8,6 @@ import type { PayoutDto } from '@/lib/api/payouts'
 import type { Account } from '@/lib/account'
 import type { SessionContextValue } from '@/providers/session-provider'
 
-// Regression for review R2: a cached session token rejected during payout
-// registration must be renewed, and only the same hash is registered again.
 const deps = vi.hoisted(() => ({
   create: vi.fn(),
   session: null as unknown as SessionContextValue,

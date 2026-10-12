@@ -409,8 +409,6 @@ describe('family payout coordinator', () => {
   })
 })
 
-// Review R1: a second tab must not unlock a new payout while the first tab is
-// still waiting for the wallet signature, even though the nonce is unchanged.
 describe('cross-tab signature safety', () => {
   function deferred<T>() {
     let resolve!: (value: T) => void

@@ -293,7 +293,6 @@ describe('payout status polling', () => {
     await waitFor(() => expect(within(sheet()).getByText('Selesai')).toBeTruthy())
   })
 
-  // Review R3: a list request started before registration must not erase it.
   it('keeps a tracked payout when an older list response arrives afterwards', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     let resolveOld!: (value: unknown) => void
