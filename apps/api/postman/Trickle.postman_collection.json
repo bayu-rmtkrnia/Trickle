@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Trickle API",
-    "description": "Trickle API v1 (resource endpoints under /api/v1). Folders follow the golden path: employer invites worker, worker invites family. Set {{baseUrl}} to the deployed URL or http://localhost:4000.",
+    "description": "Trickle API v1 (resource endpoints under /api/v1). Folders follow the golden path: employer invites worker, worker invites recipient. Set {{baseUrl}} to the deployed URL or http://localhost:4000.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -47,6 +47,10 @@
     },
     {
       "key": "familyInviteCode",
+      "value": ""
+    },
+    {
+      "key": "cancelInviteId",
       "value": ""
     },
     {
@@ -883,7 +887,7 @@
           ]
         },
         {
-          "name": "Create family invite - not a worker yet (403)",
+          "name": "Create recipient invite - not a worker yet (403)",
           "request": {
             "method": "POST",
             "header": [
@@ -909,7 +913,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"FAMILY\",\n  \"inviteeName\": \"Ibu Aminah\",\n  \"relation\": \"Ibu\"\n}",
+              "raw": "{\n  \"type\": \"RECIPIENT\",\n  \"inviteeName\": \"Ibu Aminah\",\n  \"relation\": \"Ibu\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -987,9 +991,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/acceptance",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "acceptance"]
             },
             "auth": {
               "type": "bearer",
@@ -1021,9 +1025,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/acceptance",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "acceptance"]
             },
             "auth": {
               "type": "bearer",
@@ -1041,7 +1045,7 @@
               "listen": "test",
               "script": {
                 "type": "text/javascript",
-                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+                "exec": ["pm.test('status 201', () => pm.response.to.have.status(201));"]
               }
             }
           ]
@@ -1052,9 +1056,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/acceptance",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "acceptance"]
             },
             "auth": {
               "type": "bearer",
@@ -1081,7 +1085,7 @@
           ]
         },
         {
-          "name": "Create family invite",
+          "name": "Create recipient invite",
           "request": {
             "method": "POST",
             "header": [
@@ -1107,7 +1111,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"FAMILY\",\n  \"inviteeName\": \"Ibu Aminah\",\n  \"relation\": \"Ibu\"\n}",
+              "raw": "{\n  \"type\": \"RECIPIENT\",\n  \"inviteeName\": \"Ibu Aminah\",\n  \"relation\": \"Ibu\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -1129,14 +1133,14 @@
           ]
         },
         {
-          "name": "Accept family invite",
+          "name": "Accept recipient invite",
           "request": {
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/invites/{{familyInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{familyInviteCode}}/acceptance",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "invites", "{{familyInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{familyInviteCode}}", "acceptance"]
             },
             "auth": {
               "type": "bearer",
@@ -1154,7 +1158,7 @@
               "listen": "test",
               "script": {
                 "type": "text/javascript",
-                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+                "exec": ["pm.test('status 201', () => pm.response.to.have.status(201));"]
               }
             }
           ]
@@ -1196,6 +1200,120 @@
               "script": {
                 "type": "text/javascript",
                 "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create invite to cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invites",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "invites"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"WORKER\",\n  \"inviteeName\": \"Budi\",\n  \"monthlySalaryUsd\": 900\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('cancelInviteId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel invite - not the creator (403)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invites/{{cancelInviteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "invites", "{{cancelInviteId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel invite",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invites/{{cancelInviteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "invites", "{{cancelInviteId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Cancelling twice is fine. 409 INVITE_ALREADY_ACCEPTED once it was used."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"]
               }
             }
           ]

@@ -119,12 +119,16 @@
       "InviteInput": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "description": "Used by `DELETE /invites/:id`"
+          },
           "code": {
             "type": "string"
           },
           "type": {
             "type": "string",
-            "enum": ["WORKER", "FAMILY"]
+            "enum": ["WORKER", "RECIPIENT"]
           },
           "status": {
             "type": "string",
@@ -146,7 +150,7 @@
             "properties": {
               "name": {
                 "nullable": true,
-                "description": "Company name for WORKER, worker name for FAMILY",
+                "description": "Company name for WORKER, worker name for RECIPIENT",
                 "type": "string"
               },
               "address": {
@@ -171,6 +175,7 @@
           }
         },
         "required": [
+          "id",
           "code",
           "type",
           "status",
@@ -424,12 +429,16 @@
       "Invite": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "description": "Used by `DELETE /invites/:id`"
+          },
           "code": {
             "type": "string"
           },
           "type": {
             "type": "string",
-            "enum": ["WORKER", "FAMILY"]
+            "enum": ["WORKER", "RECIPIENT"]
           },
           "status": {
             "type": "string",
@@ -451,7 +460,7 @@
             "properties": {
               "name": {
                 "nullable": true,
-                "description": "Company name for WORKER, worker name for FAMILY",
+                "description": "Company name for WORKER, worker name for RECIPIENT",
                 "type": "string"
               },
               "address": {
@@ -477,6 +486,7 @@
           }
         },
         "required": [
+          "id",
           "code",
           "type",
           "status",
@@ -1833,7 +1843,7 @@
       "post": {
         "summary": "Add a family recipient by wallet address (worker)",
         "tags": ["Recipients"],
-        "description": "Alternative to a FAMILY invite when the worker already knows the address. Re-adding a removed recipient restores them. 409 `RECIPIENT_EXISTS` if already added.",
+        "description": "Alternative to a RECIPIENT invite when the worker already knows the address. Re-adding a removed recipient restores them. 409 `RECIPIENT_EXISTS` if already added.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2296,7 +2306,7 @@
     },
     "/api/v1/invites": {
       "post": {
-        "summary": "Create a worker invite (employer) or a family invite (worker)",
+        "summary": "Create a worker invite (employer) or a recipient invite (worker)",
         "tags": ["Invites"],
         "requestBody": {
           "required": true,
@@ -2332,7 +2342,7 @@
                     "properties": {
                       "type": {
                         "type": "string",
-                        "enum": ["FAMILY"]
+                        "enum": ["RECIPIENT"]
                       },
                       "inviteeName": {
                         "type": "string",
@@ -2441,7 +2451,7 @@
           {
             "schema": {
               "type": "string",
-              "enum": ["WORKER", "FAMILY"]
+              "enum": ["WORKER", "RECIPIENT"]
             },
             "in": "query",
             "name": "type",
@@ -2480,6 +2490,105 @@
             }
           },
           "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invites/{id}": {
+      "delete": {
+        "summary": "Cancel an invite I created",
+        "tags": ["Invites"],
+        "description": "Only pending invites can be cancelled; the link stops working (409 `INVITE_REVOKED` on acceptance). Cancelling twice is fine. 409 `INVITE_ALREADY_ACCEPTED` once it was used.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [null],
+                  "description": "Cancelled"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -2551,11 +2660,11 @@
         }
       }
     },
-    "/api/v1/invites/{code}/accept": {
+    "/api/v1/invites/{code}/acceptance": {
       "post": {
         "summary": "Accept an invite as the signed-in user",
         "tags": ["Invites"],
-        "description": "WORKER invite: the user joins the company. FAMILY invite: the user becomes a recipient of the worker (`/recipients`).",
+        "description": "WORKER invite: the user joins the company (`/workers`). RECIPIENT invite: the user becomes a recipient of the worker (`/recipients`).",
         "parameters": [
           {
             "schema": {
@@ -2573,7 +2682,7 @@
           }
         ],
         "responses": {
-          "200": {
+          "201": {
             "description": "Default Response",
             "content": {
               "application/json": {

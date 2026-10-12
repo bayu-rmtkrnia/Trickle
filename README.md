@@ -109,10 +109,11 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | GET | `/recipients/:id` | Owner or the recipient | Read a recipient |
 | PATCH | `/recipients/:id` | Owner | Update name and relation |
 | DELETE | `/recipients/:id` | Owner | Soft delete; 409 while the on-chain split still pays them |
-| POST | `/invites` | ✓ | Worker invite (employer) or family invite (worker) |
-| GET | `/invites` | ✓ | Invites I created (paged) |
+| POST | `/invites` | Employer or worker | Worker invite (employer) or recipient invite (worker) |
+| GET | `/invites` | Employer or worker | Invites I created (paged) |
+| DELETE | `/invites/:id` | Creator | Cancel a pending invite; 409 once accepted |
 | GET | `/invites/:code` | – | Public invite details |
-| POST | `/invites/:code/accept` | ✓ | Accept an invite |
+| POST | `/invites/:code/acceptance` | ✓ | Accept an invite |
 | POST | `/gas/drip` | ✓ | Sponsor gas for a new account, once per address |
 | GET | `/gas/status` | – | Treasury balance and daily usage |
 | GET | `/fx/usd-idr` | – | USD→IDR rate with cache and fallback |
