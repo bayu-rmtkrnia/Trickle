@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify'
 import type { Env } from './env.js'
 import type { Chain } from './lib/chain.js'
+import type { DemoSigner } from './lib/demo.js'
 import type { AppError } from './lib/errors.js'
 import type { FxService } from './lib/fx.js'
 import type { Privy } from './lib/privy.js'
@@ -26,6 +27,7 @@ declare module 'fastify' {
     chain: Chain
     privy: Privy
     streams: StreamReader
+    demo: DemoSigner
     authenticate: (req: FastifyRequest, reply: FastifyReply) => Promise<void>
     /** 403 unless the caller holds at least one of `roles`. */
     requireRole: (...roles: Role[]) => Guard

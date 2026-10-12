@@ -51,6 +51,17 @@ const EnvSchema = z.object({
   GAS_DRIP_AMOUNT_MON: z.string().default('0.05'),
   GAS_DRIP_DAILY_LIMIT: z.coerce.number().int().positive().default(200),
 
+  // Judge mode (POST /demo-streams). Testnet only. Without the key, the endpoint answers 503.
+  DEMO_EMPLOYER_PRIVATE_KEY: hexKey.optional().or(z.literal('').transform(() => undefined)),
+  DEMO_STREAM_AMOUNT_USD: z
+    .string()
+    .regex(/^\d+(\.\d{1,6})?$/, 'must be a USD amount')
+    .default('50'),
+  DEMO_STREAM_MINUTES: z.coerce.number().int().positive().default(60),
+  DEMO_STREAM_DAILY_LIMIT: z.coerce.number().int().positive().default(100),
+  /** Demo streams one IP may start per day, so one visitor cannot drain the demo employer. */
+  DEMO_STREAM_IP_DAILY_LIMIT: z.coerce.number().int().positive().default(5),
+
   FX_API_URL: z.string().url().default('https://open.er-api.com/v6/latest/USD'),
   FX_CACHE_SECONDS: z.coerce.number().int().positive().default(600),
   FX_FALLBACK_USD_IDR: z.coerce.number().positive().default(16500),

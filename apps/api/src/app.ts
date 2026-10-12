@@ -13,11 +13,13 @@ import {
 } from 'fastify-type-provider-zod'
 import type { Env } from './env.js'
 import { createChain, createReadClient, type Chain } from './lib/chain.js'
+import { createDemoSigner, type DemoSigner } from './lib/demo.js'
 import { createFxService, type FxService } from './lib/fx.js'
 import { createPrisma, type Db } from './lib/prisma.js'
 import { createPrivy, type Privy } from './lib/privy.js'
 import { createStreamReader, type StreamReader } from './lib/streams.js'
 import companyRoutes from './modules/companies/routes.js'
+import demoStreamRoutes from './modules/demo-streams/routes.js'
 import fxRoutes from './modules/fx/routes.js'
 import gasRoutes from './modules/gas/routes.js'
 import healthRoutes from './modules/health/routes.js'
@@ -41,6 +43,8 @@ export interface AppDeps {
   chain?: Chain
   privy?: Privy
   streams?: StreamReader
+  /** Judge mode signer. Tests pass a fake so nothing goes on-chain. */
+  demo?: DemoSigner
   logger?: FastifyServerOptions['logger']
   /** Per-IP rate limiting. Integration tests turn it off because every request shares one IP. */
   rateLimit?: boolean
@@ -86,6 +90,7 @@ export async function buildApp(deps: AppDeps) {
         payroll: env.PAYROLL_ADDRESS as `0x${string}` | undefined,
       }),
   )
+  app.decorate('demo', deps.demo ?? createDemoSigner(env))
   if (!deps.db) app.addHook('onClose', () => db.$disconnect())
 
   registerErrorHandling(app)
@@ -103,7 +108,7 @@ export async function buildApp(deps: AppDeps) {
         title: 'Trickle API',
         version: '1.1.0',
         description:
-          'Metadata API for Trickle: sessions, users, companies, workers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\n' +
+          'Metadata API for Trickle: sessions, users, companies, workers, recipients, invites, gas sponsorship, judge mode and FX. Money lives on-chain; this API never stores balances.\n\n' +
           'Sign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\n' +
           'Resource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). ' +
           'List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`.',
@@ -117,6 +122,7 @@ export async function buildApp(deps: AppDeps) {
         { name: 'Recipients' },
         { name: 'Invites' },
         { name: 'Gas' },
+        { name: 'Demo' },
         { name: 'FX' },
       ],
       components: {
@@ -143,6 +149,7 @@ export async function buildApp(deps: AppDeps) {
       await v1.register(recipientRoutes)
       await v1.register(inviteRoutes)
       await v1.register(gasRoutes)
+      await v1.register(demoStreamRoutes)
       await v1.register(fxRoutes)
     },
     { prefix: API_PREFIX },
