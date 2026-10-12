@@ -123,6 +123,7 @@ Kolom **Akses**: – publik; ✓ login tanpa syarat peran; *Employer/Worker/Reci
 | DELETE | `/sessions/current` | ✓ | → 204 |
 | GET | `/users/me` | ✓ | → `{ id, address, displayName, createdAt, companyId, roles }` |
 | PATCH | `/users/me` | ✓ | `{ displayName }` → sama seperti GET |
+| GET | `/users/me/employments` | ✓ | `?limit=&cursor=` → paged `{ id, displayName, position, monthlySalaryUsd, joinedAt, employer: Company }`. Bukan pekerja → `data: []` |
 
 ### Perusahaan dan pekerja (employer)
 

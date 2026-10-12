@@ -1,5 +1,5 @@
 import type { Handler } from '../../lib/http.js'
-import type { getMeSchema, updateMeSchema } from './schemas.js'
+import type { getMeSchema, listMyEmploymentsSchema, updateMeSchema } from './schemas.js'
 import type { UserService } from './service.js'
 
 export function createUserController(service: UserService) {
@@ -8,5 +8,8 @@ export function createUserController(service: UserService) {
   const updateMe: Handler<typeof updateMeSchema> = async (req) =>
     service.updateMe(req.user.sub, req.body)
 
-  return { getMe, updateMe }
+  const listEmployments: Handler<typeof listMyEmploymentsSchema> = async (req) =>
+    service.listEmployments(req.user.sub, req.query)
+
+  return { getMe, updateMe, listEmployments }
 }

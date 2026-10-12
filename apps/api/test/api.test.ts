@@ -727,6 +727,53 @@ describe.skipIf(!url)('api (integration)', () => {
       await expectForbidden(app, outsider.token, [...all])
     })
 
+    it('lists my employments for the worker dashboard', async () => {
+      const { boss, companyId, workerId } = await hire()
+      const siti = await signIn('siti')
+      const mine = () =>
+        app.inject({ method: 'GET', url: '/api/v1/users/me/employments', headers: as(siti.token) })
+
+      const res = await mine()
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({
+        data: [
+          {
+            id: workerId,
+            displayName: 'Siti',
+            position: 'Caregiver',
+            monthlySalaryUsd: 1200,
+            joinedAt: expect.any(String),
+            employer: expect.objectContaining({
+              id: companyId,
+              name: 'PT Maju Jaya',
+              country: null,
+              ownerAddress: boss.address.toLowerCase(),
+            }),
+          },
+        ],
+        nextCursor: null,
+      })
+
+      // Not a worker: an empty list, not 403.
+      const bossList = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/me/employments',
+        headers: as(boss.token),
+      })
+      expect(bossList.statusCode).toBe(200)
+      expect(bossList.json().data).toEqual([])
+
+      await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/workers/${workerId}`,
+        headers: as(boss.token),
+      })
+      expect((await mine()).json().data).toEqual([])
+
+      const anon = await app.inject({ method: 'GET', url: '/api/v1/users/me/employments' })
+      expect(anon.statusCode).toBe(401)
+    })
+
     it('refuses to remove a worker while their stream is active', async () => {
       const { boss, companyId, workerId } = await hire()
       hasActiveStream.mockResolvedValueOnce(true)
