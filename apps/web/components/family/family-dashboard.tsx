@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useAccount } from '@/lib/account'
 import { familyDashboardCopy as t } from '@/lib/copy/family'
 import { useSession } from '@/providers/session-provider'
+import { BankAccountList } from './bank-account-list'
 import { FamilyBalanceCard } from './family-balance-card'
 import { FamilyShell } from './family-shell'
 
@@ -116,6 +117,7 @@ export function FamilyDashboard() {
           identity={`${account.user.id}:${session.user.id}`}
           ensureSession={session.ensureSession}
         />
+        <BankAccountList key={`${account.user.id}:${session.user.id}`} session={session} />
       </div>
     </FamilyShell>
   )

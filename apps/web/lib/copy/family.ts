@@ -192,3 +192,124 @@ export function familyBalanceError(error: unknown, phase?: string) {
   }
   return errors.read
 }
+
+/** Display names for the official bank codes. Presentation only. */
+export const bankNames: Record<string, string> = {
+  BCA: 'BCA',
+  BNI: 'BNI',
+  BRI: 'BRI',
+  MANDIRI: 'Mandiri',
+  BSI: 'BSI',
+  CIMB: 'CIMB Niaga',
+  PERMATA: 'Permata',
+  DANAMON: 'Danamon',
+  BTN: 'BTN',
+  OCBC: 'OCBC',
+}
+
+export const bankCopy = {
+  title: 'Rekening bank',
+  body: 'Rekening tujuan pencairan. Nomor lengkap hanya disimpan terenkripsi di server.',
+  loading: 'Memuat rekening...',
+  add: 'Tambah rekening',
+  limit: (max: number) => `Maksimal ${max} rekening. Hapus salah satu untuk menambah.`,
+  emptyTitle: 'Belum ada rekening',
+  emptyBody: 'Tambahkan rekening bank untuk menerima pencairan mode uji.',
+  retry: 'Coba lagi',
+  more: 'Muat rekening lainnya',
+  loadingMore: 'Memuat rekening...',
+  masked: (last4: string) => `•••• ${last4}`,
+  edit: 'Ubah',
+  remove: 'Hapus',
+  editLabel: (bank: string, last4: string) => `Ubah rekening ${bank} ${last4}`,
+  removeLabel: (bank: string, last4: string) => `Hapus rekening ${bank} ${last4}`,
+  form: {
+    addTitle: 'Tambah rekening',
+    editTitle: 'Ubah rekening',
+    editHint: 'Bank dan nomor tidak dapat diubah. Tambah rekening baru untuk nomor lain.',
+    bank: 'Bank',
+    bankPlaceholder: 'Pilih bank',
+    number: 'Nomor rekening',
+    numberHint: '6–20 digit. Spasi dan tanda hubung diabaikan.',
+    name: 'Nama pemilik rekening',
+    label: 'Label (opsional)',
+    labelHint: 'Contoh: Rekening utama',
+    save: 'Simpan rekening',
+    saving: 'Menyimpan...',
+    bankRequired: 'Pilih bank.',
+    numberInvalid: 'Nomor rekening harus 6–20 digit.',
+    nameInvalid: 'Nama pemilik harus 2–100 karakter.',
+    labelInvalid: 'Label maksimal 40 karakter.',
+  },
+  delete: {
+    title: 'Hapus rekening?',
+    body: (bank: string, last4: string) =>
+      `Rekening ${bank} •••• ${last4} tidak dapat dipilih lagi untuk pencairan. Riwayat pencairan tetap tersimpan.`,
+    confirm: 'Hapus rekening',
+    confirming: 'Menghapus...',
+    cancel: 'Batal',
+  },
+  errors: {
+    exists: {
+      title: 'Rekening sudah ditambahkan',
+      message: 'Rekening dengan bank dan nomor ini sudah ada di daftar.',
+    },
+    limit: {
+      title: 'Batas rekening tercapai',
+      message: 'Hapus salah satu rekening sebelum menambah yang baru.',
+    },
+    unavailable: {
+      title: 'Rekening bank belum tersedia',
+      message: 'Penyimpanan rekening belum dikonfigurasi di server. Coba lagi nanti.',
+    },
+    validation: {
+      title: 'Data rekening belum sesuai',
+      message: 'Periksa kembali nomor, nama, dan label rekening.',
+    },
+    session: {
+      title: 'Sesi perlu diperbarui',
+      message: 'Perbarui sesi, lalu simpan kembali. Perubahan belum dikirim ulang otomatis.',
+    },
+    forbidden: {
+      title: 'Akun belum dapat mengelola rekening',
+      message: 'Terima undangan keluarga terlebih dahulu.',
+    },
+    notFound: {
+      title: 'Rekening tidak ditemukan',
+      message: 'Rekening ini sudah dihapus. Daftar telah diperbarui.',
+    },
+    rate: { title: 'Terlalu banyak permintaan', message: 'Tunggu sebentar sebelum mencoba lagi.' },
+    network: {
+      title: 'Status penyimpanan belum terkonfirmasi',
+      message: 'Muat ulang daftar rekening sebelum mencoba lagi agar tidak tersimpan dua kali.',
+    },
+    load: {
+      title: 'Rekening belum dapat dimuat',
+      message: 'Periksa koneksi lalu coba lagi.',
+    },
+    page: {
+      title: 'Rekening berikutnya belum dapat dimuat',
+      message: 'Rekening yang sudah dimuat tetap ditampilkan.',
+    },
+    server: {
+      title: 'Permintaan belum berhasil',
+      message: 'Coba lagi dalam beberapa saat.',
+    },
+  },
+}
+
+export function bankError(error: unknown, context: 'load' | 'page' | 'mutation' = 'mutation') {
+  const e = bankCopy.errors
+  const api = error as Partial<ApiError> | null
+  if (api?.code === 'BANK_ACCOUNT_EXISTS') return e.exists
+  if (api?.code === 'BANK_ACCOUNT_LIMIT') return e.limit
+  if (api?.code === 'BANK_ACCOUNTS_UNAVAILABLE' || api?.status === 503) return e.unavailable
+  if (api?.status === 401) return e.session
+  if (api?.status === 403) return e.forbidden
+  if (api?.status === 404) return e.notFound
+  if (api?.status === 422 || api?.status === 400) return e.validation
+  if (api?.status === 429) return e.rate
+  if (context === 'load') return e.load
+  if (context === 'page') return e.page
+  return api?.kind === 'network' ? e.network : e.server
+}
