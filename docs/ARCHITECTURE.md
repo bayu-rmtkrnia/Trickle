@@ -4,7 +4,7 @@ Isinya keadaan aplikasi **saat ini**: apa saja yang sudah ada, di mana letaknya,
 
 > **Aturan:** setiap PR yang menambah atau mengubah fitur, endpoint, tabel, env var, atau keputusan desain **wajib memperbarui file ini** di PR yang sama. Kalau ada isi file ini yang tidak lagi sesuai dengan kode, berarti file ini yang salah, jadi perbaiki.
 
-Terakhir diperbarui: 12 Okt 2026 (Fitur 11: payouts sandbox).
+Terakhir diperbarui: 12 Okt 2026 (Fitur 13: ERD dan dokumen).
 
 ---
 
@@ -25,9 +25,9 @@ Ada tiga peran, dan perannya **kontekstual**: satu akun bisa sekaligus employer,
 ```
 apps/api/        Backend (Fastify + Prisma + Postgres). Pemilik: BE
 apps/web/        Frontend Next.js + Privy (rute /employer, /w, /f). Pemilik: FE. Belum memanggil API (masih data mock)
-contracts/       Smart contract (belum ada). Pemilik: SC
-packages/shared/ ABI + alamat kontrak untuk FE/BE (belum ada)
-docs/            PLAN.md (sumber kebenaran scope), ARCHITECTURE.md (file ini), roadmap BE, dokumen kuliah
+contracts/       Smart contract TricklePayroll (Foundry), ter-deploy di Monad testnet. Pemilik: SC
+packages/shared/ ABI + alamat kontrak (deployments/testnet.json) untuk FE/BE
+docs/            PLAN.md (sumber kebenaran scope), ARCHITECTURE.md (file ini), erd.md (database), roadmap BE, dokumen kuliah
 .github/         CI + template PR
 docker-compose.yml   Postgres lokal (port 5433)
 railway.json     Deploy API ke Railway
@@ -46,7 +46,9 @@ src/plugins/rbac.ts      app.requireRole, app.requireOwnership (403/404)
 src/plugins/errors.ts    Format error seragam, 400 vs 422
 src/lib/                 Klien infrastruktur dan helper bersama:
   prisma.ts  chain.ts (viem)  privy.ts  fx.ts  streams.ts (StreamReader: stream + split on-chain)
-  errors.ts  pagination.ts  roles.ts  tokens.ts  money.ts  codes.ts  schemas.ts  http.ts
+  transfers.ts (TransferVerifier)  payout-provider.ts (PayoutProvider + mock)  demo.ts (DemoSigner)
+  crypto.ts (AES-256-GCM)  errors.ts  pagination.ts  roles.ts  tokens.ts  money.ts  codes.ts  schemas.ts
+  http.ts (Handler, idParam, deprecatedAlias)
 src/modules/<resource>/  Satu folder per resource (lihat §4)
 src/generated/prisma/    Hasil `prisma generate`, jangan diedit
 scripts/                 export-openapi, gen-postman, dev-session
@@ -93,7 +95,7 @@ Kolom Auth: – publik, ✓ semua user yang login, *Pemilik* hanya pemilik resou
 
 Detail request dan response: `openapi.json` atau `http://localhost:4000/docs`.
 
-**Belum ada** (lihat roadmap): ERD dan pembersihan dokumen (13).
+Semua fitur di roadmap BE sudah ada. Yang tersisa ada di §9: menghapus path lama setelah FE pindah, dan provider Xendit/Flip setelah D5 diputuskan.
 
 ## 4. Arsitektur API
 
@@ -180,25 +182,6 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Id dipakai untuk membatalkan, kode untuk menerima.** Kode adalah rahasia yang dibagikan ke penerima, sedangkan pembuat mengelola undangannya lewat id seperti resource lain.
 - **`requireRole('employer', 'worker')` di route, aturan per jenis di service.** Route tidak bisa tahu jenis undangan sebelum body divalidasi, jadi service yang menolak employer membuat `RECIPIENT` tanpa jadi pekerja, dan sebaliknya.
 
-### Payouts (Fitur 11)
-- **Alurnya: transfer on-chain dulu, baru pencairan IDR.** Penerima mengirim mAUSD ke `PAYOUT_ADDRESS` dari wallet-nya, lalu mengirim hash transaksinya ke `POST /payouts`. Transfer token-nya sungguhan; hanya bagian bank yang sandbox (PLAN §3.2). Respons punya `testMode: true` supaya UI menampilkan "Mode uji".
-- **Transfer diverifikasi dari receipt**, bukan dipercaya dari body: token harus token payroll, pengirim harus akun yang login, tujuan harus `PAYOUT_ADDRESS`, dan jumlahnya diambil dari log `Transfer`. Hanya membaca satu receipt, jadi tidak terkena batas `eth_getLogs` RPC publik.
-- **Satu payout per transaksi** lewat unique `sourceTxHash`. Hash yang sama dari user yang sama mengembalikan payout pertama (200); dari user lain 409 `PAYOUT_EXISTS`. Baris dibuat dulu sebelum provider dipanggil, jadi dua request bersamaan tidak mencairkan dua kali.
-- **Data rekening tidak disalin ke `Payout`.** Payout menunjuk ke `BankAccount`, dan nomor rekening hanya didekripsi tepat saat memanggil provider. Kolom teks biasa dari skema awal dihapus.
-- **Kurs yang dipakai disimpan bersama sumbernya** (`fxRate`, `fxSource`), karena kurs hanya untuk tampilan (bisa `fallback`), dan angka di struk harus bisa dijelaskan.
-- **Provider di belakang interface `PayoutProvider`.** D5 (Xendit atau Flip) belum diputuskan, jadi yang ada baru provider mock. Mock tidak menyimpan state: jadwal dan hasilnya dikodekan di reference, jadi tetap konsisten setelah restart. Menambah Xendit/Flip berarti menambah satu implementasi tanpa mengubah service.
-- **Status diperbarui dari dua arah**: webhook dari provider, dan `GET /payouts/:id` yang bertanya ke provider selama PROCESSING (mock tidak mengirim webhook). Keduanya memakai update bersyarat `WHERE status IN (PENDING, PROCESSING)`, jadi status akhir tidak bisa ditimpa oleh webhook yang terlambat atau terkirim dua kali.
-- **Webhook ditandatangani HMAC-SHA256** atas `<timestamp>.<raw body>` dengan `PAYOUT_WEBHOOK_SECRET`, dibandingkan dengan `timingSafeEqual`, dan ditolak kalau lebih dari 5 menit (mencegah replay). Signature dicek di `preValidation`, sebelum body divalidasi, dan raw body hanya disimpan di scope route webhook.
-- **Kalau provider gagal memulai, payout tetap disimpan sebagai FAILED** (201 dengan `failureReason`). Token sudah diterima di `PAYOUT_ADDRESS`, jadi tim yang menyelesaikannya secara manual; ini dicatat sebagai error di log.
-
-### Gas & kurs (Fitur 10)
-- **Path mengikuti K1**: `/gas-drips` dan `/fx-rates/usd-idr`. **Path lama tetap jalan sebagai alias** karena FE sudah memakainya. Alias ditandai `deprecated` di OpenAPI dan mengirim header `Deprecation: true` dan `Link: <path baru>; rel="successor-version"`, jadi FE bisa pindah kapan saja tanpa rusak. Alias dihapus di Fitur 13.
-- **Gas drip tetap dipakai walaupun login sekarang lewat Privy.** Wallet embedded Privy juga butuh MON untuk transaksi pertama (misalnya menarik gaji), dan FE sudah memakainya. Keputusan D6 (sponsor gas) tidak berubah.
-- **Gas drip dan kurs butuh login, tapi tanpa syarat peran.** Akun juri dari judge mode belum punya peran, padahal butuh gas untuk menarik saldo dan kurs untuk menampilkan rupiah. Penyalahgunaan gas dibatasi oleh: sekali per alamat, `GAS_DRIP_IP_DAILY_LIMIT` per IP per hari, `GAS_DRIP_DAILY_LIMIT` total, dan rate limit 5/menit.
-- **Batas per IP disimpan di DB** (kolom `GasDrip.ip`), sama seperti judge mode, supaya tetap berlaku setelah restart.
-- **Treasury kosong dijawab 503 `DRIP_TREASURY_EMPTY` sebelum mengirim**, bukan 502 setelah transfer gagal. FE bisa menampilkan "sponsor gas sedang berhenti" dan tim tahu harus mengisi treasury (tercatat sebagai error di log). Kalau saldo gagal dibaca, transfer tetap dicoba.
-- **Kurs di path baru memakai `cache-control: private`** karena sekarang ada di balik sesi. Path lama yang publik tetap `public`.
-
 ### Rekening bank (Fitur 9)
 - **Nomor rekening dienkripsi AES-256-GCM di API sebelum masuk Postgres** (`lib/crypto.ts`, PLAN K4). Kenapa: kalau database atau backup bocor, nomor rekening tetap tidak terbaca. GCM sekaligus mendeteksi data yang diubah.
 - **IV acak 12 byte untuk setiap nilai**, jadi nomor yang sama menghasilkan ciphertext berbeda dan tidak bisa dibandingkan.
@@ -209,6 +192,25 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Hanya peran `recipient`** (PLAN §6.3 "R pemilik"): penerima yang mencairkan ke bank, sedangkan pekerja menarik gaji on-chain.
 - **PATCH hanya nama dan label.** Mengganti nomor sama dengan rekening baru, jadi caranya tambah rekening baru lalu hapus yang lama. Ini juga menjaga riwayat payout tetap menunjuk ke rekening yang benar.
 - **Maksimal 5 rekening aktif per user** (409 `BANK_ACCOUNT_LIMIT`), supaya satu akun tidak bisa memenuhi tabel.
+
+### Gas & kurs (Fitur 10)
+- **Path mengikuti K1**: `/gas-drips` dan `/fx-rates/usd-idr`. **Path lama tetap jalan sebagai alias** karena FE sudah memakainya. Alias ditandai `deprecated` di OpenAPI dan mengirim header `Deprecation: true` dan `Link: <path baru>; rel="successor-version"`, jadi FE bisa pindah kapan saja tanpa rusak. Alias dihapus di Fitur 13.
+- **Gas drip tetap dipakai walaupun login sekarang lewat Privy.** Wallet embedded Privy juga butuh MON untuk transaksi pertama (misalnya menarik gaji), dan FE sudah memakainya. Keputusan D6 (sponsor gas) tidak berubah.
+- **Gas drip dan kurs butuh login, tapi tanpa syarat peran.** Akun juri dari judge mode belum punya peran, padahal butuh gas untuk menarik saldo dan kurs untuk menampilkan rupiah. Penyalahgunaan gas dibatasi oleh: sekali per alamat, `GAS_DRIP_IP_DAILY_LIMIT` per IP per hari, `GAS_DRIP_DAILY_LIMIT` total, dan rate limit 5/menit.
+- **Batas per IP disimpan di DB** (kolom `GasDrip.ip`), sama seperti judge mode, supaya tetap berlaku setelah restart.
+- **Treasury kosong dijawab 503 `DRIP_TREASURY_EMPTY` sebelum mengirim**, bukan 502 setelah transfer gagal. FE bisa menampilkan "sponsor gas sedang berhenti" dan tim tahu harus mengisi treasury (tercatat sebagai error di log). Kalau saldo gagal dibaca, transfer tetap dicoba.
+- **Kurs di path baru memakai `cache-control: private`** karena sekarang ada di balik sesi. Path lama yang publik tetap `public`.
+
+### Payouts (Fitur 11)
+- **Alurnya: transfer on-chain dulu, baru pencairan IDR.** Penerima mengirim mAUSD ke `PAYOUT_ADDRESS` dari wallet-nya, lalu mengirim hash transaksinya ke `POST /payouts`. Transfer token-nya sungguhan; hanya bagian bank yang sandbox (PLAN §3.2). Respons punya `testMode: true` supaya UI menampilkan "Mode uji".
+- **Transfer diverifikasi dari receipt**, bukan dipercaya dari body: token harus token payroll, pengirim harus akun yang login, tujuan harus `PAYOUT_ADDRESS`, dan jumlahnya diambil dari log `Transfer`. Hanya membaca satu receipt, jadi tidak terkena batas `eth_getLogs` RPC publik.
+- **Satu payout per transaksi** lewat unique `sourceTxHash`. Hash yang sama dari user yang sama mengembalikan payout pertama (200); dari user lain 409 `PAYOUT_EXISTS`. Baris dibuat dulu sebelum provider dipanggil, jadi dua request bersamaan tidak mencairkan dua kali.
+- **Data rekening tidak disalin ke `Payout`.** Payout menunjuk ke `BankAccount`, dan nomor rekening hanya didekripsi tepat saat memanggil provider. Kolom teks biasa dari skema awal dihapus.
+- **Kurs yang dipakai disimpan bersama sumbernya** (`fxRate`, `fxSource`), karena kurs hanya untuk tampilan (bisa `fallback`), dan angka di struk harus bisa dijelaskan.
+- **Provider di belakang interface `PayoutProvider`.** D5 (Xendit atau Flip) belum diputuskan, jadi yang ada baru provider mock. Mock tidak menyimpan state: jadwal dan hasilnya dikodekan di reference, jadi tetap konsisten setelah restart. Menambah Xendit/Flip berarti menambah satu implementasi tanpa mengubah service.
+- **Status diperbarui dari dua arah**: webhook dari provider, dan `GET /payouts/:id` yang bertanya ke provider selama PROCESSING (mock tidak mengirim webhook). Keduanya memakai update bersyarat `WHERE status IN (PENDING, PROCESSING)`, jadi status akhir tidak bisa ditimpa oleh webhook yang terlambat atau terkirim dua kali.
+- **Webhook ditandatangani HMAC-SHA256** atas `<timestamp>.<raw body>` dengan `PAYOUT_WEBHOOK_SECRET`, dibandingkan dengan `timingSafeEqual`, dan ditolak kalau lebih dari 5 menit (mencegah replay). Signature dicek di `preValidation`, sebelum body divalidasi, dan raw body hanya disimpan di scope route webhook.
+- **Kalau provider gagal memulai, payout tetap disimpan sebagai FAILED** (201 dengan `failureReason`). Token sudah diterima di `PAYOUT_ADDRESS`, jadi tim yang menyelesaikannya secara manual; ini dicatat sebagai error di log.
 
 ### Judge mode (Fitur 12)
 - **Stream-nya sungguhan, bukan simulasi.** Employer demo memanggil `createStream` di `TricklePayroll` (Monad testnet), jadi saldo yang dilihat juri berasal dari kontrak, sama seperti pekerja asli (PLAN §3.1 langkah 5; §3.2: tidak ada data palsu). Token-nya mAUSD (mock), dan hal itu disebut di API docs.
@@ -248,7 +250,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 | `DemoStream` | Stream judge mode, satu per akun: alamat, jumlah (unit token), durasi, status PENDING/SENT/FAILED, `streamId` on-chain, `txHash`, IP |
 | `Payout` | Pencairan: `bankAccountId`, `sourceTxHash` (unik), jumlah (unit token dan IDR), `fxRate`/`fxSource`, `provider`/`providerRef` (unik), status PENDING/PROCESSING/COMPLETED/FAILED, `failureReason` |
 
-Skema lengkap ada di `apps/api/prisma/schema.prisma`. Setiap perubahan skema harus disertai migrasi baru (`pnpm db:migrate`).
+ERD lengkap (diagram, relasi, constraint, data sensitif, riwayat migrasi) ada di [`docs/erd.md`](erd.md), dan skemanya di `apps/api/prisma/schema.prisma`. Setiap perubahan skema harus disertai migrasi baru (`pnpm db:migrate`) dan pembaruan `docs/erd.md`; `test/erd.test.ts` gagal kalau ada tabel, kolom, atau migrasi yang belum dicantumkan.
 
 ## 7. Konfigurasi
 
@@ -276,11 +278,11 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 
 ## 9. Masalah yang diketahui / utang
 
-- `test/api.test.ts` memanggil `loadEnv` di dalam `describe.skipIf`, sehingga `pnpm test` tanpa `TEST_DATABASE_URL` gagal di file itu.
-- **Cek stream aktif saat menghapus pekerja belum terverifikasi.** `StreamReader` default selalu menjawab "tidak aktif" sampai indexer SC tersedia. Kontrak sudah ter-deploy (`0xE7292E79…652e` di Monad testnet, branch `feat/contracts-payroll`, belum di-merge).
+- **Cek stream aktif saat menghapus pekerja belum terverifikasi.** `StreamReader` default selalu menjawab "tidak aktif" sampai indexer SC tersedia. Kontrak sudah ter-deploy (`0xE7292E79…652e` di Monad testnet, `packages/shared/deployments/testnet.json`), tapi tidak punya view "stream milik pekerja", dan RPC publik membatasi `eth_getLogs` ke 100 blok.
 - **Akun juri tidak punya peran `worker` di DB.** Stream demo hanya ada di chain; tidak ada baris `Worker` atau perusahaan demo. Kalau layar pekerja di FE bergantung pada `roles` dari `/users/me`, FE perlu memakai respons `POST /demo-streams` (`streamId`), atau nanti kita tambahkan perusahaan demo.
 - **Payout yang gagal setelah token diterima diselesaikan manual.** Belum ada endpoint refund atau retry; token tetap di `PAYOUT_ADDRESS`.
 - **Baru provider mock** (D5 belum diputuskan). Xendit/Flip tinggal menambah implementasi `PayoutProvider`.
 - **Belum ada rotasi kunci enkripsi.** Token sudah diberi versi (`v1.`), tapi re-enkripsi ke kunci baru belum dibuat.
-- `apps/web` belum memanggil API (masih data mock). Saat integrasi, FE perlu memakai `POST /sessions` + `Authorization: Bearer`, dan `/users/me` untuk peran.
+- **Path lama `POST /gas/drip`, `GET /gas/status`, `GET /fx/usd-idr` masih ada** sebagai alias deprecated, karena `apps/web` (branch `feat/frontend`) masih memanggil `/fx/usd-idr` tanpa login. Hapus setelah FE pindah ke `/fx-rates/usd-idr` dan `/gas-drips`.
+- `apps/web` di `main` belum memanggil API (masih data mock). Saat integrasi, FE perlu memakai `POST /sessions` + `Authorization: Bearer`, dan `/users/me` untuk peran.
 - D10 (login tanpa kata sandi untuk rubrik K4) masih Open di koordinator.
