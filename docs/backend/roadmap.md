@@ -184,6 +184,6 @@ D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `
 | ------------------------------- | ----------- | ----------------------- | ------ |
 | D1: Privy atau Mera             | Fitur 3, 10 | Koordinator + FE-A      | Privy  |
 | Alamat kontrak + ABI            | Fitur 6, 12 | SC (`packages/shared`)  | Ada di `feat/contracts-payroll` (belum merge) |
-| Indexer stream                  | Fitur 6     | BE                      | Ada (`nextStreamId` + `getStream`, tanpa `eth_getLogs`); endpoint daftar stream menyusul |
+| Indexer stream                  | Fitur 6     | BE                      | Ada (`nextStreamId` + `getStream`, tanpa `eth_getLogs`); `GET /companies/:id/streams`, `GET /users/me/streams` |
 | D5: sandbox Xendit atau Flip    | Fitur 11    | BE                      | Open   |
 | D10: login tanpa kata sandi di K4 | Fitur 3, 4  | Koordinator (pengampu)  | Open   |

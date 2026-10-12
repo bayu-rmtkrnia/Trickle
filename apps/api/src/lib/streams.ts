@@ -9,6 +9,8 @@ import type { StreamIndexer } from './stream-indexer.js'
 export interface StreamReader {
   /** `true` when a stream from `employer` to `worker` is neither canceled nor ended. */
   hasActiveStream(employer: Address, worker: Address): Promise<boolean>
+  /** Stores streams created since the last indexer round. No-op without a payroll contract. */
+  syncNew(): Promise<void>
   /** `false` when `hasActiveStream` cannot check (no payroll contract); surfaced in logs. */
   readonly verified: boolean
   /**
@@ -27,7 +29,7 @@ interface Options {
   /** TricklePayroll address; without it `splitBpsOf` answers `null`. */
   payroll?: Address
   /** Answers `hasActiveStream`. Without it, no stream counts as active. */
-  indexer?: Pick<StreamIndexer, 'hasActiveStream'>
+  indexer?: Pick<StreamIndexer, 'hasActiveStream' | 'syncNew'>
 }
 
 /**
@@ -44,6 +46,9 @@ export function createStreamReader({ client, payroll, indexer }: Options = {}): 
     verified: indexer !== undefined,
     async hasActiveStream(employer, worker) {
       return indexer ? indexer.hasActiveStream(employer, worker) : false
+    },
+    async syncNew() {
+      await indexer?.syncNew()
     },
     async splitBpsOf(worker, recipient) {
       if (!client || !payroll) return null

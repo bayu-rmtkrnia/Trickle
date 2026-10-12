@@ -33,6 +33,7 @@ import payoutRoutes from './modules/payouts/routes.js'
 import sessionRoutes from './modules/sessions/routes.js'
 import userRoutes from './modules/users/routes.js'
 import recipientRoutes from './modules/recipients/routes.js'
+import streamRoutes from './modules/streams/routes.js'
 import workerRoutes from './modules/workers/routes.js'
 import authPlugin from './plugins/auth.js'
 import rbacPlugin from './plugins/rbac.js'
@@ -159,6 +160,7 @@ export async function buildApp(deps: AppDeps) {
         { name: 'Users' },
         { name: 'Companies' },
         { name: 'Workers' },
+        { name: 'Streams' },
         { name: 'Recipients' },
         { name: 'Bank accounts' },
         { name: 'Payouts' },
@@ -188,6 +190,7 @@ export async function buildApp(deps: AppDeps) {
       await v1.register(userRoutes)
       await v1.register(companyRoutes)
       await v1.register(workerRoutes)
+      await v1.register(streamRoutes)
       await v1.register(recipientRoutes)
       await v1.register(bankAccountRoutes)
       await v1.register(payoutRoutes)
