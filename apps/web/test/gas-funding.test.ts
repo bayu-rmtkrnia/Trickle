@@ -14,7 +14,10 @@ const drip = (status: GasDrip['status'], txHash: GasDrip['txHash']): GasDrip => 
 
 describe('gas funding before withdrawal', () => {
   it('polls a pending drip and waits for its confirmed receipt', async () => {
-    const request = vi.fn().mockResolvedValueOnce(drip('PENDING', null)).mockResolvedValueOnce(drip('SENT', hash))
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce(drip('PENDING', null))
+      .mockResolvedValueOnce(drip('SENT', hash))
     const receipt = vi.fn().mockResolvedValue('success')
     await confirmGasFunding(request, receipt, { delay: async () => undefined })
     expect(request).toHaveBeenCalledTimes(2)
@@ -24,13 +27,20 @@ describe('gas funding before withdrawal', () => {
   it('does not allow signing while a drip remains pending', async () => {
     const request = vi.fn().mockResolvedValue(drip('PENDING', null))
     const receipt = vi.fn()
-    await expect(confirmGasFunding(request, receipt, { delay: async () => undefined, attempts: 3 })).rejects.toMatchObject({ code: 'GAS_PENDING' })
+    await expect(
+      confirmGasFunding(request, receipt, { delay: async () => undefined, attempts: 3 }),
+    ).rejects.toMatchObject({ code: 'GAS_PENDING' })
     expect(request).toHaveBeenCalledTimes(3)
     expect(receipt).not.toHaveBeenCalled()
   })
 
   it('rejects a reverted gas transfer', async () => {
-    await expect(confirmGasFunding(async () => drip('SENT', hash), async () => 'reverted')).rejects.toMatchObject({ code: 'GAS_FAILED' })
+    await expect(
+      confirmGasFunding(
+        async () => drip('SENT', hash),
+        async () => 'reverted',
+      ),
+    ).rejects.toMatchObject({ code: 'GAS_FAILED' })
   })
 
   it('checks an existing SENT drip without requesting new gas', async () => {

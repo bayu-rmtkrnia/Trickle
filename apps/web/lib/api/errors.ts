@@ -44,9 +44,8 @@ export class ApiError extends Error {
   ) {
     super(message)
     this.name = 'ApiError'
-    const resolved = typeof options === 'number'
-      ? { status: options, code: code ?? undefined, details }
-      : options
+    const resolved =
+      typeof options === 'number' ? { status: options, code: code ?? undefined, details } : options
     this.status = resolved.status ?? null
     this.code = resolved.code ?? null
     this.details = resolved.details

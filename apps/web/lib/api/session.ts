@@ -399,9 +399,9 @@ const legacyListeners = new Set<() => void>()
 
 function readLegacySession(key: string): LegacyStoredSession | null {
   try {
-    const stored = JSON.parse(sessionStorage.getItem(LEGACY_STORAGE_KEY) ?? 'null') as
-      | LegacyStoredSession
-      | null
+    const stored = JSON.parse(
+      sessionStorage.getItem(LEGACY_STORAGE_KEY) ?? 'null',
+    ) as LegacyStoredSession | null
     return stored?.key === key ? stored : null
   } catch {
     return null

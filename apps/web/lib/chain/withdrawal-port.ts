@@ -40,9 +40,8 @@ export function createWithdrawalPort(
       await confirmGasFunding(
         () => requestGas(worker, abortSignal),
         async (hash) =>
-          (
-            await client.waitForTransactionReceipt({ hash, confirmations: 2, timeout: 60000 })
-          ).status,
+          (await client.waitForTransactionReceipt({ hash, confirmations: 2, timeout: 60000 }))
+            .status,
         { signal: abortSignal },
       )
     },

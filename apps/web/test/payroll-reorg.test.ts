@@ -60,7 +60,10 @@ it('recovers orphaned discovery state after a reorg between scan ranges', async 
     split: async () => ({ recipient: token, bps: 0 }),
     balance: async () => BigInt(0),
   }
-  const reader = createPayrollReader(() => port, config, { rangeSize: BigInt(20), overlap: BigInt(12) })
+  const reader = createPayrollReader(() => port, config, {
+    rangeSize: BigInt(20),
+    overlap: BigInt(12),
+  })
   await expect(reader.listWorkerStreamIds(worker)).rejects.toMatchObject({ code: 'CHAIN_CHANGED' })
   logs.mockClear()
   const ids = await reader.listWorkerStreamIds(worker)
