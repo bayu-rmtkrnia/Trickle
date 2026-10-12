@@ -85,7 +85,7 @@ Trickle/
 
 ## API (v1)
 
-Interactive docs: `http://localhost:4000/docs`. All errors use `{ "error": { "code": "...", "message": "...", "details": ... } }`. Schema validation failures return 422 with one `details` entry per invalid field; unreadable bodies (e.g. broken JSON) return 400.
+Interactive docs: `http://localhost:4000/docs`. Frontend integration guide (what changed from the old API and the mocks, per-screen flows, error codes): [`docs/backend/api-changes-fe.md`](docs/backend/api-changes-fe.md). All errors use `{ "error": { "code": "...", "message": "...", "details": ... } }`. Schema validation failures return 422 with one `details` entry per invalid field; unreadable bodies (e.g. broken JSON) return 400.
 
 **Auth** column: – public; ✓ any signed-in account, no role needed; *Employer*, *Worker*, *Recipient* that role; *Owner* only the account that owns that resource; *Signed* an HMAC signature instead of a session. Other roles and other owners get 403, which the integration tests check for every sensitive endpoint. Roles come from data, not a stored field: see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). The database schema is in [`docs/erd.md`](docs/erd.md).
 
