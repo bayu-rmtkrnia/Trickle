@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import type { ComponentProps } from 'react'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'text' | 'danger' | 'on-brand'
+export type ButtonVariant = 'primary' | 'secondary' | 'text' | 'danger' | 'on-brand' | 'inverse'
 
 // DESIGN.md 5.6. `on-brand` sudah putih di light dan near-black di dark,
 // jadi satu kelas cukup untuk dua tema.
@@ -12,6 +12,8 @@ const variants: Record<ButtonVariant, string> = {
   danger: 'bg-danger text-on-brand',
   /** Sekunder di atas kartu `brand-fill` (hero). */
   'on-brand': 'border-[1.5px] border-on-brand text-on-brand',
+  /** Primer di atas kartu `brand-fill` (hero): latar `surface`, teks `brand-text`. */
+  inverse: 'bg-surface text-brand-text',
 }
 
 export function buttonClass(variant: ButtonVariant = 'primary', block = false, className = '') {

@@ -1,0 +1,45 @@
+/*
+ * Layar pilihan sisi. Isinya muncul berurutan begitu splash selesai (atau langsung
+ * kalau splash tidak tampil), dengan gerak yang sama seperti hero. Saat ditutup,
+ * seluruh layar memudar supaya landing di bawahnya terlihat tanpa lompatan.
+ */
+
+.overlay {
+  transition: opacity 300ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.closing {
+  opacity: 0;
+  pointer-events: none;
+}
+
+:global(html:not([data-splash='off']):not([data-splash='done'])) .item {
+  opacity: 0;
+}
+
+:global(html[data-splash='off']) .item,
+:global(html[data-splash='done']) .item {
+  animation: chooser-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--chooser-i, 0) * 80ms + 60ms);
+}
+
+@keyframes chooser-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html) .item {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  .overlay {
+    transition-duration: 150ms;
+  }
+}

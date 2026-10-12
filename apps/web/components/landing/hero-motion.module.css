@@ -1,0 +1,64 @@
+/*
+ * Animasi masuk hero, CSS murni supaya jalan sejak tampilan pertama (tanpa
+ * menunggu JavaScript) dan tidak berkedip:
+ * - Saat splash cold start masih tampil, hero disembunyikan di baliknya.
+ * - Begitu splash selesai (`data-splash="done"`) atau tidak tampil (`"off"`),
+ *   tiap elemen naik + memudar berurutan; urutannya dari `--hero-i`.
+ * - Kartu gaji masuk terakhir dengan sedikit membesar.
+ * - `prefers-reduced-motion`: langsung tampil tanpa gerak.
+ */
+
+:global(html:not([data-splash='off']):not([data-splash='done'])) .item {
+  opacity: 0;
+}
+
+:global(html[data-splash='off']) .item,
+:global(html[data-splash='done']) .item {
+  animation: hero-in 800ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--hero-i, 0) * 90ms + 60ms);
+}
+
+:global(html[data-splash='off']) .card,
+:global(html[data-splash='done']) .card {
+  animation-name: hero-card-in;
+  animation-duration: 900ms;
+}
+
+/*
+ * Selama layar pilihan sisi terbuka (data-chooser="open" di <html>), hero ditahan.
+ * Begitu ditutup, animasi diputar dari awal. Layar pilihan punya animasi sendiri
+ * (role-chooser.module.css).
+ */
+:global(html[data-chooser='open']) .item {
+  opacity: 0;
+  animation: none;
+}
+
+@keyframes hero-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes hero-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(html) .item {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
