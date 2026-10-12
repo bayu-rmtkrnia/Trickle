@@ -83,7 +83,7 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
 
   let response: Response
   try {
-    response = await fetcher(url, {
+    response = await fetcher(url.toString(), {
       ...requestInit,
       body: body === undefined ? undefined : JSON.stringify(body),
       headers,
