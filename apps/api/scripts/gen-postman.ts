@@ -464,13 +464,13 @@ const collection = {
     {
       name: '7. Gas',
       item: [
-        req('Gas status', 'GET', '/api/v1/gas/status', { tests: [status(200)] }),
-        req('Gas drip', 'POST', '/api/v1/gas/drip', {
+        req('Gas status', 'GET', '/api/v1/gas-drips/status', { tests: [status(200)] }),
+        req('Gas drip', 'POST', '/api/v1/gas-drips', {
           auth: bearer('familyToken'),
           description:
-            '201 on the first call, 200 with alreadyDripped=true afterwards. 503 DRIP_UNAVAILABLE if no treasury key is configured.',
+            '201 on the first call, 200 with alreadyDripped=true afterwards. 503 DRIP_UNAVAILABLE (no treasury key) or DRIP_TREASURY_EMPTY, 429 DRIP_IP_LIMIT / DRIP_DAILY_LIMIT. Old path POST /gas/drip still works (deprecated).',
         }),
-        req('Gas drip - again (idempotent)', 'POST', '/api/v1/gas/drip', {
+        req('Gas drip - again (idempotent)', 'POST', '/api/v1/gas-drips', {
           auth: bearer('familyToken'),
         }),
       ],
@@ -491,7 +491,17 @@ const collection = {
     },
     {
       name: '8. FX',
-      item: [req('USD to IDR', 'GET', '/api/v1/fx/usd-idr', { tests: [status(200)] })],
+      item: [
+        req('USD to IDR', 'GET', '/api/v1/fx-rates/usd-idr', {
+          auth: bearer('familyToken'),
+          description:
+            'Any signed-in account. The old public path GET /fx/usd-idr still works (deprecated).',
+          tests: [status(200)],
+        }),
+        req('USD to IDR - signed out (401)', 'GET', '/api/v1/fx-rates/usd-idr', {
+          tests: [status(401), errCode('UNAUTHORIZED')],
+        }),
+      ],
     },
     {
       name: '9. Sign out',
