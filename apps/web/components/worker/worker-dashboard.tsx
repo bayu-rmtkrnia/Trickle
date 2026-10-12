@@ -6,12 +6,14 @@ import { InlineError } from '@/components/ui/inline-error'
 import { PersonCard } from '@/components/ui/person-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/ui/status-badge'
+import { useWorkerStreams } from '@/hooks/use-worker-streams'
 import { useAccount } from '@/lib/account'
 import { workerDashboardCopy as t, workerDashboardError } from '@/lib/copy/worker-dashboard'
 import { formatDateShort, formatUsd } from '@/lib/format'
 import { useSession, type SessionContextValue } from '@/providers/session-provider'
 import { SalaryCard } from './salary-card'
 import { WorkerShell } from './worker-shell'
+import { WorkerFamilySection } from './worker-family-section'
 import { useWorkerEmployments } from './use-worker-employments'
 
 export function WorkerDashboard() {
@@ -126,10 +128,12 @@ function DashboardSkeleton() {
 function EmploymentDashboard({ session }: { session: SessionContextValue }) {
   const { page, loading, loadingMore, error, pageError, retryUntil, reload, loadMore } =
     useWorkerEmployments(session)
+  const wallet = session.user?.address ?? null
+  const streams = useWorkerStreams(wallet)
   return (
     <WorkerShell name={session.user?.displayName ?? t.fallbackName}>
       <div className="flex flex-col gap-8">
-        <SalaryCard walletAddress={session.user?.address ?? null} employments={page?.data ?? []} />
+        <SalaryCard walletAddress={wallet} employments={page?.data ?? []} streams={streams} />
         <div className="grid min-w-0 gap-8 md:grid-cols-2">
           <section aria-labelledby="worker-employer-heading" className="flex flex-col gap-4">
             <div>
@@ -201,15 +205,7 @@ function EmploymentDashboard({ session }: { session: SessionContextValue }) {
               </>
             )}
           </section>
-          <section aria-labelledby="worker-family-heading" className="flex flex-col gap-3">
-            <h2 id="worker-family-heading" className="text-section font-bold">
-              {t.familyTitle}
-            </h2>
-            <div className="rounded-xl border border-dashed border-muted p-5">
-              <p className="font-semibold">{t.familyUnavailable}</p>
-              <p className="mt-2 text-label text-muted">{t.familyBody}</p>
-            </div>
-          </section>
+          <WorkerFamilySection session={session} walletAddress={wallet} streams={streams} />
         </div>
       </div>
     </WorkerShell>

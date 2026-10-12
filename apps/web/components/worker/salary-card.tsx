@@ -13,7 +13,7 @@ import { payrollConfig } from '@/lib/chain/config'
 import { previewSplit } from '@/lib/chain/split'
 import { availableAt, streamStatus } from '@/lib/chain/stream-math'
 import { formatToken } from '@/lib/chain/format-token'
-import { useWorkerStreams } from '@/hooks/use-worker-streams'
+import { useWorkerStreams, type WorkerStreamState } from '@/hooks/use-worker-streams'
 import type { EmploymentDto } from '@/lib/api/worker'
 import { useWithdrawal } from '@/hooks/use-withdrawal'
 import { WithdrawSheet } from './withdraw-sheet'
@@ -22,11 +22,15 @@ import { withdrawCopy as w } from '@/lib/copy/withdraw'
 export function SalaryCard({
   walletAddress = null,
   employments = [],
+  streams,
 }: {
   walletAddress?: string | null
   employments?: EmploymentDto[]
+  /** Shared snapshot from the dashboard; without it the card reads its own. */
+  streams?: WorkerStreamState
 }) {
-  const { phase, snapshot, timestamp, refresh, refreshing, error } = useWorkerStreams(walletAddress)
+  const own = useWorkerStreams(streams ? null : walletAddress)
+  const { phase, snapshot, timestamp, refresh, refreshing, error } = streams ?? own
   const [sheetOpen, setSheetOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [payrollOpen, setPayrollOpen] = useState(false)
