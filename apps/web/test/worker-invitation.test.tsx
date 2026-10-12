@@ -54,6 +54,7 @@ beforeEach(() => {
     login: vi.fn(),
     logout: vi.fn(async () => {}),
     getAccessToken: vi.fn(async () => 'privy'),
+    sendTransaction: vi.fn(async () => ({ hash: `0x${'a'.repeat(64)}` as `0x${string}` })),
   }
   dependencies.session = {
     status: 'ready',

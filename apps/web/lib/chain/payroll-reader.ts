@@ -188,55 +188,73 @@ export function createPayrollReader(
     abort(signal)
     if (current.hash !== head.hash) throw new ChainReadError('CHAIN_CHANGED')
   }
+  async function withSafeCache<T>(worker: Address, read: () => Promise<T>): Promise<T> {
+    try {
+      return await read()
+    } catch (error) {
+      // A confirmed fork or inconsistent snapshot invalidates all cached
+      // ranges. Transient RPC and bounded-scan failures remain resumable.
+      if (
+        error instanceof ChainReadError &&
+        ['CHAIN_CHANGED', 'STREAM_OWNERSHIP', 'SNAPSHOT_MISMATCH'].includes(error.code)
+      )
+        caches.delete(key(worker))
+      throw error
+    }
+  }
   return {
     async listWorkerStreamIds(worker: Address, signal?: AbortSignal) {
-      const { port, head, ids } = await start(worker, signal)
-      await stable(port, head, signal)
-      return ids
+      return withSafeCache(worker, async () => {
+        const { port, head, ids } = await start(worker, signal)
+        await stable(port, head, signal)
+        return ids
+      })
     },
     async readWorkerSnapshot(worker: Address, signal?: AbortSignal): Promise<WorkerSnapshot> {
-      const { port, head, symbol, ids } = await start(worker, signal)
-      const streams: StreamSnapshot[] = []
-      // Limit simultaneous calls independently of the number of discovered streams.
-      for (let offset = 0; offset < ids.length; offset += 4) {
+      return withSafeCache(worker, async () => {
+        const { port, head, symbol, ids } = await start(worker, signal)
+        const streams: StreamSnapshot[] = []
+        // Limit simultaneous calls independently of the number of discovered streams.
+        for (let offset = 0; offset < ids.length; offset += 4) {
+          abort(signal)
+          const batch = await Promise.all(
+            ids.slice(offset, offset + 4).map(async (id) => {
+              const [stream, available] = await Promise.all([
+                port.stream(id, head.number),
+                port.withdrawable(id, head.number),
+              ])
+              abort(signal)
+              if (!matches(stream.worker, worker)) throw new ChainReadError('STREAM_OWNERSHIP')
+              if (availableAt(stream, head.timestamp) !== available)
+                throw new ChainReadError('SNAPSHOT_MISMATCH')
+              return stream
+            }),
+          )
+          streams.push(...batch)
+        }
+        const [split, walletBalance] = await Promise.all([
+          port.split(worker, head.number),
+          port.balance(worker, head.number),
+        ])
         abort(signal)
-        const batch = await Promise.all(
-          ids.slice(offset, offset + 4).map(async (id) => {
-            const [stream, available] = await Promise.all([
-              port.stream(id, head.number),
-              port.withdrawable(id, head.number),
-            ])
-            abort(signal)
-            if (!matches(stream.worker, worker)) throw new ChainReadError('STREAM_OWNERSHIP')
-            if (availableAt(stream, head.timestamp) !== available)
-              throw new ChainReadError('SNAPSHOT_MISMATCH')
-            return stream
-          }),
+        if (
+          !Number.isInteger(split.bps) ||
+          split.bps < 0 ||
+          split.bps > 10000 ||
+          walletBalance < BigInt(0)
         )
-        streams.push(...batch)
-      }
-      const [split, walletBalance] = await Promise.all([
-        port.split(worker, head.number),
-        port.balance(worker, head.number),
-      ])
-      abort(signal)
-      if (
-        !Number.isInteger(split.bps) ||
-        split.bps < 0 ||
-        split.bps > 10000 ||
-        walletBalance < BigInt(0)
-      )
-        throw new ChainReadError('SNAPSHOT_MISMATCH')
-      await stable(port, head, signal)
-      return {
-        streams,
-        split,
-        walletBalance,
-        blockNumber: head.number,
-        blockTimestamp: head.timestamp,
-        blockHash: head.hash,
-        tokenSymbol: symbol,
-      }
+          throw new ChainReadError('SNAPSHOT_MISMATCH')
+        await stable(port, head, signal)
+        return {
+          streams,
+          split,
+          walletBalance,
+          blockNumber: head.number,
+          blockTimestamp: head.timestamp,
+          blockHash: head.hash,
+          tokenSymbol: symbol,
+        }
+      })
     },
     clear(worker: Address) {
       caches.delete(key(worker))

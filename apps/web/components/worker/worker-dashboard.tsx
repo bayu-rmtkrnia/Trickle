@@ -70,6 +70,31 @@ export function WorkerDashboard() {
       </WorkerShell>
     )
   if (
+    session.status === 'ready' &&
+    session.user &&
+    account.user &&
+    (!account.walletAddress ||
+      session.user.address.toLowerCase() !== account.walletAddress.toLowerCase())
+  )
+    return (
+      <WorkerShell>
+        <InlineError title={t.walletMismatch} message={t.walletMismatchBody} />
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Button onClick={recover} loading={recovering} loadingLabel={t.recovering}>
+            {t.recover}
+          </Button>
+          <Button
+            variant="secondary"
+            onClick={() => {
+              void session.logout().catch(() => undefined)
+            }}
+          >
+            {t.logout}
+          </Button>
+        </div>
+      </WorkerShell>
+    )
+  if (
     session.status !== 'ready' ||
     !session.user ||
     !account.user ||
@@ -103,14 +128,9 @@ function EmploymentDashboard({ session }: { session: SessionContextValue }) {
     useWorkerEmployments(session)
   return (
     <WorkerShell name={session.user?.displayName ?? t.fallbackName}>
-      <div className="flex flex-col gap-6 md:flex-row md:items-start md:gap-8">
-        <div className="min-w-0 md:sticky md:top-6 md:w-2/5">
-          <SalaryCard
-            walletAddress={session.user?.address ?? null}
-            employments={page?.data ?? []}
-          />
-        </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-8">
+      <div className="flex flex-col gap-8">
+        <SalaryCard walletAddress={session.user?.address ?? null} employments={page?.data ?? []} />
+        <div className="grid min-w-0 gap-8 md:grid-cols-2">
           <section aria-labelledby="worker-employer-heading" className="flex flex-col gap-4">
             <div>
               <h2 id="worker-employer-heading" className="text-section font-bold">

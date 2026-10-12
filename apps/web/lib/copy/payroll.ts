@@ -6,6 +6,11 @@ export const payrollCopy = {
   unavailable: 'Saldo belum tersedia',
   demo: 'Aset demo',
   demoHint: 'Token testnet untuk pengujian, tanpa nilai uang nyata.',
+  details: 'Info detail',
+  detailsTitle: 'Rincian dana',
+  viewPayroll: 'Lihat payroll',
+  payrollCount: (count: number) => `${count} payroll`,
+  payrollPending: 'Belum dimuat',
   estimate: 'Estimasi dari block terakhir',
   stale: 'Data payroll tertunda',
   staleHint:

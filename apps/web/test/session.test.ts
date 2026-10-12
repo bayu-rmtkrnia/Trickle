@@ -356,6 +356,17 @@ describe('SessionCoordinator', () => {
     expect(coordinator.getSnapshot().status).toBe('ready')
   })
 
+  it('invalidates the old token and exchanges again when the same Privy user changes wallet', async () => {
+    const create = vi.fn(async () => sessionOne)
+    const coordinator = new SessionCoordinator(api({ createSession: create }))
+    await coordinator.updateAccount(account())
+    await coordinator.updateAccount({
+      ...account(),
+      walletAddress: '0x2222222222222222222222222222222222222222',
+    })
+    expect(create).toHaveBeenCalledTimes(2)
+  })
+
   it('does not recreate a session from stale authenticated updates during logout', async () => {
     const revoke = deferred<void>()
     const create = vi.fn(async () => sessionOne)

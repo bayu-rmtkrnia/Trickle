@@ -40,6 +40,7 @@ beforeEach(() => {
     login: vi.fn(),
     logout: vi.fn(async () => {}),
     getAccessToken: vi.fn(async () => 'privy'),
+    sendTransaction: vi.fn(async () => ({ hash: `0x${'a'.repeat(64)}` as `0x${string}` })),
   }
   deps.session = {
     status: 'ready',
@@ -203,7 +204,11 @@ describe('worker dashboard', () => {
   it('does not fetch metadata for a stale profile belonging to another wallet', () => {
     deps.account = { ...deps.account, walletAddress: '0x9999' }
     render(<WorkerDashboard />)
-    expect(screen.getByRole('status')).toBeTruthy()
+    expect(screen.getByText('Wallet tidak sesuai dengan sesi')).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Perbarui sesi' }))
+    expect(deps.session.refreshMe).toHaveBeenCalledOnce()
+    fireEvent.click(screen.getByRole('button', { name: 'Keluar' }))
+    expect(deps.session.logout).toHaveBeenCalledOnce()
     expect(deps.list).not.toHaveBeenCalled()
   })
   it('aborts the in-flight request when the dashboard unmounts', async () => {

@@ -14,6 +14,10 @@ export const workerDashboardCopy = {
   sessionErrorBody: 'Perbarui sesi untuk memuat pekerjaan kamu kembali.',
   recover: 'Perbarui sesi',
   recovering: 'Memperbarui sesi...',
+  walletMismatch: 'Wallet tidak sesuai dengan sesi',
+  walletMismatchBody:
+    'Alamat wallet aktif berbeda dari profil akun. Perbarui sesi atau keluar lalu masuk kembali dengan wallet yang sesuai.',
+  logout: 'Keluar',
   loginError: 'Belum dapat membuka login',
   loginErrorBody: 'Silakan coba masuk kembali.',
   retry: 'Coba lagi',

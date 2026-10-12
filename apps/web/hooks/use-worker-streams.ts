@@ -29,7 +29,8 @@ export function useWorkerStreams(address: string | null): WorkerStreamState {
   useEffect(() => {
     if (!wallet) return
     let active = true,
-      pending = false
+      pending = false,
+      rerun = false
     let controller: AbortController | null = null
     async function refresh() {
       if (!active || pending || document.visibilityState === 'hidden') return
@@ -44,11 +45,22 @@ export function useWorkerStreams(address: string | null): WorkerStreamState {
       )
       try {
         const snapshot = await payrollReader.readWorkerSnapshot(wallet!, signal)
-        if (!active || signal.aborted) return
+        if (!active || signal.aborted || rerun) return
         setClock(performance.now())
-        setRecord({ wallet: wallet!, snapshot, observedAt, error: null, refreshing: false })
+        setRecord((previous) => ({
+          wallet: wallet!,
+          snapshot,
+          observedAt:
+            previous?.wallet === wallet &&
+            previous.snapshot?.blockNumber === snapshot.blockNumber &&
+            previous.snapshot?.blockHash === snapshot.blockHash
+              ? previous.observedAt
+              : observedAt,
+          error: null,
+          refreshing: false,
+        }))
       } catch (error) {
-        if (!active || signal.aborted) return
+        if (!active || signal.aborted || rerun) return
         setRecord((previous) => ({
           wallet: wallet!,
           snapshot: previous?.wallet === wallet ? previous.snapshot : null,
@@ -58,6 +70,10 @@ export function useWorkerStreams(address: string | null): WorkerStreamState {
         }))
       } finally {
         pending = false
+        if (active && rerun && document.visibilityState === 'visible') {
+          rerun = false
+          void refresh()
+        }
       }
     }
     const visible = () => {
@@ -67,7 +83,8 @@ export function useWorkerStreams(address: string | null): WorkerStreamState {
       }
     }
     retry.current = () => {
-      void refresh()
+      if (pending) rerun = true
+      else void refresh()
     }
     queueMicrotask(() => {
       if (active) void refresh()

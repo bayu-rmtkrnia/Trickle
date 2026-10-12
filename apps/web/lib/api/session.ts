@@ -115,7 +115,12 @@ export class SessionCoordinator {
     }
     if (this.loggingOut || (account.userId && account.userId === this.blockedIdentity)) return
     const usable = account.configured && account.ready && account.authenticated && account.userId
-    if (previousIdentity !== account.userId || !usable) this.clearSession()
+    if (
+      previousIdentity !== account.userId ||
+      !usable ||
+      previousWallet?.toLowerCase() !== account.walletAddress?.toLowerCase()
+    )
+      this.clearSession()
     this.account = account
 
     if (!account.configured) {
