@@ -3,7 +3,7 @@
   "info": {
     "title": "Trickle API",
     "version": "1.1.0",
-    "description": "Metadata API for Trickle: sessions, users, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\nSign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
+    "description": "Metadata API for Trickle: sessions, users, companies, workers, recipients, bank accounts, payouts, invites, gas sponsorship, judge mode and FX. Money lives on-chain; this API never stores balances.\n\nSign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
   },
   "components": {
     "securitySchemes": {
@@ -34,7 +34,56 @@
         },
         "required": ["error"]
       },
-      "EmployerInput": {
+      "BankAccountInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "bankCode": {
+            "type": "string",
+            "enum": [
+              "BCA",
+              "BNI",
+              "BRI",
+              "MANDIRI",
+              "BSI",
+              "CIMB",
+              "PERMATA",
+              "DANAMON",
+              "BTN",
+              "OCBC"
+            ]
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "label": {
+            "nullable": true,
+            "type": "string"
+          },
+          "accountNumberLast4": {
+            "type": "string",
+            "description": "The full number never leaves the server"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "bankCode",
+          "accountName",
+          "label",
+          "accountNumberLast4",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CompanyInput": {
         "type": "object",
         "properties": {
           "id": {
@@ -55,6 +104,66 @@
           }
         },
         "required": ["id", "name", "country", "ownerAddress", "createdAt"]
+      },
+      "DemoStreamInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workerAddress": {
+            "type": "string",
+            "description": "The signed-in account; the stream pays this address"
+          },
+          "amountUsd": {
+            "type": "string",
+            "description": "Total streamed over the whole duration, in mock AUSD"
+          },
+          "durationSeconds": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "SENT", "FAILED"]
+          },
+          "streamId": {
+            "nullable": true,
+            "description": "On-chain stream id (decimal). Read the balance and withdraw on the contract",
+            "type": "string"
+          },
+          "txHash": {
+            "nullable": true,
+            "type": "string"
+          },
+          "startsAt": {
+            "nullable": true,
+            "type": "string"
+          },
+          "endsAt": {
+            "nullable": true,
+            "type": "string"
+          },
+          "alreadyStarted": {
+            "type": "boolean",
+            "description": "true when an earlier call already created it"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workerAddress",
+          "amountUsd",
+          "durationSeconds",
+          "status",
+          "streamId",
+          "txHash",
+          "startsAt",
+          "endsAt",
+          "alreadyStarted",
+          "createdAt"
+        ]
       },
       "FxQuoteInput": {
         "type": "object",
@@ -119,12 +228,16 @@
       "InviteInput": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "description": "Used by `DELETE /invites/:id`"
+          },
           "code": {
             "type": "string"
           },
           "type": {
             "type": "string",
-            "enum": ["WORKER", "FAMILY"]
+            "enum": ["WORKER", "RECIPIENT"]
           },
           "status": {
             "type": "string",
@@ -146,7 +259,7 @@
             "properties": {
               "name": {
                 "nullable": true,
-                "description": "Company name for WORKER, worker name for FAMILY",
+                "description": "Company name for WORKER, worker name for RECIPIENT",
                 "type": "string"
               },
               "address": {
@@ -171,6 +284,7 @@
           }
         },
         "required": [
+          "id",
           "code",
           "type",
           "status",
@@ -182,6 +296,96 @@
           "expiresAt",
           "acceptedAt",
           "createdAt"
+        ]
+      },
+      "PayoutInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"]
+          },
+          "amountUsd": {
+            "type": "string",
+            "description": "What the transfer moved, in mock AUSD"
+          },
+          "amountIdr": {
+            "nullable": true,
+            "description": "What the bank receives",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fxRate": {
+            "nullable": true,
+            "description": "IDR per USD used for `amountIdr`",
+            "type": "number"
+          },
+          "fxSource": {
+            "nullable": true,
+            "description": "`live`, `cache` or `fallback` (see `/fx-rates`)",
+            "type": "string"
+          },
+          "sourceTxHash": {
+            "type": "string"
+          },
+          "bankAccount": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "bankCode": {
+                "type": "string"
+              },
+              "accountNumberLast4": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "bankCode", "accountNumberLast4"]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "providerRef": {
+            "nullable": true,
+            "description": "The provider's reference; webhooks identify the payout by it",
+            "type": "string"
+          },
+          "testMode": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "The bank transfer is a sandbox; label it \"Mode uji\" (PLAN §3.2)"
+          },
+          "failureReason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "amountUsd",
+          "amountIdr",
+          "fxRate",
+          "fxSource",
+          "sourceTxHash",
+          "bankAccount",
+          "provider",
+          "providerRef",
+          "testMode",
+          "failureReason",
+          "createdAt",
+          "updatedAt"
         ]
       },
       "UserInput": {
@@ -219,6 +423,11 @@
           "createdAt": {
             "type": "string"
           },
+          "companyId": {
+            "nullable": true,
+            "description": "My active company, for `/api/v1/companies/{id}`. `null` if I am not an employer",
+            "type": "string"
+          },
           "roles": {
             "type": "object",
             "properties": {
@@ -228,14 +437,85 @@
               "worker": {
                 "type": "boolean"
               },
-              "family": {
-                "type": "boolean"
+              "recipient": {
+                "type": "boolean",
+                "description": "Receives part of a worker's salary (family)"
               }
             },
-            "required": ["employer", "worker", "family"]
+            "required": ["employer", "worker", "recipient"]
           }
         },
-        "required": ["id", "address", "displayName", "createdAt", "roles"]
+        "required": ["id", "address", "displayName", "createdAt", "companyId", "roles"]
+      },
+      "RecipientInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string",
+            "description": "User id of the worker who owns this entry"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "description": "Pass this address as `recipient` to `setSplit`"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "relation": {
+            "nullable": true,
+            "type": "string"
+          },
+          "addedAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "ownerId", "userId", "address", "displayName", "relation", "addedAt"]
+      },
+      "WorkerInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "position": {
+            "nullable": true,
+            "type": "string"
+          },
+          "monthlySalaryUsd": {
+            "type": "number"
+          },
+          "joinedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "companyId",
+          "userId",
+          "address",
+          "displayName",
+          "position",
+          "monthlySalaryUsd",
+          "joinedAt"
+        ]
       },
       "Error": {
         "type": "object",
@@ -260,7 +540,57 @@
         "required": ["error"],
         "additionalProperties": false
       },
-      "Employer": {
+      "BankAccount": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "bankCode": {
+            "type": "string",
+            "enum": [
+              "BCA",
+              "BNI",
+              "BRI",
+              "MANDIRI",
+              "BSI",
+              "CIMB",
+              "PERMATA",
+              "DANAMON",
+              "BTN",
+              "OCBC"
+            ]
+          },
+          "accountName": {
+            "type": "string"
+          },
+          "label": {
+            "nullable": true,
+            "type": "string"
+          },
+          "accountNumberLast4": {
+            "type": "string",
+            "description": "The full number never leaves the server"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "bankCode",
+          "accountName",
+          "label",
+          "accountNumberLast4",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false
+      },
+      "Company": {
         "type": "object",
         "properties": {
           "id": {
@@ -281,6 +611,67 @@
           }
         },
         "required": ["id", "name", "country", "ownerAddress", "createdAt"],
+        "additionalProperties": false
+      },
+      "DemoStream": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "workerAddress": {
+            "type": "string",
+            "description": "The signed-in account; the stream pays this address"
+          },
+          "amountUsd": {
+            "type": "string",
+            "description": "Total streamed over the whole duration, in mock AUSD"
+          },
+          "durationSeconds": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "SENT", "FAILED"]
+          },
+          "streamId": {
+            "nullable": true,
+            "description": "On-chain stream id (decimal). Read the balance and withdraw on the contract",
+            "type": "string"
+          },
+          "txHash": {
+            "nullable": true,
+            "type": "string"
+          },
+          "startsAt": {
+            "nullable": true,
+            "type": "string"
+          },
+          "endsAt": {
+            "nullable": true,
+            "type": "string"
+          },
+          "alreadyStarted": {
+            "type": "boolean",
+            "description": "true when an earlier call already created it"
+          },
+          "createdAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "workerAddress",
+          "amountUsd",
+          "durationSeconds",
+          "status",
+          "streamId",
+          "txHash",
+          "startsAt",
+          "endsAt",
+          "alreadyStarted",
+          "createdAt"
+        ],
         "additionalProperties": false
       },
       "FxQuote": {
@@ -348,12 +739,16 @@
       "Invite": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "description": "Used by `DELETE /invites/:id`"
+          },
           "code": {
             "type": "string"
           },
           "type": {
             "type": "string",
-            "enum": ["WORKER", "FAMILY"]
+            "enum": ["WORKER", "RECIPIENT"]
           },
           "status": {
             "type": "string",
@@ -375,7 +770,7 @@
             "properties": {
               "name": {
                 "nullable": true,
-                "description": "Company name for WORKER, worker name for FAMILY",
+                "description": "Company name for WORKER, worker name for RECIPIENT",
                 "type": "string"
               },
               "address": {
@@ -401,6 +796,7 @@
           }
         },
         "required": [
+          "id",
           "code",
           "type",
           "status",
@@ -412,6 +808,98 @@
           "expiresAt",
           "acceptedAt",
           "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "Payout": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"]
+          },
+          "amountUsd": {
+            "type": "string",
+            "description": "What the transfer moved, in mock AUSD"
+          },
+          "amountIdr": {
+            "nullable": true,
+            "description": "What the bank receives",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fxRate": {
+            "nullable": true,
+            "description": "IDR per USD used for `amountIdr`",
+            "type": "number"
+          },
+          "fxSource": {
+            "nullable": true,
+            "description": "`live`, `cache` or `fallback` (see `/fx-rates`)",
+            "type": "string"
+          },
+          "sourceTxHash": {
+            "type": "string"
+          },
+          "bankAccount": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "bankCode": {
+                "type": "string"
+              },
+              "accountNumberLast4": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "bankCode", "accountNumberLast4"],
+            "additionalProperties": false
+          },
+          "provider": {
+            "type": "string"
+          },
+          "providerRef": {
+            "nullable": true,
+            "description": "The provider's reference; webhooks identify the payout by it",
+            "type": "string"
+          },
+          "testMode": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "The bank transfer is a sandbox; label it \"Mode uji\" (PLAN §3.2)"
+          },
+          "failureReason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "amountUsd",
+          "amountIdr",
+          "fxRate",
+          "fxSource",
+          "sourceTxHash",
+          "bankAccount",
+          "provider",
+          "providerRef",
+          "testMode",
+          "failureReason",
+          "createdAt",
+          "updatedAt"
         ],
         "additionalProperties": false
       },
@@ -451,6 +939,11 @@
           "createdAt": {
             "type": "string"
           },
+          "companyId": {
+            "nullable": true,
+            "description": "My active company, for `/api/v1/companies/{id}`. `null` if I am not an employer",
+            "type": "string"
+          },
           "roles": {
             "type": "object",
             "properties": {
@@ -460,15 +953,88 @@
               "worker": {
                 "type": "boolean"
               },
-              "family": {
-                "type": "boolean"
+              "recipient": {
+                "type": "boolean",
+                "description": "Receives part of a worker's salary (family)"
               }
             },
-            "required": ["employer", "worker", "family"],
+            "required": ["employer", "worker", "recipient"],
             "additionalProperties": false
           }
         },
-        "required": ["id", "address", "displayName", "createdAt", "roles"],
+        "required": ["id", "address", "displayName", "createdAt", "companyId", "roles"],
+        "additionalProperties": false
+      },
+      "Recipient": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "ownerId": {
+            "type": "string",
+            "description": "User id of the worker who owns this entry"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "description": "Pass this address as `recipient` to `setSplit`"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "relation": {
+            "nullable": true,
+            "type": "string"
+          },
+          "addedAt": {
+            "type": "string"
+          }
+        },
+        "required": ["id", "ownerId", "userId", "address", "displayName", "relation", "addedAt"],
+        "additionalProperties": false
+      },
+      "Worker": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "companyId": {
+            "type": "string"
+          },
+          "userId": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "position": {
+            "nullable": true,
+            "type": "string"
+          },
+          "monthlySalaryUsd": {
+            "type": "number"
+          },
+          "joinedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "companyId",
+          "userId",
+          "address",
+          "displayName",
+          "position",
+          "monthlySalaryUsd",
+          "joinedAt"
+        ],
         "additionalProperties": false
       }
     }
@@ -738,7 +1304,7 @@
                 "properties": {
                   "displayName": {
                     "nullable": true,
-                    "description": "Name shown to employers and family. `null` clears it",
+                    "description": "Name shown to employers and recipients. `null` clears it",
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 80
@@ -798,10 +1364,11 @@
         }
       }
     },
-    "/api/v1/employers": {
+    "/api/v1/companies": {
       "post": {
-        "summary": "Create the company profile for the signed-in user",
-        "tags": ["Employers"],
+        "summary": "Create a company (makes the caller an employer)",
+        "tags": ["Companies"],
+        "description": "One active company per account. The new id is also returned as `companyId` by `GET /api/v1/users/me`.",
         "requestBody": {
           "required": true,
           "content": {
@@ -837,7 +1404,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Employer"
+                  "$ref": "#/components/schemas/Company"
                 }
               }
             }
@@ -885,10 +1452,22 @@
         }
       }
     },
-    "/api/v1/employers/me": {
+    "/api/v1/companies/{id}": {
       "get": {
-        "summary": "The signed-in user's company profile",
-        "tags": ["Employers"],
+        "summary": "Get a company I own",
+        "tags": ["Companies"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -900,12 +1479,22 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Employer"
+                  "$ref": "#/components/schemas/Company"
                 }
               }
             }
           },
           "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -924,12 +1513,22 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "patch": {
-        "summary": "Update the company profile",
-        "tags": ["Employers"],
+        "summary": "Update a company I own",
+        "tags": ["Companies"],
         "requestBody": {
           "required": true,
           "content": {
@@ -953,6 +1552,18 @@
             }
           }
         },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
         "security": [
           {
             "bearerAuth": []
@@ -964,7 +1575,1968 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Employer"
+                  "$ref": "#/components/schemas/Company"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Delete a company I own (soft delete)",
+        "tags": ["Companies"],
+        "description": "Refused with 409 `COMPANY_HAS_WORKERS` while workers are still linked. Pending invites are revoked. The row is kept for history, but the company disappears from the API and the caller can create a new one.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [null],
+                  "description": "Deleted"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/companies/{id}/workers": {
+      "post": {
+        "summary": "Add a worker to my company by wallet address",
+        "tags": ["Workers"],
+        "description": "Alternative to a worker invite when the employer already knows the address. Re-adding a removed worker restores them. 409 `WORKER_EXISTS` if they already work here.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "position": {
+                    "description": "Job title",
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "monthlySalaryUsd": {
+                    "type": "number",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 1000000,
+                    "description": "Reference monthly salary in USD, shown in the UI. Pay itself is the on-chain stream"
+                  },
+                  "address": {
+                    "description": "The worker's Trickle (Privy embedded) wallet address",
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  }
+                },
+                "required": ["displayName", "monthlySalaryUsd", "address"]
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Worker"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "My company's workers",
+        "tags": ["Workers"],
+        "description": "Metadata only. Stream balances come from the contract/indexer, never from this API.",
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Worker"
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "nextCursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/workers/{id}": {
+      "get": {
+        "summary": "Get a worker (their employer, or the worker themself)",
+        "tags": ["Workers"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Worker"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update a worker of my company",
+        "tags": ["Workers"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "position": {
+                    "description": "Job title",
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "monthlySalaryUsd": {
+                    "type": "number",
+                    "minimum": 0,
+                    "exclusiveMinimum": true,
+                    "maximum": 1000000,
+                    "description": "Reference monthly salary in USD, shown in the UI. Pay itself is the on-chain stream"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Worker"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove a worker from my company (soft delete)",
+        "tags": ["Workers"],
+        "description": "Refused with 409 `STREAM_ACTIVE` while the employer still streams salary to this worker on-chain. Cancel the stream first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [null],
+                  "description": "Removed"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recipients": {
+      "post": {
+        "summary": "Add a family recipient by wallet address (worker)",
+        "tags": ["Recipients"],
+        "description": "Alternative to a RECIPIENT invite when the worker already knows the address. Re-adding a removed recipient restores them. 409 `RECIPIENT_EXISTS` if already added.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "relation": {
+                    "description": "e.g. \"Ibu\", \"Istri\"",
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "address": {
+                    "description": "The recipient's Trickle (Privy embedded) wallet address",
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{40}$"
+                  }
+                },
+                "required": ["displayName", "address"]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recipient"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "My recipients (worker)",
+        "tags": ["Recipients"],
+        "description": "Metadata only. The split percentage lives on-chain (`splitOf`).",
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Recipient"
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "nextCursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/recipients/{id}": {
+      "get": {
+        "summary": "Get a recipient (their worker, or the recipient themself)",
+        "tags": ["Recipients"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recipient"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Update one of my recipients",
+        "tags": ["Recipients"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 80
+                  },
+                  "relation": {
+                    "description": "e.g. \"Ibu\", \"Istri\"",
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Recipient"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove one of my recipients (soft delete)",
+        "tags": ["Recipients"],
+        "description": "Refused with 409 `SPLIT_ACTIVE` while the worker's on-chain split still sends to this recipient. Call `setSplit(0x0, 0)` or point the split elsewhere first.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [null],
+                  "description": "Removed"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bank-accounts": {
+      "post": {
+        "summary": "Add a bank account to cash out to (recipient)",
+        "tags": ["Bank accounts"],
+        "description": "The number is encrypted before it is stored; responses only show the last 4 digits. Re-adding a removed account restores it. 409 `BANK_ACCOUNT_EXISTS` if already added, `BANK_ACCOUNT_LIMIT` past 5 accounts. 503 `BANK_ACCOUNTS_UNAVAILABLE` if encryption is not configured.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accountName": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 100,
+                    "description": "Name on the account"
+                  },
+                  "label": {
+                    "description": "Optional nickname, e.g. \"Rekening utama\"",
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  },
+                  "bankCode": {
+                    "type": "string",
+                    "enum": [
+                      "BCA",
+                      "BNI",
+                      "BRI",
+                      "MANDIRI",
+                      "BSI",
+                      "CIMB",
+                      "PERMATA",
+                      "DANAMON",
+                      "BTN",
+                      "OCBC"
+                    ]
+                  },
+                  "accountNumber": {
+                    "description": "Digits; spaces and dashes are ignored. Stored encrypted, never returned",
+                    "type": "string",
+                    "pattern": "^[0-9 -]+$"
+                  }
+                },
+                "required": ["accountName", "bankCode", "accountNumber"]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankAccount"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "My bank accounts (recipient)",
+        "tags": ["Bank accounts"],
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/BankAccount"
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "nextCursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/bank-accounts/{id}": {
+      "get": {
+        "summary": "Get one of my bank accounts",
+        "tags": ["Bank accounts"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankAccount"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "summary": "Rename one of my bank accounts",
+        "tags": ["Bank accounts"],
+        "description": "Only the name and label can change. To use a different number, add a new account and remove this one.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "accountName": {
+                    "type": "string",
+                    "minLength": 2,
+                    "maxLength": 100,
+                    "description": "Name on the account"
+                  },
+                  "label": {
+                    "description": "Optional nickname, e.g. \"Rekening utama\"",
+                    "nullable": true,
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40
+                  }
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BankAccount"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "summary": "Remove one of my bank accounts (soft delete)",
+        "tags": ["Bank accounts"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [null],
+                  "description": "Removed"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payouts": {
+      "post": {
+        "summary": "Cash out a transfer to one of my bank accounts (recipient)",
+        "tags": ["Payouts"],
+        "description": "First transfer mock AUSD from your account to `PAYOUT_ADDRESS` on-chain, then send its hash here. The API checks the receipt (token, sender, recipient, amount), converts at the current USD→IDR rate, and starts a sandbox disbursement. Poll `GET /payouts/:id` until `COMPLETED` or `FAILED`.\n\nOne payout per transfer: sending the same hash again returns the first payout (200). Errors: 409 `TX_PENDING` (not mined yet, retry), `PAYOUT_EXISTS` (another account used this hash); 400 `TX_FAILED`, `TX_NOT_A_PAYOUT`; 404 `BANK_ACCOUNT_NOT_FOUND`; 503 `PAYOUTS_UNAVAILABLE`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "txHash": {
+                    "description": "The token transfer from your account to `PAYOUT_ADDRESS`",
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{64}$"
+                  },
+                  "bankAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "One of your `/bank-accounts`"
+                  }
+                },
+                "required": ["txHash", "bankAccountId"]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payout"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payout"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "My payouts (recipient)",
+        "tags": ["Payouts"],
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Payout"
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "nextCursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payouts/{id}": {
+      "get": {
+        "summary": "One of my payouts, with its latest status",
+        "tags": ["Payouts"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payout"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/payout-provider": {
+      "post": {
+        "summary": "Disbursement status from the payout provider",
+        "tags": ["Payouts"],
+        "description": "Called by the provider, not the web app. Signed with `PAYOUT_WEBHOOK_SECRET`: `x-payout-timestamp` is Unix seconds (at most 5 minutes old) and `x-payout-signature` is `sha256=` + hex HMAC-SHA256 of `<timestamp>.<raw body>`. Idempotent: a payout that already finished keeps its status.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["COMPLETED", "FAILED"]
+                  },
+                  "failureReason": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": ["providerRef", "status"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "received": {
+                      "type": "boolean",
+                      "enum": [true]
+                    }
+                  },
+                  "required": ["received"],
+                  "additionalProperties": false
                 }
               }
             }
@@ -1008,117 +3580,8 @@
                 }
               }
             }
-          }
-        }
-      }
-    },
-    "/api/v1/employers/me/workers": {
-      "get": {
-        "summary": "Workers who accepted an invite from this company",
-        "tags": ["Employers"],
-        "description": "Metadata only. Stream balances come from the contract/indexer, never from this API.",
-        "parameters": [
-          {
-            "schema": {
-              "default": 20,
-              "type": "integer",
-              "minimum": 1,
-              "maximum": 100
-            },
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "description": "Items per page, 1–100"
           },
-          {
-            "schema": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 64
-            },
-            "in": "query",
-            "name": "cursor",
-            "required": false,
-            "description": "`nextCursor` from the previous page. Omit for the first page."
-          }
-        ],
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "string"
-                          },
-                          "displayName": {
-                            "type": "string"
-                          },
-                          "address": {
-                            "type": "string"
-                          },
-                          "monthlySalaryUsd": {
-                            "type": "number"
-                          },
-                          "joinedAt": {
-                            "type": "string"
-                          }
-                        },
-                        "required": [
-                          "id",
-                          "displayName",
-                          "address",
-                          "monthlySalaryUsd",
-                          "joinedAt"
-                        ],
-                        "additionalProperties": false
-                      }
-                    },
-                    "nextCursor": {
-                      "nullable": true,
-                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
-                      "type": "string"
-                    }
-                  },
-                  "required": ["data", "nextCursor"],
-                  "additionalProperties": false
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Default Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "422": {
+          "503": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1133,7 +3596,7 @@
     },
     "/api/v1/invites": {
       "post": {
-        "summary": "Create a worker invite (employer) or a family invite (worker)",
+        "summary": "Create a worker invite (employer) or a recipient invite (worker)",
         "tags": ["Invites"],
         "requestBody": {
           "required": true,
@@ -1169,7 +3632,7 @@
                     "properties": {
                       "type": {
                         "type": "string",
-                        "enum": ["FAMILY"]
+                        "enum": ["RECIPIENT"]
                       },
                       "inviteeName": {
                         "type": "string",
@@ -1278,7 +3741,7 @@
           {
             "schema": {
               "type": "string",
-              "enum": ["WORKER", "FAMILY"]
+              "enum": ["WORKER", "RECIPIENT"]
             },
             "in": "query",
             "name": "type",
@@ -1317,6 +3780,105 @@
             }
           },
           "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invites/{id}": {
+      "delete": {
+        "summary": "Cancel an invite I created",
+        "tags": ["Invites"],
+        "description": "Only pending invites can be cancelled; the link stops working (409 `INVITE_REVOKED` on acceptance). Cancelling twice is fine. 409 `INVITE_ALREADY_ACCEPTED` once it was used.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cancelled",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "string",
+                  "nullable": true,
+                  "enum": [null],
+                  "description": "Cancelled"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1388,11 +3950,11 @@
         }
       }
     },
-    "/api/v1/invites/{code}/accept": {
+    "/api/v1/invites/{code}/acceptance": {
       "post": {
         "summary": "Accept an invite as the signed-in user",
         "tags": ["Invites"],
-        "description": "WORKER invite: the user joins the company. FAMILY invite: the user is linked to the worker as a family recipient.",
+        "description": "WORKER invite: the user joins the company (`/workers`). RECIPIENT invite: the user becomes a recipient of the worker (`/recipients`).",
         "parameters": [
           {
             "schema": {
@@ -1410,7 +3972,7 @@
           }
         ],
         "responses": {
-          "200": {
+          "201": {
             "description": "Default Response",
             "content": {
               "application/json": {
@@ -1483,11 +4045,140 @@
         }
       }
     },
+    "/api/v1/gas-drips": {
+      "post": {
+        "summary": "Fund the signed-in account's gas, once per address",
+        "tags": ["Gas"],
+        "description": "Called by the web app before the first transaction (e.g. a withdrawal), so users never hold or see MON. Open to any signed-in account, including brand-new judge mode accounts. Idempotent: calling again returns the original drip (200). `SENT` means broadcast; wait for the receipt of `txHash` before relying on the balance.\n\nErrors: 429 `DRIP_IP_LIMIT` (per IP per day), `DRIP_DAILY_LIMIT` (all users), `RATE_LIMITED`; 503 `DRIP_UNAVAILABLE` (no treasury configured), `DRIP_TREASURY_EMPTY`; 502 `DRIP_FAILED` (safe to retry).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GasDrip"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GasDrip"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/gas-drips/status": {
+      "get": {
+        "summary": "Treasury balance and drip usage, for monitoring",
+        "tags": ["Gas"],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "treasuryAddress": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "treasuryBalanceMon": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "dripAmountMon": {
+                      "type": "string"
+                    },
+                    "dripsLast24h": {
+                      "type": "number"
+                    },
+                    "dailyLimit": {
+                      "type": "number"
+                    },
+                    "dripsRemainingOnBalance": {
+                      "nullable": true,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "treasuryAddress",
+                    "treasuryBalanceMon",
+                    "dripAmountMon",
+                    "dripsLast24h",
+                    "dailyLimit",
+                    "dripsRemainingOnBalance"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/gas/drip": {
       "post": {
         "summary": "Fund the signed-in account's gas, once per address",
         "tags": ["Gas"],
-        "description": "Called by the web app right after an account is created, so users never hold or see MON. Idempotent: calling again returns the original drip. Capped per day across all users.",
+        "description": "Deprecated: use `POST /gas-drips`. Kept until the web app moves over; same behaviour.",
+        "deprecated": true,
         "security": [
           {
             "bearerAuth": []
@@ -1561,6 +4252,8 @@
       "get": {
         "summary": "Treasury balance and drip usage, for monitoring",
         "tags": ["Gas"],
+        "description": "Deprecated: use `GET /gas-drips/status`. Kept until the web app moves over; same behaviour.",
+        "deprecated": true,
         "responses": {
           "200": {
             "description": "Default Response",
@@ -1611,11 +4304,174 @@
         }
       }
     },
-    "/api/v1/fx/usd-idr": {
+    "/api/v1/demo-streams": {
+      "post": {
+        "summary": "Judge mode: start a real testnet salary stream to the signed-in account",
+        "tags": ["Demo"],
+        "description": "The demo employer streams a small amount of mock AUSD to the caller on Monad testnet, so a visitor sees the worker balance grow without a faucet or a wallet. Open to any signed-in account, no role needed. One stream per account: calling again returns the first one (200). Limited per IP and per day (429 `DEMO_IP_LIMIT`, `DEMO_DAILY_LIMIT`).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoStream"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoStream"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo-streams/status": {
+      "get": {
+        "summary": "Demo employer gas and usage, for monitoring during judging",
+        "tags": ["Demo"],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "employerAddress": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "employerGasMon": {
+                      "nullable": true,
+                      "description": "MON left for gas; null if it could not be read",
+                      "type": "string"
+                    },
+                    "amountUsd": {
+                      "type": "string"
+                    },
+                    "durationSeconds": {
+                      "type": "number"
+                    },
+                    "streamsLast24h": {
+                      "type": "number"
+                    },
+                    "dailyLimit": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "employerAddress",
+                    "employerGasMon",
+                    "amountUsd",
+                    "durationSeconds",
+                    "streamsLast24h",
+                    "dailyLimit"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/fx-rates/usd-idr": {
       "get": {
         "summary": "USD to IDR exchange rate (display and estimates only)",
         "tags": ["FX"],
-        "description": "Cached for 600 seconds. Falls back to the last good rate, then to a static rate, and says which one it is.",
+        "description": "Cached for 600 seconds. Falls back to the last good rate, then to a static rate, and says which one it is. Any signed-in account (PLAN §6.3: E, W, R).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FxQuote"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/fx/usd-idr": {
+      "get": {
+        "summary": "USD to IDR exchange rate (public, deprecated)",
+        "tags": ["FX"],
+        "description": "Deprecated: use `GET /fx-rates/usd-idr` with a session. Kept public until the web app moves over. Cached for 600 seconds. Falls back to the last good rate, then to a static rate, and says which one it is.",
+        "deprecated": true,
         "responses": {
           "200": {
             "description": "Default Response",
@@ -1642,13 +4498,28 @@
       "name": "Users"
     },
     {
-      "name": "Employers"
+      "name": "Companies"
+    },
+    {
+      "name": "Workers"
+    },
+    {
+      "name": "Recipients"
+    },
+    {
+      "name": "Bank accounts"
+    },
+    {
+      "name": "Payouts"
     },
     {
       "name": "Invites"
     },
     {
       "name": "Gas"
+    },
+    {
+      "name": "Demo"
     },
     {
       "name": "FX"

@@ -22,7 +22,8 @@ runs = 256
 depth = 64
 
 [rpc_endpoints]
-monad_testnet = "${MONAD_RPC_URL}"
+# Public endpoint, not a secret. Pass --rpc-url <url> to use a dedicated RPC instead.
+monad_testnet = "https://testnet-rpc.monad.xyz"
 
 [fmt]
 line_length = 100

@@ -22,10 +22,14 @@ export const toUserDto = (u: User) => ({
 })
 
 export const MeDto = UserDto.extend({
+  companyId: z
+    .string()
+    .nullable()
+    .describe('My active company, for `/api/v1/companies/{id}`. `null` if I am not an employer'),
   roles: z.object({
     employer: z.boolean(),
     worker: z.boolean(),
-    family: z.boolean(),
+    recipient: z.boolean().describe("Receives part of a worker's salary (family)"),
   }),
 }).meta({ id: 'Me' })
 
@@ -36,7 +40,7 @@ export const UpdateMeInput = z.object({
     .min(1)
     .max(80)
     .nullable()
-    .describe('Name shown to employers and family. `null` clears it'),
+    .describe('Name shown to employers and recipients. `null` clears it'),
 })
 
 export type UpdateMeInput = z.infer<typeof UpdateMeInput>

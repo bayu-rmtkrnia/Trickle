@@ -14,7 +14,8 @@ datasource db {
 
 enum InviteType {
   WORKER
-  FAMILY
+  /// Invites a family member to become one of the worker's recipients
+  RECIPIENT
 }
 
 enum InviteStatus {
@@ -29,6 +30,12 @@ enum GasDripStatus {
   FAILED
 }
 
+enum DemoStreamStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
 enum PayoutStatus {
   PENDING
   PROCESSING
@@ -37,7 +44,7 @@ enum PayoutStatus {
 }
 
 /// Anyone who signed in with Privy. Role is contextual: the same address
-/// can own an employer profile, be a worker, or be family.
+/// can own a company (employer), be a worker, or be a recipient (family).
 model User {
   id          String    @id @default(cuid())
   /// Lowercased 0x address of the Privy embedded wallet
@@ -48,14 +55,18 @@ model User {
   createdAt   DateTime  @default(now())
   lastLoginAt DateTime?
 
-  employer         Employer?
-  employments      EmployerWorker[]
-  familyAsWorker   FamilyLink[]     @relation("FamilyWorker")
-  familyAsRelative FamilyLink[]     @relation("FamilyRelative")
-  invitesCreated   Invite[]         @relation("InviteCreatedBy")
-  invitesAccepted  Invite[]         @relation("InviteAcceptedBy")
-  payouts          Payout[]
-  sessions         Session[]
+  companies       Company[]
+  employments     Worker[]
+  /// People this user (as a worker) sends part of their salary to
+  recipients      Recipient[] @relation("RecipientOwner")
+  /// Workers who added this user as their recipient
+  recipientOf     Recipient[] @relation("RecipientUser")
+  invitesCreated  Invite[]    @relation("InviteCreatedBy")
+  invitesAccepted Invite[]    @relation("InviteAcceptedBy")
+  payouts         Payout[]
+  sessions        Session[]
+  demoStream      DemoStream?
+  bankAccounts    BankAccount[]
 }
 
 /// API session. Only the SHA-256 of the bearer token is stored, so a leaked
@@ -73,73 +84,94 @@ model Session {
   @@index([userId])
 }
 
-model Employer {
-  id        String   @id @default(cuid())
-  ownerId   String   @unique
+/// Company profile of an employer. At most one active (not deleted) company
+/// per owner; the service enforces it.
+model Company {
+  id        String    @id @default(cuid())
+  ownerId   String
   name      String
   country   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  /// Soft delete: the row stays so employments, invites and history keep their company.
+  deletedAt DateTime?
 
-  owner   User             @relation(fields: [ownerId], references: [id])
-  workers EmployerWorker[]
+  owner   User     @relation(fields: [ownerId], references: [id])
+  workers Worker[]
   invites Invite[]
+
+  @@index([ownerId])
 }
 
-model EmployerWorker {
-  id                 String   @id @default(cuid())
-  employerId         String
-  workerId           String
+/// A person employed by a company: their account plus job metadata. The salary
+/// here is a reference for the UI; actual pay is the on-chain stream.
+model Worker {
+  id                 String    @id @default(cuid())
+  companyId          String
+  userId             String
   displayName        String
+  /// Job title, e.g. "Caregiver"
+  position           String?
   monthlySalaryCents Int
-  createdAt          DateTime @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  /// Soft delete. Re-adding the same person restores this row.
+  deletedAt          DateTime?
 
-  employer Employer @relation(fields: [employerId], references: [id])
-  worker   User     @relation(fields: [workerId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
 
-  @@unique([employerId, workerId])
-  @@index([workerId])
+  @@unique([companyId, userId])
+  @@index([userId])
 }
 
-model FamilyLink {
-  id          String   @id @default(cuid())
-  workerId    String
-  relativeId  String
+/// A family member a worker sends part of their salary to. The split itself
+/// (who and how many bps) lives on-chain in `setSplit`; this is the address book.
+model Recipient {
+  id          String    @id @default(cuid())
+  /// The worker (user id) who owns this entry
+  ownerId     String
+  /// The recipient's account
+  userId      String
   displayName String
+  /// e.g. "Ibu", "Istri"
   relation    String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  /// Soft delete. Re-adding the same person restores this row.
+  deletedAt   DateTime?
 
-  worker   User @relation("FamilyWorker", fields: [workerId], references: [id])
-  relative User @relation("FamilyRelative", fields: [relativeId], references: [id])
+  owner User @relation("RecipientOwner", fields: [ownerId], references: [id])
+  user  User @relation("RecipientUser", fields: [userId], references: [id])
 
-  @@unique([workerId, relativeId])
-  @@index([relativeId])
+  @@unique([ownerId, userId])
+  @@index([userId])
 }
 
 model Invite {
-  id          String       @id @default(cuid())
-  code        String       @unique
-  type        InviteType
-  status      InviteStatus @default(PENDING)
-  createdById String
+  id                 String       @id @default(cuid())
+  code               String       @unique
+  type               InviteType
+  status             InviteStatus @default(PENDING)
+  createdById        String
   /// Set for WORKER invites
-  employerId  String?
-  inviteeName String
+  companyId          String?
+  inviteeName        String
   /// Set for WORKER invites
   monthlySalaryCents Int?
-  /// Set for FAMILY invites, e.g. "Ibu", "Istri"
-  relation     String?
-  acceptedById String?
-  acceptedAt   DateTime?
-  expiresAt    DateTime
-  createdAt    DateTime  @default(now())
+  /// Set for RECIPIENT invites, e.g. "Ibu", "Istri"
+  relation           String?
+  acceptedById       String?
+  acceptedAt         DateTime?
+  expiresAt          DateTime
+  createdAt          DateTime     @default(now())
 
-  createdBy  User      @relation("InviteCreatedBy", fields: [createdById], references: [id])
-  employer   Employer? @relation(fields: [employerId], references: [id])
-  acceptedBy User?     @relation("InviteAcceptedBy", fields: [acceptedById], references: [id])
+  createdBy  User     @relation("InviteCreatedBy", fields: [createdById], references: [id])
+  company    Company? @relation(fields: [companyId], references: [id])
+  acceptedBy User?    @relation("InviteAcceptedBy", fields: [acceptedById], references: [id])
 
   @@index([createdById])
-  @@index([employerId])
+  @@index([companyId])
 }
 
 /// One drip per address, ever. The unique constraint is the idempotency guard.
@@ -157,24 +189,86 @@ model GasDrip {
   @@index([createdAt])
 }
 
-/// Family cash-out to a bank account via a sandbox provider (Milestone 2).
+/// Where a recipient cashes out (PLAN §6.3). The account number is only
+/// stored encrypted (AES-256-GCM, `BANK_ENCRYPTION_KEY`); the API returns the
+/// last 4 digits and never the full number.
+model BankAccount {
+  id                String    @id @default(cuid())
+  userId            String
+  /// Bank code, e.g. BCA, BNI, MANDIRI
+  bankCode          String
+  /// Name on the account, as the bank knows it
+  accountName       String
+  /// Optional nickname, e.g. "Rekening utama"
+  label             String?
+  /// `v1.<iv>.<tag>.<ciphertext>`, with the user id as AAD
+  numberEncrypted   String
+  numberLast4       String
+  /// HMAC of bank code + number: finds duplicates without decrypting
+  numberFingerprint String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  payouts Payout[]
+
+  @@unique([userId, numberFingerprint])
+}
+
+/// Judge mode: one real testnet stream from the demo employer per account,
+/// ever. The unique `userId` is the idempotency guard, like `GasDrip.address`.
+/// The stream itself (balance, withdrawals) lives on the contract.
+model DemoStream {
+  id              String           @id @default(cuid())
+  userId          String           @unique
+  /// Worker address the stream pays, lowercased
+  address         String
+  /// Token units (6 decimals)
+  amountUnits     String
+  durationSeconds Int
+  status          DemoStreamStatus @default(PENDING)
+  /// On-chain stream id, as a decimal string
+  streamId        String?
+  txHash          String?
+  startsAt        DateTime?
+  endsAt          DateTime?
+  error           String?
+  ip              String
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([ip, createdAt])
+}
+
+/// A recipient's cash-out: a verified on-chain token transfer to PAYOUT_ADDRESS,
+/// paid out in IDR to one of their bank accounts by a sandbox provider.
+/// The bank details stay in `BankAccount` (encrypted), never copied here.
 model Payout {
   id            String       @id @default(cuid())
   userId        String
-  /// Transfer tx from the family account to the payout address
+  bankAccountId String
+  /// Token transfer from the recipient to the payout address. Unique: one payout per transfer.
   sourceTxHash  String       @unique
+  /// Token units (6 decimals) the transfer moved
   amountUnits   String
   amountIdr     Int?
-  bankCode      String
-  accountNumber String
-  accountName   String
+  /// IDR per USD used for `amountIdr`, and where it came from (live/cache/fallback)
+  fxRate        Float?
+  fxSource      String?
   provider      String
-  providerRef   String?
+  providerRef   String?      @unique
   status        PayoutStatus @default(PENDING)
+  failureReason String?
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
+  user        User        @relation(fields: [userId], references: [id])
+  bankAccount BankAccount @relation(fields: [bankAccountId], references: [id])
 
   @@index([userId])
+  @@index([bankAccountId])
 }

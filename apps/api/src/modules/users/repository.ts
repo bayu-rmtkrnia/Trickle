@@ -1,8 +1,13 @@
 import type { Db } from '../../lib/prisma.js'
 
 const withRoleCounts = {
-  employer: { select: { id: true } },
-  _count: { select: { employments: true, familyAsRelative: true } },
+  companies: { where: { deletedAt: null }, select: { id: true }, take: 1 },
+  _count: {
+    select: {
+      employments: { where: { deletedAt: null, company: { deletedAt: null } } },
+      recipientOf: { where: { deletedAt: null } },
+    },
+  },
 } as const
 
 export function createUserRepository(db: Db) {

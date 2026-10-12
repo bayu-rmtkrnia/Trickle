@@ -15,7 +15,7 @@ type Log = Pick<FastifyBaseLogger, 'error' | 'warn'>
 interface Deps {
   repo: GasRepository
   chain: Chain
-  env: Pick<Env, 'GAS_DRIP_AMOUNT_MON' | 'GAS_DRIP_DAILY_LIMIT'>
+  env: Pick<Env, 'GAS_DRIP_AMOUNT_MON' | 'GAS_DRIP_DAILY_LIMIT' | 'GAS_DRIP_IP_DAILY_LIMIT'>
 }
 
 const toDto = (d: GasDrip, alreadyDripped: boolean): DripDto => ({
@@ -29,7 +29,8 @@ const toDto = (d: GasDrip, alreadyDripped: boolean): DripDto => ({
 
 export function createGasService({ repo, chain, env }: Deps) {
   const amountWei = parseEther(env.GAS_DRIP_AMOUNT_MON)
-  const last24h = () => repo.countActiveSince(new Date(Date.now() - DAY_MS))
+  const dayAgo = () => new Date(Date.now() - DAY_MS)
+  const last24h = () => repo.countActiveSince(dayAgo())
 
   return {
     /** `created` is false when the address was already funded (idempotent replay). */
@@ -44,6 +45,16 @@ export function createGasService({ repo, chain, env }: Deps) {
       }
       if ((await last24h()) >= env.GAS_DRIP_DAILY_LIMIT) {
         throw new AppError(429, 'DRIP_DAILY_LIMIT', 'Daily sponsorship limit reached, try tomorrow')
+      }
+      if ((await repo.countActiveFromIpSince(ip, dayAgo())) >= env.GAS_DRIP_IP_DAILY_LIMIT) {
+        throw new AppError(429, 'DRIP_IP_LIMIT', 'Too many new accounts from this network today')
+      }
+      // Answer an empty treasury up front instead of failing a transfer. If the
+      // balance cannot be read, try anyway: the send reports its own error.
+      const balance = await chain.getBalance(chain.treasuryAddress).catch(() => null)
+      if (balance !== null && balance < amountWei) {
+        log.error({ treasury: chain.treasuryAddress }, 'gas treasury is empty')
+        throw new AppError(503, 'DRIP_TREASURY_EMPTY', 'Gas sponsorship is paused, try again later')
       }
 
       const claim = await repo.claim(existing, { address, amountWei: amountWei.toString(), ip })

@@ -19,6 +19,7 @@
 - [ ] `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test` lolos di lokal
 - [ ] `openapi.json` diperbarui (kalau endpoint berubah)
 - [ ] Migrasi Prisma ikut di-commit (kalau skema berubah)
-- [ ] `DOCS.md` diperbarui (kalau fitur, endpoint, tabel, env var, atau keputusan desain berubah)
+- [ ] Endpoint sensitif punya test 403 untuk peran lain (`expectForbidden` di `apps/api/test/helpers.ts`)
+- [ ] `docs/ARCHITECTURE.md` diperbarui (kalau fitur, endpoint, tabel, env var, atau keputusan desain berubah)
 - [ ] Tidak ada secret, `.env`, atau private key
 - [ ] Aku bisa menjelaskan semua kode di PR ini tanpa bantuan

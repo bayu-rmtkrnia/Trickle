@@ -4,6 +4,12 @@ import type { Db } from '../../lib/prisma.js'
 /** `taken`: another request claimed this address first; `drip` is its row. */
 export type ClaimResult = { status: 'claimed'; drip: GasDrip } | { status: 'taken'; drip: GasDrip }
 
+/** Failed drips do not count towards any limit. */
+const active = (since: Date) => ({
+  createdAt: { gte: since },
+  status: { not: 'FAILED' as const },
+})
+
 export function createGasRepository(db: Db) {
   return {
     async findByAddress(address: string) {
@@ -12,9 +18,11 @@ export function createGasRepository(db: Db) {
 
     /** Drips that were sent or are still in flight since `since`. */
     async countActiveSince(since: Date) {
-      return db.gasDrip.count({
-        where: { createdAt: { gte: since }, status: { not: 'FAILED' } },
-      })
+      return db.gasDrip.count({ where: active(since) })
+    },
+
+    async countActiveFromIpSince(ip: string, since: Date) {
+      return db.gasDrip.count({ where: { ip, ...active(since) } })
     },
 
     /**

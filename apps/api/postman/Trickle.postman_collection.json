@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Trickle API",
-    "description": "Trickle API v1 (resource endpoints under /api/v1). Folders follow the golden path: employer invites worker, worker invites family. Set {{baseUrl}} to the deployed URL or http://localhost:4000.",
+    "description": "Trickle API v1 (resource endpoints under /api/v1). Folders follow the golden path: employer invites worker, worker invites recipient. Set {{baseUrl}} to the deployed URL or http://localhost:4000.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -22,11 +22,55 @@
       "value": ""
     },
     {
+      "key": "companyId",
+      "value": ""
+    },
+    {
+      "key": "workerId",
+      "value": ""
+    },
+    {
+      "key": "extraWorkerId",
+      "value": ""
+    },
+    {
+      "key": "recipientId",
+      "value": ""
+    },
+    {
+      "key": "extraRecipientId",
+      "value": ""
+    },
+    {
       "key": "workerInviteCode",
       "value": ""
     },
     {
       "key": "familyInviteCode",
+      "value": ""
+    },
+    {
+      "key": "cancelInviteId",
+      "value": ""
+    },
+    {
+      "key": "bankAccountId",
+      "value": ""
+    },
+    {
+      "key": "payoutTxHash",
+      "value": ""
+    },
+    {
+      "key": "payoutId",
+      "value": ""
+    },
+    {
+      "key": "payoutRef",
+      "value": ""
+    },
+    {
+      "key": "payoutWebhookSecret",
       "value": ""
     },
     {
@@ -370,10 +414,10 @@
       ]
     },
     {
-      "name": "3. Employers",
+      "name": "3. Companies",
       "item": [
         {
-          "name": "Create employer",
+          "name": "Create company",
           "request": {
             "method": "POST",
             "header": [
@@ -383,9 +427,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers",
+              "raw": "{{baseUrl}}/api/v1/companies",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers"]
+              "path": ["api", "v1", "companies"]
             },
             "auth": {
               "type": "bearer",
@@ -405,7 +449,8 @@
                   "language": "json"
                 }
               }
-            }
+            },
+            "description": "409 COMPANY_EXISTS if this account already has a company (e.g. a second run)."
           },
           "event": [
             {
@@ -418,7 +463,7 @@
           ]
         },
         {
-          "name": "Create employer - duplicate (409)",
+          "name": "Create company - duplicate (409)",
           "request": {
             "method": "POST",
             "header": [
@@ -428,9 +473,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers",
+              "raw": "{{baseUrl}}/api/v1/companies",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers"]
+              "path": ["api", "v1", "companies"]
             },
             "auth": {
               "type": "bearer",
@@ -459,14 +504,14 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 409', () => pm.response.to.have.status(409));",
-                  "pm.test('error code EMPLOYER_EXISTS', () => pm.expect(pm.response.json().error.code).to.eql('EMPLOYER_EXISTS'));"
+                  "pm.test('error code COMPANY_EXISTS', () => pm.expect(pm.response.json().error.code).to.eql('COMPANY_EXISTS'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Create employer - invalid (422)",
+          "name": "Create company - invalid (422)",
           "request": {
             "method": "POST",
             "header": [
@@ -476,9 +521,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers",
+              "raw": "{{baseUrl}}/api/v1/companies",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers"]
+              "path": ["api", "v1", "companies"]
             },
             "auth": {
               "type": "bearer",
@@ -514,14 +559,49 @@
           ]
         },
         {
-          "name": "Get my employer",
+          "name": "Me (my company id)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers/me",
+              "raw": "{{baseUrl}}/api/v1/users/me",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers", "me"]
+              "path": ["api", "v1", "users", "me"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Saves companyId for the requests below."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('companyId', pm.response.json().companyId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get company",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companyId}}"]
             },
             "auth": {
               "type": "bearer",
@@ -545,14 +625,14 @@
           ]
         },
         {
-          "name": "Get my employer - none (404)",
+          "name": "Get company - not an employer (403)",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers/me",
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers", "me"]
+              "path": ["api", "v1", "companies", "{{companyId}}"]
             },
             "auth": {
               "type": "bearer",
@@ -571,15 +651,49 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test('status 404', () => pm.response.to.have.status(404));",
-                  "pm.test('error code EMPLOYER_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('EMPLOYER_NOT_FOUND'));"
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
                 ]
               }
             }
           ]
         },
         {
-          "name": "Update my employer",
+          "name": "Get company - unknown id (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/does-not-exist",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "does-not-exist"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('error code COMPANY_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('COMPANY_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update company",
           "request": {
             "method": "PATCH",
             "header": [
@@ -589,9 +703,9 @@
               }
             ],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers/me",
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers", "me"]
+              "path": ["api", "v1", "companies", "{{companyId}}"]
             },
             "auth": {
               "type": "bearer",
@@ -619,6 +733,122 @@
               "script": {
                 "type": "text/javascript",
                 "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update company - not an employer (403)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companyId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Hijacked\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete company - not an employer (403)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companyId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List company workers - not an employer (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}/workers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companyId}}", "workers"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
               }
             }
           ]
@@ -677,7 +907,7 @@
           ]
         },
         {
-          "name": "Create family invite - not a worker yet (403)",
+          "name": "Create recipient invite - not a worker yet (403)",
           "request": {
             "method": "POST",
             "header": [
@@ -703,7 +933,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"FAMILY\",\n  \"inviteeName\": \"Ibu Aminah\",\n  \"relation\": \"Ibu\"\n}",
+              "raw": "{\n  \"type\": \"RECIPIENT\",\n  \"inviteeName\": \"Ibu Aminah\",\n  \"relation\": \"Ibu\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -781,9 +1011,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/acceptance",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "acceptance"]
             },
             "auth": {
               "type": "bearer",
@@ -815,9 +1045,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/acceptance",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "acceptance"]
             },
             "auth": {
               "type": "bearer",
@@ -835,7 +1065,7 @@
               "listen": "test",
               "script": {
                 "type": "text/javascript",
-                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+                "exec": ["pm.test('status 201', () => pm.response.to.have.status(201));"]
               }
             }
           ]
@@ -846,9 +1076,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{workerInviteCode}}/acceptance",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{workerInviteCode}}", "acceptance"]
             },
             "auth": {
               "type": "bearer",
@@ -875,7 +1105,7 @@
           ]
         },
         {
-          "name": "Create family invite",
+          "name": "Create recipient invite",
           "request": {
             "method": "POST",
             "header": [
@@ -901,7 +1131,7 @@
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"FAMILY\",\n  \"inviteeName\": \"Ibu Aminah\",\n  \"relation\": \"Ibu\"\n}",
+              "raw": "{\n  \"type\": \"RECIPIENT\",\n  \"inviteeName\": \"Ibu Aminah\",\n  \"relation\": \"Ibu\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -923,14 +1153,14 @@
           ]
         },
         {
-          "name": "Accept family invite",
+          "name": "Accept recipient invite",
           "request": {
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/invites/{{familyInviteCode}}/accept",
+              "raw": "{{baseUrl}}/api/v1/invites/{{familyInviteCode}}/acceptance",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "invites", "{{familyInviteCode}}", "accept"]
+              "path": ["api", "v1", "invites", "{{familyInviteCode}}", "acceptance"]
             },
             "auth": {
               "type": "bearer",
@@ -948,7 +1178,7 @@
               "listen": "test",
               "script": {
                 "type": "text/javascript",
-                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+                "exec": ["pm.test('status 201', () => pm.response.to.have.status(201));"]
               }
             }
           ]
@@ -995,14 +1225,163 @@
           ]
         },
         {
+          "name": "Create invite to cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invites",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "invites"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"WORKER\",\n  \"inviteeName\": \"Budi\",\n  \"monthlySalaryUsd\": 900\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('cancelInviteId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel invite - not the creator (403)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invites/{{cancelInviteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "invites", "{{cancelInviteId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cancel invite",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/invites/{{cancelInviteId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "invites", "{{cancelInviteId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Cancelling twice is fine. 409 INVITE_ALREADY_ACCEPTED once it was used."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ]
+        },
+        {
           "name": "List company workers",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/employers/me/workers",
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}/workers",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "employers", "me", "workers"]
+              "path": ["api", "v1", "companies", "{{companyId}}", "workers"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Saves the first worker as workerId for the Workers folder."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('workerId', pm.response.json().data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete company - still has workers (409)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companyId}}"]
             },
             "auth": {
               "type": "bearer",
@@ -1020,7 +1399,10 @@
               "listen": "test",
               "script": {
                 "type": "text/javascript",
-                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('error code COMPANY_HAS_WORKERS', () => pm.expect(pm.response.json().error.code).to.eql('COMPANY_HAS_WORKERS'));"
+                ]
               }
             }
           ]
@@ -1059,7 +1441,1372 @@
       ]
     },
     {
-      "name": "5. Gas",
+      "name": "5. Workers",
+      "item": [
+        {
+          "name": "Get worker (employer)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workers/{{workerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workers", "{{workerId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get worker (the worker themself)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workers/{{workerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workers", "{{workerId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get worker - family (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workers/{{workerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workers", "{{workerId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get worker - unknown id (404)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workers/does-not-exist",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workers", "does-not-exist"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 404', () => pm.response.to.have.status(404));",
+                  "pm.test('error code WORKER_NOT_FOUND', () => pm.expect(pm.response.json().error.code).to.eql('WORKER_NOT_FOUND'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update worker",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workers/{{workerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workers", "{{workerId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"position\": \"Caregiver\",\n  \"monthlySalaryUsd\": 1250\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update worker - the worker themself (403)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workers/{{workerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workers", "{{workerId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"monthlySalaryUsd\": 99999\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete worker - the worker themself (403)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workers/{{workerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workers", "{{workerId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add worker by address",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}/workers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companyId}}", "workers"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"0x000000000000000000000000000000000000bEEF\",\n  \"displayName\": \"Budi\",\n  \"position\": \"Driver\",\n  \"monthlySalaryUsd\": 900\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Creates the account for this address if needed; it links when that wallet signs in with Privy. Re-running restores the worker after the delete below."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('extraWorkerId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add worker - already works here (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/companies/{{companyId}}/workers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "companies", "{{companyId}}", "workers"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"0x000000000000000000000000000000000000bEEF\",\n  \"displayName\": \"Budi\",\n  \"monthlySalaryUsd\": 900\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('error code WORKER_EXISTS', () => pm.expect(pm.response.json().error.code).to.eql('WORKER_EXISTS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete worker",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/workers/{{extraWorkerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "workers", "{{extraWorkerId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "409 STREAM_ACTIVE when the employer still streams to this worker. The stream check is a placeholder until the indexer exists."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6. Recipients",
+      "item": [
+        {
+          "name": "List my recipients",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recipients",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "recipients"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Saves the recipient from the family invite as recipientId."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 200', () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set('recipientId', pm.response.json().data[0].id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List recipients - not a worker (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recipients",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "recipients"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get recipient (worker)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recipients/{{recipientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "recipients", "{{recipientId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get recipient (the recipient themself)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recipients/{{recipientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "recipients", "{{recipientId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get recipient - employer (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recipients/{{recipientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "recipients", "{{recipientId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update recipient",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recipients/{{recipientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "recipients", "{{recipientId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Mama\",\n  \"relation\": \"Ibu\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update recipient - the recipient themself (403)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recipients/{{recipientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "recipients", "{{recipientId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Hijacked\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add recipient by address",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recipients",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "recipients"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"0x000000000000000000000000000000000000cAFE\",\n  \"displayName\": \"Rina\",\n  \"relation\": \"Istri\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Creates the account for this address if needed; it links when that wallet signs in with Privy. Re-running restores the recipient after the delete below."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('extraRecipientId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add recipient - already added (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recipients",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "recipients"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"address\": \"0x000000000000000000000000000000000000cAFE\",\n  \"displayName\": \"Rina\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('error code RECIPIENT_EXISTS', () => pm.expect(pm.response.json().error.code).to.eql('RECIPIENT_EXISTS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete recipient",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/recipients/{{extraRecipientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "recipients", "{{extraRecipientId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "409 SPLIT_ACTIVE while the worker's on-chain split (splitOf) still sends to this recipient."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6b. Bank accounts",
+      "item": [
+        {
+          "name": "Add bank account",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bank-accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bank-accounts"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankCode\": \"BCA\",\n  \"accountNumber\": \"1234567890\",\n  \"accountName\": \"Ibu Aminah\",\n  \"label\": \"Rekening utama\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Recipient only. The number is encrypted at rest; responses only carry accountNumberLast4. 503 BANK_ACCOUNTS_UNAVAILABLE without BANK_ENCRYPTION_KEY."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('bankAccountId', pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add bank account - duplicate (409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bank-accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bank-accounts"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankCode\": \"BCA\",\n  \"accountNumber\": \"1234 5678 90\",\n  \"accountName\": \"Ibu Aminah\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 409', () => pm.response.to.have.status(409));",
+                  "pm.test('error code BANK_ACCOUNT_EXISTS', () => pm.expect(pm.response.json().error.code).to.eql('BANK_ACCOUNT_EXISTS'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add bank account - not a recipient (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bank-accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bank-accounts"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankCode\": \"BNI\",\n  \"accountNumber\": \"9876543210\",\n  \"accountName\": \"Budi\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List my bank accounts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bank-accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bank-accounts"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get bank account",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bank-accounts/{{bankAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bank-accounts", "{{bankAccountId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get bank account - worker (403)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bank-accounts/{{bankAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bank-accounts", "{{bankAccountId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{workerToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Rename bank account",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bank-accounts/{{bankAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bank-accounts", "{{bankAccountId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"label\": \"Tabungan\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Remove bank account",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bank-accounts/{{bankAccountId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bank-accounts", "{{bankAccountId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6c. Payouts",
+      "description": "Needs a real transfer first: from the recipient account, send mock AUSD to PAYOUT_ADDRESS on Monad testnet, then put the tx hash in {{payoutTxHash}} and an active bank account id in {{bankAccountId}}. The mock provider completes after MOCK_PAYOUT_SECONDS; account numbers ending in 0000 fail.",
+      "item": [
+        {
+          "name": "Cash out",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payouts"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"txHash\": \"{{payoutTxHash}}\",\n  \"bankAccountId\": \"{{bankAccountId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "201 the first time, 200 when the same hash is sent again. 409 TX_PENDING if not mined yet, 400 TX_NOT_A_PAYOUT if it did not pay the payout address."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('created or replayed', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "pm.collectionVariables.set('payoutId', pm.response.json().id);",
+                  "pm.collectionVariables.set('payoutRef', pm.response.json().providerRef);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cash out - not a recipient (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payouts"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"txHash\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"bankAccountId\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List my payouts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payouts"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get payout (refreshes status)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payouts/{{payoutId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payouts", "{{payoutId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Provider webhook - unsigned (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/payout-provider",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "payout-provider"]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerRef\": \"{{payoutRef}}\",\n  \"status\": \"COMPLETED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Provider webhook - signed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/payout-provider",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "payout-provider"]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerRef\": \"{{payoutRef}}\",\n  \"status\": \"COMPLETED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Signed in the pre-request script with {{payoutWebhookSecret}} (= PAYOUT_WEBHOOK_SECRET). A finished payout keeps its status."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Math.floor(Date.now() / 1000).toString();",
+                  "const body = pm.request.body.raw;",
+                  "const secret = pm.collectionVariables.get('payoutWebhookSecret');",
+                  "const sig = CryptoJS.HmacSHA256(ts + '.' + body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'x-payout-timestamp', value: ts });",
+                  "pm.request.headers.upsert({ key: 'x-payout-signature', value: 'sha256=' + sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Gas",
       "item": [
         {
           "name": "Gas status",
@@ -1067,9 +2814,9 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/gas/status",
+              "raw": "{{baseUrl}}/api/v1/gas-drips/status",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "gas", "status"]
+              "path": ["api", "v1", "gas-drips", "status"]
             },
             "auth": {
               "type": "noauth"
@@ -1091,9 +2838,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/gas/drip",
+              "raw": "{{baseUrl}}/api/v1/gas-drips",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "gas", "drip"]
+              "path": ["api", "v1", "gas-drips"]
             },
             "auth": {
               "type": "bearer",
@@ -1105,7 +2852,7 @@
                 }
               ]
             },
-            "description": "201 on the first call, 200 with alreadyDripped=true afterwards. 503 DRIP_UNAVAILABLE if no treasury key is configured."
+            "description": "201 on the first call, 200 with alreadyDripped=true afterwards. 503 DRIP_UNAVAILABLE (no treasury key) or DRIP_TREASURY_EMPTY, 429 DRIP_IP_LIMIT / DRIP_DAILY_LIMIT. Old path POST /gas/drip still works (deprecated)."
           }
         },
         {
@@ -1114,9 +2861,9 @@
             "method": "POST",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/gas/drip",
+              "raw": "{{baseUrl}}/api/v1/gas-drips",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "gas", "drip"]
+              "path": ["api", "v1", "gas-drips"]
             },
             "auth": {
               "type": "bearer",
@@ -1133,17 +2880,17 @@
       ]
     },
     {
-      "name": "6. FX",
+      "name": "7b. Judge mode",
       "item": [
         {
-          "name": "USD to IDR",
+          "name": "Demo status",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/api/v1/fx/usd-idr",
+              "raw": "{{baseUrl}}/api/v1/demo-streams/status",
               "host": ["{{baseUrl}}"],
-              "path": ["api", "v1", "fx", "usd-idr"]
+              "path": ["api", "v1", "demo-streams", "status"]
             },
             "auth": {
               "type": "noauth"
@@ -1158,11 +2905,120 @@
               }
             }
           ]
+        },
+        {
+          "name": "Start demo stream",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/demo-streams",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "demo-streams"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Real testnet stream from the demo employer to the signed-in account, no role needed. 201 the first time, 200 with alreadyStarted=true afterwards. 503 DEMO_UNAVAILABLE without DEMO_EMPLOYER_PRIVATE_KEY, 429 DEMO_IP_LIMIT / DEMO_DAILY_LIMIT."
+          }
+        },
+        {
+          "name": "Start demo stream - again (idempotent)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/demo-streams",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "demo-streams"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
         }
       ]
     },
     {
-      "name": "7. Sign out",
+      "name": "8. FX",
+      "item": [
+        {
+          "name": "USD to IDR",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fx-rates/usd-idr",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "fx-rates", "usd-idr"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "Any signed-in account. The old public path GET /fx/usd-idr still works (deprecated)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "USD to IDR - signed out (401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/fx-rates/usd-idr",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "fx-rates", "usd-idr"]
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "9. Sign out",
       "item": [
         {
           "name": "Sign out",

@@ -12,18 +12,28 @@ import {
   type ZodTypeProvider,
 } from 'fastify-type-provider-zod'
 import type { Env } from './env.js'
-import { createChain, type Chain } from './lib/chain.js'
+import { createChain, createReadClient, type Chain } from './lib/chain.js'
+import { createDemoSigner, type DemoSigner } from './lib/demo.js'
 import { createFxService, type FxService } from './lib/fx.js'
+import { createMockPayoutProvider, type PayoutProvider } from './lib/payout-provider.js'
 import { createPrisma, type Db } from './lib/prisma.js'
 import { createPrivy, type Privy } from './lib/privy.js'
-import employerRoutes from './modules/employers/routes.js'
+import { createStreamReader, type StreamReader } from './lib/streams.js'
+import { createTransferVerifier, type TransferVerifier } from './lib/transfers.js'
+import bankAccountRoutes from './modules/bank-accounts/routes.js'
+import companyRoutes from './modules/companies/routes.js'
+import demoStreamRoutes from './modules/demo-streams/routes.js'
 import fxRoutes from './modules/fx/routes.js'
 import gasRoutes from './modules/gas/routes.js'
 import healthRoutes from './modules/health/routes.js'
 import inviteRoutes from './modules/invites/routes.js'
+import payoutRoutes from './modules/payouts/routes.js'
 import sessionRoutes from './modules/sessions/routes.js'
 import userRoutes from './modules/users/routes.js'
+import recipientRoutes from './modules/recipients/routes.js'
+import workerRoutes from './modules/workers/routes.js'
 import authPlugin from './plugins/auth.js'
+import rbacPlugin from './plugins/rbac.js'
 import { registerErrorHandling } from './plugins/errors.js'
 import './types.js'
 
@@ -36,6 +46,13 @@ export interface AppDeps {
   fx?: FxService
   chain?: Chain
   privy?: Privy
+  streams?: StreamReader
+  /** Judge mode signer. Tests pass a fake so nothing goes on-chain. */
+  demo?: DemoSigner
+  /** Verifies payout transfers on-chain. */
+  transfers?: TransferVerifier
+  /** Bank leg of payouts; the mock sandbox provider by default. */
+  payoutProvider?: PayoutProvider
   logger?: FastifyServerOptions['logger']
   /** Per-IP rate limiting. Integration tests turn it off because every request shares one IP. */
   rateLimit?: boolean
@@ -73,18 +90,36 @@ export async function buildApp(deps: AppDeps) {
         verificationKey: env.PRIVY_VERIFICATION_KEY,
       }),
   )
+  app.decorate(
+    'streams',
+    deps.streams ??
+      createStreamReader({
+        client: createReadClient(env),
+        payroll: env.PAYROLL_ADDRESS as `0x${string}` | undefined,
+      }),
+  )
+  app.decorate('demo', deps.demo ?? createDemoSigner(env))
+  app.decorate(
+    'transfers',
+    deps.transfers ??
+      createTransferVerifier({
+        client: createReadClient(env),
+        payroll: env.PAYROLL_ADDRESS as `0x${string}` | undefined,
+        payoutAddress: env.PAYOUT_ADDRESS as `0x${string}` | undefined,
+      }),
+  )
+  app.decorate(
+    'payoutProvider',
+    deps.payoutProvider ??
+      createMockPayoutProvider({ completeAfterSeconds: env.MOCK_PAYOUT_SECONDS }),
+  )
   if (!deps.db) app.addHook('onClose', () => db.$disconnect())
 
   registerErrorHandling(app)
 
   // Swagger UI serves inline scripts, so CSP is left to the web app's host.
   await app.register(helmet, { contentSecurityPolicy: false })
-  await app.register(cors, {
-    origin: env.CORS_ORIGINS,
-    credentials: true,
-    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
-    exposedHeaders: ['Retry-After'],
-  })
+  await app.register(cors, { origin: env.CORS_ORIGINS, credentials: true })
   if (deps.rateLimit !== false) {
     await app.register(rateLimit, { max: 120, timeWindow: '1 minute' })
   }
@@ -95,7 +130,7 @@ export async function buildApp(deps: AppDeps) {
         title: 'Trickle API',
         version: '1.1.0',
         description:
-          'Metadata API for Trickle: sessions, users, employers, invites, gas sponsorship and FX. Money lives on-chain; this API never stores balances.\n\n' +
+          'Metadata API for Trickle: sessions, users, companies, workers, recipients, bank accounts, payouts, invites, gas sponsorship, judge mode and FX. Money lives on-chain; this API never stores balances.\n\n' +
           'Sign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\n' +
           'Resource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). ' +
           'List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`.',
@@ -104,9 +139,14 @@ export async function buildApp(deps: AppDeps) {
         { name: 'System' },
         { name: 'Sessions' },
         { name: 'Users' },
-        { name: 'Employers' },
+        { name: 'Companies' },
+        { name: 'Workers' },
+        { name: 'Recipients' },
+        { name: 'Bank accounts' },
+        { name: 'Payouts' },
         { name: 'Invites' },
         { name: 'Gas' },
+        { name: 'Demo' },
         { name: 'FX' },
       ],
       components: {
@@ -121,15 +161,21 @@ export async function buildApp(deps: AppDeps) {
   await app.register(swaggerUi, { routePrefix: '/docs' })
 
   await app.register(authPlugin)
+  await app.register(rbacPlugin)
   // Infrastructure endpoints stay unversioned so the Railway healthcheck and docs URL never move.
   await app.register(healthRoutes)
   await app.register(
     async (v1) => {
       await v1.register(sessionRoutes)
       await v1.register(userRoutes)
-      await v1.register(employerRoutes)
+      await v1.register(companyRoutes)
+      await v1.register(workerRoutes)
+      await v1.register(recipientRoutes)
+      await v1.register(bankAccountRoutes)
+      await v1.register(payoutRoutes)
       await v1.register(inviteRoutes)
       await v1.register(gasRoutes)
+      await v1.register(demoStreamRoutes)
       await v1.register(fxRoutes)
     },
     { prefix: API_PREFIX },
