@@ -11,6 +11,7 @@ import type { DemoSigner } from '../src/lib/demo.js'
 import { createFieldCipher } from '../src/lib/crypto.js'
 import { createMockPayoutProvider } from '../src/lib/payout-provider.js'
 import { createPrisma } from '../src/lib/prisma.js'
+import { createStreamStore, type StreamRow } from '../src/lib/stream-store.js'
 import type { TransferVerifier } from '../src/lib/transfers.js'
 import { signWebhook } from '../src/modules/payouts/service.js'
 import { expectForbidden } from './helpers.js'
@@ -37,8 +38,9 @@ describe.skipIf(!url)('api (integration)', () => {
   }
   const fx = { usdIdr: vi.fn() }
   const hasActiveStream = vi.fn<StreamReader['hasActiveStream']>()
-  const splitOf = vi.fn<StreamReader['splitOf']>()
-  const streams: StreamReader = { verified: true, hasActiveStream, splitOf }
+  const splitBpsOf = vi.fn<StreamReader['splitBpsOf']>()
+  const syncNew = vi.fn<StreamReader['syncNew']>()
+  const streams: StreamReader = { verified: true, hasActiveStream, splitBpsOf, syncNew }
   const createStream = vi.fn<DemoSigner['createStream']>()
   const demo: DemoSigner = {
     employerAddress: '0x000000000000000000000000000000000000bEEF',
@@ -52,7 +54,6 @@ describe.skipIf(!url)('api (integration)', () => {
   }
   // Completes on the first status check, so tests need no waiting.
   const payoutProvider = createMockPayoutProvider({ completeAfterSeconds: 0 })
-  const noSplit = { recipient: '0x0000000000000000000000000000000000000000', bps: 0 } as const
   let app: Awaited<ReturnType<typeof buildApp>>
 
   const account = (name: string) => privateKeyToAccount(keccak256(toHex(`test:${name}`)))
@@ -116,9 +117,10 @@ describe.skipIf(!url)('api (integration)', () => {
       return { streamId: 1n, txHash: `0x${'aa'.repeat(32)}`, start, end: start + seconds }
     })
     hasActiveStream.mockReset().mockResolvedValue(false)
-    splitOf.mockReset().mockResolvedValue(noSplit)
+    splitBpsOf.mockReset().mockResolvedValue(0)
+    syncNew.mockReset().mockResolvedValue()
     await db.$executeRawUnsafe(
-      'TRUNCATE "Payout","BankAccount","DemoStream","GasDrip","Invite","Recipient","Worker","Company","Session","User" CASCADE',
+      'TRUNCATE "Payout","BankAccount","DemoStream","GasDrip","Invite","Recipient","Worker","Company","Session","User","Stream" CASCADE',
     )
   })
 
@@ -131,6 +133,22 @@ describe.skipIf(!url)('api (integration)', () => {
     const res = await app.inject({ method: 'GET', url: '/health' })
     expect(res.statusCode).toBe(200)
     expect(res.json()).toMatchObject({ status: 'ok', db: 'ok' })
+  })
+
+  it('lets the web app preflight PATCH and DELETE', async () => {
+    for (const method of ['PATCH', 'DELETE']) {
+      const res = await app.inject({
+        method: 'OPTIONS',
+        url: '/api/v1/users/me',
+        headers: {
+          origin: 'http://localhost:3000',
+          'access-control-request-method': method,
+          'access-control-request-headers': 'authorization,content-type',
+        },
+      })
+      expect(res.statusCode, method).toBe(204)
+      expect(res.headers['access-control-allow-methods'], method).toContain(method)
+    }
   })
 
   describe('sessions and users', () => {
@@ -712,6 +730,53 @@ describe.skipIf(!url)('api (integration)', () => {
       await expectForbidden(app, outsider.token, [...all])
     })
 
+    it('lists my employments for the worker dashboard', async () => {
+      const { boss, companyId, workerId } = await hire()
+      const siti = await signIn('siti')
+      const mine = () =>
+        app.inject({ method: 'GET', url: '/api/v1/users/me/employments', headers: as(siti.token) })
+
+      const res = await mine()
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual({
+        data: [
+          {
+            id: workerId,
+            displayName: 'Siti',
+            position: 'Caregiver',
+            monthlySalaryUsd: 1200,
+            joinedAt: expect.any(String),
+            employer: expect.objectContaining({
+              id: companyId,
+              name: 'PT Maju Jaya',
+              country: null,
+              ownerAddress: boss.address.toLowerCase(),
+            }),
+          },
+        ],
+        nextCursor: null,
+      })
+
+      // Not a worker: an empty list, not 403.
+      const bossList = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/me/employments',
+        headers: as(boss.token),
+      })
+      expect(bossList.statusCode).toBe(200)
+      expect(bossList.json().data).toEqual([])
+
+      await app.inject({
+        method: 'DELETE',
+        url: `/api/v1/workers/${workerId}`,
+        headers: as(boss.token),
+      })
+      expect((await mine()).json().data).toEqual([])
+
+      const anon = await app.inject({ method: 'GET', url: '/api/v1/users/me/employments' })
+      expect(anon.statusCode).toBe(401)
+    })
+
     it('refuses to remove a worker while their stream is active', async () => {
       const { boss, companyId, workerId } = await hire()
       hasActiveStream.mockResolvedValueOnce(true)
@@ -920,10 +985,7 @@ describe.skipIf(!url)('api (integration)', () => {
 
     it('refuses to remove a recipient the on-chain split still pays', async () => {
       const { siti, recipientId } = await addIbu()
-      splitOf.mockResolvedValueOnce({
-        recipient: account('ibu').address.toLowerCase() as Address,
-        bps: 3000,
-      })
+      splitBpsOf.mockResolvedValueOnce(3000)
 
       const blocked = await app.inject({
         method: 'DELETE',
@@ -932,7 +994,10 @@ describe.skipIf(!url)('api (integration)', () => {
       })
       expect(blocked.statusCode).toBe(409)
       expect(blocked.json().error.code).toBe('SPLIT_ACTIVE')
-      expect(splitOf).toHaveBeenCalledWith(siti.address.toLowerCase())
+      expect(splitBpsOf).toHaveBeenCalledWith(
+        siti.address.toLowerCase(),
+        account('ibu').address.toLowerCase(),
+      )
 
       const removed = await app.inject({
         method: 'DELETE',
@@ -1497,6 +1562,125 @@ describe.skipIf(!url)('api (integration)', () => {
       expect(res.json()).toEqual(rate)
       expect(res.headers.deprecation).toBe('true')
       expect(res.headers.link).toBe('</api/v1/fx-rates/usd-idr>; rel="successor-version"')
+    })
+  })
+
+  describe('stream store', () => {
+    const boss = '0x00000000000000000000000000000000000000b0' as Address
+    const siti = '0x00000000000000000000000000000000000000a1' as Address
+    const now = new Date('2026-10-13T00:00:00Z')
+    const row = (id: bigint, over: Partial<StreamRow> = {}): StreamRow => ({
+      id,
+      employer: boss,
+      worker: siti,
+      amountUnits: '1000',
+      withdrawnUnits: '0',
+      refundedUnits: '0',
+      startsAt: new Date(now.getTime() - 3_600_000),
+      endsAt: new Date(now.getTime() + 3_600_000),
+      canceled: false,
+      settled: false,
+      ...over,
+    })
+
+    it('upserts streams and answers the indexer queries', async () => {
+      const store = createStreamStore(db)
+      await expect(store.maxId()).resolves.toBe(0n)
+
+      await store.upsert([
+        row(1n),
+        row(2n, { canceled: true, refundedUnits: '1000', settled: true }),
+        row(10n, { endsAt: new Date(now.getTime() - 1) }),
+      ])
+      // 10 > 2 numerically (a text id would sort "10" before "2").
+      await expect(store.maxId()).resolves.toBe(10n)
+      await expect(store.openIds()).resolves.toEqual([1n, 10n])
+      await expect(store.activeIds(boss, siti, now)).resolves.toEqual([1n])
+
+      await store.upsert([row(1n, { canceled: true, refundedUnits: '500' })])
+      await expect(store.activeIds(boss, siti, now)).resolves.toEqual([])
+      await expect(db.stream.count()).resolves.toBe(3)
+    })
+
+    it('lists company streams for the owner and my streams for the worker', async () => {
+      const owner = await signIn('employer')
+      const companyId = await createCompany(owner.token)
+      const added = await app.inject({
+        method: 'POST',
+        url: `/api/v1/companies/${companyId}/workers`,
+        headers: as(owner.token),
+        payload: { address: account('siti').address, displayName: 'Siti', monthlySalaryUsd: 1200 },
+      })
+      const siti = await signIn('siti')
+      const bossAddr = owner.address.toLowerCase() as Address
+      const sitiAddr = siti.address.toLowerCase() as Address
+      const demoAddr = '0x000000000000000000000000000000000000bEEF'.toLowerCase() as Address
+      await createStreamStore(db).upsert([
+        row(1n, { employer: bossAddr, worker: sitiAddr, canceled: true }),
+        // Running now by the real clock: status is derived from the time of the request.
+        row(2n, {
+          employer: bossAddr,
+          worker: sitiAddr,
+          startsAt: new Date(Date.now() - 3_600_000),
+          endsAt: new Date(Date.now() + 3_600_000),
+        }),
+        row(3n, { employer: demoAddr, worker: sitiAddr }),
+        row(4n, { employer: bossAddr, worker: boss }),
+      ])
+
+      const company = await app.inject({
+        method: 'GET',
+        url: `/api/v1/companies/${companyId}/streams?limit=2`,
+        headers: as(owner.token),
+      })
+      expect(company.statusCode).toBe(200)
+      expect(syncNew).toHaveBeenCalled()
+      const page1 = company.json()
+      expect(page1.data.map((s: { id: string }) => s.id)).toEqual(['4', '2'])
+      expect(page1.data[0].worker).toBeNull()
+      expect(page1.data[1]).toMatchObject({
+        workerAddress: sitiAddr,
+        status: 'ACTIVE',
+        worker: { id: added.json().id, displayName: 'Siti' },
+      })
+      const page2 = await app.inject({
+        method: 'GET',
+        url: `/api/v1/companies/${companyId}/streams?limit=2&cursor=${page1.nextCursor}`,
+        headers: as(owner.token),
+      })
+      expect(page2.json()).toMatchObject({
+        data: [{ id: '1', status: 'CANCELED' }],
+        nextCursor: null,
+      })
+
+      const mine = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/me/streams',
+        headers: as(siti.token),
+      })
+      expect(
+        mine.json().data.map((s: { id: string; company: unknown }) => [s.id, s.company]),
+      ).toEqual([
+        ['3', null],
+        ['2', { id: companyId, name: 'PT Maju Jaya' }],
+        ['1', { id: companyId, name: 'PT Maju Jaya' }],
+      ])
+
+      await expectForbidden(app, siti.token, [
+        { method: 'GET', url: `/api/v1/companies/${companyId}/streams` },
+      ])
+      const other = await signIn('other-employer')
+      await createCompany(other.token, 'PT Lain')
+      await expectForbidden(app, other.token, [
+        { method: 'GET', url: `/api/v1/companies/${companyId}/streams` },
+      ])
+
+      const badCursor = await app.inject({
+        method: 'GET',
+        url: '/api/v1/users/me/streams?cursor=abc',
+        headers: as(siti.token),
+      })
+      expect(badCursor.statusCode).toBe(422)
     })
   })
 

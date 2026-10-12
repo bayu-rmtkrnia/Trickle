@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from 'vitest'
-import type { Split } from '../src/lib/streams.js'
 import type { RecipientRepository } from '../src/modules/recipients/repository.js'
 import type { RecipientWithUser } from '../src/modules/recipients/schemas.js'
 import { createRecipientService } from '../src/modules/recipients/service.js'
@@ -19,13 +18,13 @@ const ibu: RecipientWithUser = {
 const log = { warn: vi.fn() }
 
 /** Only the methods a test touches are filled in; the rest fail loudly. */
-function setup(repo: Partial<RecipientRepository>, split: Split | null = null) {
+function setup(repo: Partial<RecipientRepository>, bps: number | null = null) {
   const unexpected = () => {
     throw new Error('unexpected repository call')
   }
-  const splitOf = vi.fn(async () => split)
+  const splitBpsOf = vi.fn(async () => bps)
   const service = createRecipientService({
-    streams: { splitOf },
+    streams: { splitBpsOf },
     repo: {
       findAccess: unexpected,
       findActive: unexpected,
@@ -39,7 +38,7 @@ function setup(repo: Partial<RecipientRepository>, split: Split | null = null) {
       ...repo,
     } as RecipientRepository,
   })
-  return { service, splitOf }
+  return { service, splitBpsOf }
 }
 
 const user = (id: string) =>
@@ -91,28 +90,23 @@ describe('recipient service', () => {
 
   it('refuses to remove the current split recipient', async () => {
     const softDelete = vi.fn()
-    const { service, splitOf } = setup(
+    const { service, splitBpsOf } = setup(
       { findSplitParties: async () => parties, softDelete },
-      { recipient: '0xibu', bps: 3000 },
+      3000,
     )
     await expect(service.remove('r-1', log)).rejects.toMatchObject({
       statusCode: 409,
       code: 'SPLIT_ACTIVE',
     })
-    expect(splitOf).toHaveBeenCalledWith('0xsiti')
+    expect(splitBpsOf).toHaveBeenCalledWith('0xsiti', '0xibu')
     expect(softDelete).not.toHaveBeenCalled()
   })
 
-  it('removes when the split is off or points elsewhere', async () => {
-    for (const split of [
-      { recipient: '0xibu', bps: 0 },
-      { recipient: '0xother', bps: 3000 },
-    ] as Split[]) {
-      const softDelete = vi.fn(async () => {})
-      const { service } = setup({ findSplitParties: async () => parties, softDelete }, split)
-      await service.remove('r-1', log)
-      expect(softDelete).toHaveBeenCalledWith('r-1')
-    }
+  it('removes when the split no longer sends to this recipient', async () => {
+    const softDelete = vi.fn(async () => {})
+    const { service } = setup({ findSplitParties: async () => parties, softDelete }, 0)
+    await service.remove('r-1', log)
+    expect(softDelete).toHaveBeenCalledWith('r-1')
   })
 
   it('removes but logs when the payroll contract is not configured', async () => {

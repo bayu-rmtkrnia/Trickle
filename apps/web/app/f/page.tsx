@@ -1,5 +1,8 @@
-import { PagePlaceholder } from '@/components/page-placeholder'
+import type { Metadata } from 'next'
+import { FamilyDashboard } from '@/components/family/family-dashboard'
+
+export const metadata: Metadata = { title: 'Dashboard keluarga | Trickle' }
 
 export default function FamilyPage() {
-  return <PagePlaceholder title="Family Dashboard" />
+  return <FamilyDashboard />
 }

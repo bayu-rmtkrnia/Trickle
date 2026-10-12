@@ -12,7 +12,7 @@ type Log = Pick<FastifyBaseLogger, 'warn'>
 
 interface Deps {
   repo: RecipientRepository
-  streams: Pick<StreamReader, 'splitOf'>
+  streams: Pick<StreamReader, 'splitBpsOf'>
 }
 
 /**
@@ -60,10 +60,10 @@ export function createRecipientService({ repo, streams }: Deps) {
     async remove(id: string, log: Log) {
       const parties = await repo.findSplitParties(id)
       if (!parties) throw recipientNotFound()
-      const split = await streams.splitOf(parties.worker)
-      if (!split) {
+      const bps = await streams.splitBpsOf(parties.worker, parties.recipient)
+      if (bps === null) {
         log.warn({ recipientId: id }, 'recipient removed without an on-chain split check')
-      } else if (split.bps > 0 && split.recipient === parties.recipient) {
+      } else if (bps > 0) {
         throw conflict(
           'SPLIT_ACTIVE',
           'Your salary split still sends to this recipient. Turn the split off or change it first.',

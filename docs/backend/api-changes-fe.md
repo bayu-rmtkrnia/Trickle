@@ -123,6 +123,8 @@ Kolom **Akses**: – publik; ✓ login tanpa syarat peran; *Employer/Worker/Reci
 | DELETE | `/sessions/current` | ✓ | → 204 |
 | GET | `/users/me` | ✓ | → `{ id, address, displayName, createdAt, companyId, roles }` |
 | PATCH | `/users/me` | ✓ | `{ displayName }` → sama seperti GET |
+| GET | `/users/me/streams` | ✓ | `?limit=&cursor=` → paged `MyStream` (lihat [Stream](#stream)) |
+| GET | `/users/me/employments` | ✓ | `?limit=&cursor=` → paged `{ id, displayName, position, monthlySalaryUsd, joinedAt, employer: Company }`. Bukan pekerja → `data: []` |
 
 ### Perusahaan dan pekerja (employer)
 
@@ -142,6 +144,22 @@ Kolom **Akses**: – publik; ✓ login tanpa syarat peran; *Employer/Worker/Reci
 
 `monthlySalaryUsd` hanya gaji referensi untuk tampilan. Uangnya tetap mengalir lewat `createStream` di kontrak.
 
+### Stream
+
+| Method | Path | Akses | Respons | Error khusus |
+| ------ | ---- | ----- | ------- | ------------ |
+| GET | `/companies/:id/streams` | Pemilik | `?limit=&cursor=` → paged `CompanyStream` | |
+| GET | `/users/me/streams` | ✓ (tanpa cek peran) | `?limit=&cursor=` → paged `MyStream` | |
+
+`CompanyStream = { id, employerAddress, workerAddress, amountUnits, withdrawnUnits, refundedUnits, startsAt, endsAt, status, syncedAt, worker: { id, displayName } | null }`
+`MyStream` = field yang sama, tapi `company: { id, name } | null` sebagai ganti `worker`.
+
+- Data berasal dari indexer API (cache kontrak). Stream baru disinkronkan sebelum menjawab, jadi stream yang baru dibuat langsung muncul.
+- `id` adalah id stream on-chain (string desimal), dipakai untuk `withdraw(id)`/`cancel(id)`. Cursor-nya juga id ini.
+- `status`: `SCHEDULED`, `ACTIVE`, `ENDED`, atau `CANCELED`.
+- Jumlah dalam unit token (6 desimal) sebagai string. Jumlah yang sudah mengalir tidak dikirim karena berubah tiap detik: hitung dari `startsAt`/`endsAt`, atau baca `withdrawable(id)` on-chain. `withdrawnUnits` bisa tertinggal ~15 detik (`syncedAt`).
+- Stream demo judge mode muncul di `/users/me/streams` dengan `company: null`. Endpoint ini bisa menggantikan pemindaian log `StreamCreated` di `payroll-reader.ts`.
+
 ### Penerima (worker)
 
 | Method | Path | Akses | Body → respons | Error khusus |
@@ -154,7 +172,7 @@ Kolom **Akses**: – publik; ✓ login tanpa syarat peran; *Employer/Worker/Reci
 
 `Recipient = { id, ownerId, userId, address, displayName, relation, addedAt }`
 
-`address` adalah yang dipakai sebagai `recipient` di `setSplit(recipient, bps)`. Persentase split **tidak** disimpan di API; baca dari kontrak (`splitOf`). Penerima yang masih dipakai split ditolak dihapus (409 `SPLIT_ACTIVE`): matikan atau ganti split dulu.
+`address` adalah yang dipakai sebagai `recipient` di `setSplits([{ recipient, bps }, ...])` (maks. 3 penerima). Persentase split **tidak** disimpan di API; baca dari kontrak (`splitsOf`). Penerima yang masih dipakai split ditolak dihapus (409 `SPLIT_ACTIVE`): matikan atau ganti split dulu.
 
 ### Undangan
 
@@ -250,7 +268,7 @@ Alurnya:
 
 `GasDrip = { address, status, amountMon, txHash, alreadyDripped, createdAt }`
 
-- Panggil sebelum transaksi pertama akun (mis. withdraw, `setSplit`, transfer untuk payout). Sekali per alamat.
+- Panggil sebelum transaksi pertama akun (mis. withdraw, `setSplits`, transfer untuk payout). Sekali per alamat.
 - `SENT` artinya transaksi gas sudah dikirim, **belum tentu terkonfirmasi**. Tunggu receipt `txHash` sebelum mengirim transaksi pengguna.
 - `PENDING` dengan `txHash: null`: drip sebelumnya masih diproses. Coba lagi sebentar.
 
@@ -276,7 +294,7 @@ Alurnya:
 1. Buka link → `GET /invites/:code` (tanpa login) → login → `POST /invites/:code/acceptance`.
 2. `POST /gas-drips` sebelum transaksi pertama.
 3. Saldo dan withdraw dari kontrak. Kurs: `GET /fx-rates/usd-idr`.
-4. Keluarga: `POST /invites` (RECIPIENT) atau `POST /recipients`, lalu `setSplit` di kontrak dengan `address` penerima.
+4. Keluarga: `POST /invites` (RECIPIENT) atau `POST /recipients`, lalu `setSplits` di kontrak dengan `address` penerima.
 
 **Penerima (`/f`)**
 1. Buka link → login → `POST /invites/:code/acceptance`.

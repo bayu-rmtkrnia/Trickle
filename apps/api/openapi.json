@@ -447,6 +447,33 @@
         },
         "required": ["id", "address", "displayName", "createdAt", "companyId", "roles"]
       },
+      "EmploymentInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Worker id, for `/api/v1/workers/{id}`"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "My name as this employer knows me"
+          },
+          "position": {
+            "nullable": true,
+            "type": "string"
+          },
+          "monthlySalaryUsd": {
+            "type": "number"
+          },
+          "joinedAt": {
+            "type": "string"
+          },
+          "employer": {
+            "$ref": "#/components/schemas/CompanyInput"
+          }
+        },
+        "required": ["id", "displayName", "position", "monthlySalaryUsd", "joinedAt", "employer"]
+      },
       "RecipientInput": {
         "type": "object",
         "properties": {
@@ -476,6 +503,144 @@
           }
         },
         "required": ["id", "ownerId", "userId", "address", "displayName", "relation", "addedAt"]
+      },
+      "CompanyStreamInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "On-chain stream id, as a decimal string"
+          },
+          "employerAddress": {
+            "type": "string"
+          },
+          "workerAddress": {
+            "type": "string"
+          },
+          "amountUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "withdrawnUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "refundedUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["SCHEDULED", "ACTIVE", "ENDED", "CANCELED"],
+            "description": "Derived when read: CANCELED, else SCHEDULED before start, ENDED after end"
+          },
+          "syncedAt": {
+            "type": "string",
+            "description": "When the indexer last read this stream. Streamed amounts change every second: compute them from start/end, or read `withdrawable` on-chain"
+          },
+          "worker": {
+            "nullable": true,
+            "description": "The worker row in this company for `workerAddress`, or `null` if there is none",
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "displayName": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "displayName"]
+          }
+        },
+        "required": [
+          "id",
+          "employerAddress",
+          "workerAddress",
+          "amountUnits",
+          "withdrawnUnits",
+          "refundedUnits",
+          "startsAt",
+          "endsAt",
+          "status",
+          "syncedAt",
+          "worker"
+        ]
+      },
+      "MyStreamInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "On-chain stream id, as a decimal string"
+          },
+          "employerAddress": {
+            "type": "string"
+          },
+          "workerAddress": {
+            "type": "string"
+          },
+          "amountUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "withdrawnUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "refundedUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["SCHEDULED", "ACTIVE", "ENDED", "CANCELED"],
+            "description": "Derived when read: CANCELED, else SCHEDULED before start, ENDED after end"
+          },
+          "syncedAt": {
+            "type": "string",
+            "description": "When the indexer last read this stream. Streamed amounts change every second: compute them from start/end, or read `withdrawable` on-chain"
+          },
+          "company": {
+            "nullable": true,
+            "description": "The active company owned by `employerAddress`, or `null` (e.g. the judge-mode demo employer)",
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "name"]
+          }
+        },
+        "required": [
+          "id",
+          "employerAddress",
+          "workerAddress",
+          "amountUnits",
+          "withdrawnUnits",
+          "refundedUnits",
+          "startsAt",
+          "endsAt",
+          "status",
+          "syncedAt",
+          "company"
+        ]
       },
       "WorkerInput": {
         "type": "object",
@@ -965,6 +1130,34 @@
         "required": ["id", "address", "displayName", "createdAt", "companyId", "roles"],
         "additionalProperties": false
       },
+      "Employment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Worker id, for `/api/v1/workers/{id}`"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "My name as this employer knows me"
+          },
+          "position": {
+            "nullable": true,
+            "type": "string"
+          },
+          "monthlySalaryUsd": {
+            "type": "number"
+          },
+          "joinedAt": {
+            "type": "string"
+          },
+          "employer": {
+            "$ref": "#/components/schemas/Company"
+          }
+        },
+        "required": ["id", "displayName", "position", "monthlySalaryUsd", "joinedAt", "employer"],
+        "additionalProperties": false
+      },
       "Recipient": {
         "type": "object",
         "properties": {
@@ -994,6 +1187,148 @@
           }
         },
         "required": ["id", "ownerId", "userId", "address", "displayName", "relation", "addedAt"],
+        "additionalProperties": false
+      },
+      "CompanyStream": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "On-chain stream id, as a decimal string"
+          },
+          "employerAddress": {
+            "type": "string"
+          },
+          "workerAddress": {
+            "type": "string"
+          },
+          "amountUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "withdrawnUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "refundedUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["SCHEDULED", "ACTIVE", "ENDED", "CANCELED"],
+            "description": "Derived when read: CANCELED, else SCHEDULED before start, ENDED after end"
+          },
+          "syncedAt": {
+            "type": "string",
+            "description": "When the indexer last read this stream. Streamed amounts change every second: compute them from start/end, or read `withdrawable` on-chain"
+          },
+          "worker": {
+            "nullable": true,
+            "description": "The worker row in this company for `workerAddress`, or `null` if there is none",
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "displayName": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "displayName"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "employerAddress",
+          "workerAddress",
+          "amountUnits",
+          "withdrawnUnits",
+          "refundedUnits",
+          "startsAt",
+          "endsAt",
+          "status",
+          "syncedAt",
+          "worker"
+        ],
+        "additionalProperties": false
+      },
+      "MyStream": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "On-chain stream id, as a decimal string"
+          },
+          "employerAddress": {
+            "type": "string"
+          },
+          "workerAddress": {
+            "type": "string"
+          },
+          "amountUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "withdrawnUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "refundedUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["SCHEDULED", "ACTIVE", "ENDED", "CANCELED"],
+            "description": "Derived when read: CANCELED, else SCHEDULED before start, ENDED after end"
+          },
+          "syncedAt": {
+            "type": "string",
+            "description": "When the indexer last read this stream. Streamed amounts change every second: compute them from start/end, or read `withdrawable` on-chain"
+          },
+          "company": {
+            "nullable": true,
+            "description": "The active company owned by `employerAddress`, or `null` (e.g. the judge-mode demo employer)",
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "name"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "employerAddress",
+          "workerAddress",
+          "amountUnits",
+          "withdrawnUnits",
+          "refundedUnits",
+          "startsAt",
+          "endsAt",
+          "status",
+          "syncedAt",
+          "company"
+        ],
         "additionalProperties": false
       },
       "Worker": {
@@ -1337,6 +1672,90 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/employments": {
+      "get": {
+        "summary": "Companies I work for (worker dashboard)",
+        "tags": ["Users"],
+        "description": "My active employments, newest first. Answers an empty list for accounts that are not workers. Salary is a reference; the pay itself is the on-chain stream from `employer.ownerAddress`.",
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Employment"
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "nextCursor"],
+                  "additionalProperties": false
                 }
               }
             }
@@ -2241,6 +2660,202 @@
         }
       }
     },
+    "/api/v1/companies/{id}/streams": {
+      "get": {
+        "summary": "Streams my company's owner wallet funds (employer)",
+        "tags": ["Streams"],
+        "description": "From the stream indexer (a cache of the contract), newest first. Streams created since the last indexer round are fetched before answering.",
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,30}$"
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/CompanyStream"
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "nextCursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/streams": {
+      "get": {
+        "summary": "Streams paying my wallet (worker)",
+        "tags": ["Streams"],
+        "description": "From the stream indexer (a cache of the contract), newest first. Streams created since the last indexer round are fetched before answering. No role check: includes judge-mode demo streams, and is empty for accounts that are paid nothing.",
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,30}$"
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/MyStream"
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "nextCursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/recipients": {
       "post": {
         "summary": "Add a family recipient by wallet address (worker)",
@@ -2347,7 +2962,7 @@
       "get": {
         "summary": "My recipients (worker)",
         "tags": ["Recipients"],
-        "description": "Metadata only. The split percentage lives on-chain (`splitOf`).",
+        "description": "Metadata only. The split percentage lives on-chain (`splitsOf`).",
         "parameters": [
           {
             "schema": {
@@ -2621,7 +3236,7 @@
       "delete": {
         "summary": "Remove one of my recipients (soft delete)",
         "tags": ["Recipients"],
-        "description": "Refused with 409 `SPLIT_ACTIVE` while the worker's on-chain split still sends to this recipient. Call `setSplit(0x0, 0)` or point the split elsewhere first.",
+        "description": "Refused with 409 `SPLIT_ACTIVE` while the worker's on-chain split still sends to this recipient. Call `setSplits` without this recipient (or with an empty list) first.",
         "parameters": [
           {
             "schema": {
@@ -4502,6 +5117,9 @@
     },
     {
       "name": "Workers"
+    },
+    {
+      "name": "Streams"
     },
     {
       "name": "Recipients"

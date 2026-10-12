@@ -6,10 +6,12 @@ export interface UserDto {
 }
 
 export interface Me extends UserDto {
+  /** Perusahaan aktif milik user; `null` kalau belum jadi employer. */
+  companyId: string | null
   roles: {
     employer: boolean
     worker: boolean
-    family: boolean
+    recipient: boolean
   }
 }
 

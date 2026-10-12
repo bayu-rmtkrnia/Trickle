@@ -67,6 +67,9 @@ Semua endpoint resource ada di bawah `/api/v1`, kecuali `/health` dan `/docs` (S
 | sessions | `POST /sessions` | – | Tukar access token Privy → token sesi. Rate limit 20/menit |
 | | `DELETE /sessions/current` | ✓ | Logout sesi ini saja |
 | users | `GET /users/me`, `PATCH /users/me` | ✓ | Profil, peran, dan `companyId`; PATCH hanya `displayName` |
+| | `GET /users/me/employments` | ✓ | Perusahaan tempat saya bekerja (dashboard pekerja), paged, beserta data employer |
+| streams | `GET /companies/:id/streams` | Pemilik perusahaan | Stream dari wallet pemilik, dari indexer; `worker` ditautkan ke baris `Worker` |
+| | `GET /users/me/streams` | ✓ | Stream yang membayar wallet saya; `company` ditautkan lewat alamat employer, termasuk stream judge mode (`company: null`) |
 | companies | `POST /companies` | ✓ | Satu perusahaan aktif per akun |
 | | `GET/PATCH/DELETE /companies/:id` | Pemilik | Peran lain dan employer lain mendapat 403. DELETE = soft delete |
 | workers | `POST/GET /companies/:id/workers` | Pemilik perusahaan | POST lewat alamat wallet; memulihkan pekerja yang pernah dihapus |
@@ -129,7 +132,7 @@ error di mana pun → plugins/errors.ts → { error: { code, message, details? }
 Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah, perbarui entrinya, jangan hanya menambah entri baru di bawah.
 
 ### Data & uang
-- **Uang hanya ada di chain.** Postgres tidak pernah menyimpan saldo atau jumlah yang sudah mengalir; data itu selalu dibaca dari kontrak atau indexer (PLAN §4.2). Kenapa: satu sumber kebenaran, jadi tidak ada risiko angka DB berbeda dengan angka on-chain.
+- **Uang hanya ada di chain.** Postgres tidak pernah menyimpan saldo atau jumlah yang sudah mengalir sebagai sumber kebenaran; data itu selalu dibaca dari kontrak atau indexer (PLAN §4.2). Kenapa: satu sumber kebenaran, jadi tidak ada risiko angka DB berbeda dengan angka on-chain. Tabel `Stream` hanya cache yang disalin indexer dari kontrak (lihat Indexer stream).
 - **Gaji referensi disimpan dalam sen (`Int`)**, lalu dikonversi di `lib/money.ts`. Kenapa: menghindari pembulatan float.
 - **Data sensitif dienkripsi at-rest.** Nomor rekening hanya disimpan dalam bentuk terenkripsi (lihat Fitur 9), dan token sesi hanya disimpan hash-nya.
 - **Tidak ada private key pengguna di server.** Hanya ada dua key, keduanya untuk testnet: treasury gas (`GAS_TREASURY_PRIVATE_KEY`) dan employer demo untuk judge mode (`DEMO_EMPLOYER_PRIVATE_KEY`) (PLAN §4.2).
@@ -163,7 +166,20 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Pekerja bisa ditambahkan lewat alamat wallet** selain lewat undangan. Akun untuk alamat itu dibuat kalau belum ada, lalu tertaut saat pemiliknya login Privy (penautan lewat alamat dari Fitur 3). Kenapa: PLAN meminta CRUD penuh, dan kadang employer sudah tahu alamatnya.
 - **Hapus = soft delete, dan pekerja yang sama dipulihkan kalau ditambah atau diundang lagi.** Kenapa: unique `(companyId, userId)` menjaga satu baris per hubungan kerja, jadi riwayatnya tetap satu.
 - **Hapus ditolak 409 `STREAM_ACTIVE` kalau gaji masih mengalir on-chain** (PLAN §4.2). Pengecekan lewat interface `StreamReader` (`lib/streams.ts`), jadi service tidak tahu apakah jawabannya dari indexer, RPC, atau test.
-- **`StreamReader` default belum memverifikasi apa pun** (selalu "tidak aktif", dan setiap penghapusan dicatat di log sebagai tidak terverifikasi). Kenapa: kontrak `TricklePayroll` tidak punya fungsi "stream per pekerja", dan RPC publik Monad membatasi `eth_getLogs` ke 100 blok, sehingga mencari event `StreamCreated` sejak blok deploy butuh ratusan request per pengecekan. Jawaban yang benar akan datang dari indexer milik SC.
+- **`StreamReader.hasActiveStream` dijawab indexer stream** (lihat Indexer stream). Tanpa `PAYROLL_ADDRESS` tidak ada yang bisa dicek: jawabannya "tidak aktif" dan penghapusan dicatat di log sebagai tidak terverifikasi.
+
+### Indexer stream
+- **Membaca state kontrak per id, bukan memindai event.** Id stream berurutan (`nextStreamId`), jadi satu putaran = satu `eth_call` untuk counter + satu multicall (Multicall3) per 100 stream lewat `getStream`. Kenapa bukan `eth_getLogs`: RPC publik Monad membatasinya ke 100 blok, sehingga memindai `StreamCreated` sejak blok deploy butuh ratusan request dan terus bertambah. Membaca state juga tidak butuh checkpoint blok dan tidak terpengaruh reorg.
+- **Tabel `Stream` adalah cache, bukan sumber kebenaran.** Setiap putaran mengambil id baru (di atas id terbesar di DB), lalu membaca ulang semua stream yang belum `settled` (`withdrawn + refunded == amount`), supaya `canceled` dan `withdrawn` ikut ter-update. Stream yang sudah settled tidak dibaca lagi karena tidak bisa berubah.
+- **Pengecekan yang memblokir aksi membaca ulang dari chain.** `hasActiveStream` menyinkronkan stream baru dulu, mengambil kandidat (belum dibatalkan, belum berakhir) dari DB, lalu membaca ulang kandidat itu on-chain. Kenapa: stream yang baru dibuat atau baru dibatalkan tidak boleh menunggu putaran berikutnya. Stream yang belum mulai (`start` di masa depan) dihitung aktif, karena dananya sudah terkunci.
+- **Loop jalan di proses API** (`startStreamSync`, tiap `STREAM_SYNC_SECONDS`, default 15). Putaran tidak pernah tumpang tindih; error dicatat dan dicoba lagi di putaran berikutnya. Kenapa tidak worker terpisah: Railway menjalankan satu instance, dan upsert-nya idempoten, jadi tetap aman kalau nanti ada beberapa instance.
+- **`id` bertipe `BIGINT`**, bukan teks seperti `DemoStream.streamId`, supaya "id terbesar" dihitung numerik (teks mengurutkan `"10"` sebelum `"2"`).
+- **Daftar stream menyinkronkan stream baru dulu** (`StreamReader.syncNew`, satu `eth_call` + multicall kalau ada stream baru), jadi stream yang baru dibuat employer langsung muncul. Kalau RPC gagal, daftar tetap dijawab dari cache dan kegagalannya dicatat di log.
+- **Stream milik alamat, bukan perusahaan.** Kontrak hanya tahu wallet employer, jadi `/companies/:id/streams` berisi stream dari wallet pemilik perusahaan, dan `worker` diisi kalau alamat penerimanya pekerja di perusahaan itu (`null` kalau bukan). Sebaliknya `/users/me/streams` mencari perusahaan aktif milik alamat employer; employer demo judge mode tidak punya perusahaan, jadi `company: null`.
+- **`status` dihitung saat dibaca** (`CANCELED`, `SCHEDULED`, `ACTIVE`, `ENDED`), sama seperti `EXPIRED` di undangan. Jumlah yang sudah mengalir tidak dikirim karena berubah tiap detik: FE menghitungnya dari `startsAt`/`endsAt` atau membaca `withdrawable` on-chain. `withdrawnUnits` bisa tertinggal sampai satu putaran (`syncedAt`).
+- **Cursor daftar stream adalah id on-chain** (`id < cursor`, urut terbaru dulu), bukan id baris seperti list lain, karena PK-nya memang id stream. Cursor yang bukan angka ditolak 422.
+- **`/users/me/streams` tanpa cek peran**, seperti `/users/me/employments`: akun juri menerima stream demo tanpa baris `Worker`.
+- **Pekerja melihat pekerjaannya lewat `GET /users/me/employments`**, bukan `GET /workers?userId=`. Kenapa: datanya selalu milik pemanggil, jadi tidak perlu cek kepemilikan, dan FE tidak perlu tahu id pekerjanya dulu. Tanpa cek peran: akun yang bukan pekerja mendapat `data: []`, bukan 403, supaya dashboard cukup satu panggilan. `employer` memakai bentuk `Company` yang sama (termasuk `ownerAddress`, alamat pengirim stream).
 - **`GET /workers/:id` boleh diakses pekerja itu sendiri**, tapi `PATCH`/`DELETE` hanya employer (PLAN §6.3: "W hanya GET dirinya sendiri"). `requireOwnership` menerima beberapa pemilik untuk kasus seperti ini.
 
 ### Penerima (Fitur 7)
@@ -171,7 +187,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Peran `family` di-rename jadi `recipient`** di `/users/me` dan `requireRole`, mengikuti PLAN K5. Aman karena FE belum memanggil API. Jenis undangan ikut di-rename jadi `RECIPIENT` di Fitur 8.
 - **`/recipients` (koleksi) tidak punya `:id` pemilik**: daftar dan tambah selalu memakai pekerja yang login, jadi cukup `requireRole('worker')` tanpa cek kepemilikan. Kenapa: pekerja hanya boleh mengelola penerimanya sendiri, dan ini menghindari id pekerja di URL.
 - **Penerima boleh `GET` dirinya sendiri**, tapi hanya pekerja pemilik yang boleh mengubah atau menghapus (sama seperti `/workers/:id`).
-- **Hapus ditolak 409 `SPLIT_ACTIVE` kalau split on-chain masih mengarah ke penerima ini** (PLAN §4.2). Kenapa berbeda dengan pekerja: kontrak punya view `splitOf(worker)`, jadi cukup satu `eth_call` ke `PAYROLL_ADDRESS` tanpa indexer. ABI-nya cukup satu fragmen di `lib/streams.ts`, supaya tidak menunggu `packages/shared` di-merge.
+- **Hapus ditolak 409 `SPLIT_ACTIVE` kalau split on-chain masih mengarah ke penerima ini** (PLAN §4.2). Kenapa berbeda dengan pekerja: kontrak punya view `splitBpsOf(worker, recipient)`, jadi cukup satu `eth_call` ke `PAYROLL_ADDRESS` tanpa indexer. Sejak TricklePayroll v2 (maks. 3 penerima per pekerja) `splitOf` sudah tidak ada; API menanyakan bps untuk penerima yang mau dihapus saja, bukan seluruh daftar `splitsOf`. ABI-nya cukup satu fragmen di `lib/streams.ts`, supaya tidak menunggu `packages/shared` di-merge.
 - **Tanpa `PAYROLL_ADDRESS`, hapus tetap jalan dan dicatat di log.** Kenapa: development lokal dan test tidak perlu RPC; di deploy env ini wajib diisi.
 
 ### Undangan (Fitur 8)
@@ -233,6 +249,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Gas drip idempoten per alamat** lewat unique constraint `GasDrip.address`. Drip yang gagal bisa dicoba ulang, dan ada batas harian (`GAS_DRIP_DAILY_LIMIT`).
 - **Kurs FX di-cache di memori.** Kalau provider mati, API memakai kurs terakhir lalu kurs fallback statis, dan respons selalu menyebut `source`-nya.
 - **Rate limit global 120/menit per IP**, dengan batas lebih ketat di sign-in, gas drip, dan demo stream. Batas harian per IP untuk gas drip dan demo stream disimpan di DB.
+- **CORS menyebut `methods` secara eksplisit** (`GET, HEAD, POST, PATCH, DELETE`). Kenapa: sejak v10, default `@fastify/cors` hanya `GET,HEAD,POST`, sehingga preflight `PATCH`/`DELETE` dari browser ditolak. Kalau menambah route dengan method lain (misalnya `PUT`), daftarnya juga harus ditambah.
 - **Semua config divalidasi saat start** (`src/env.ts`). String kosong di `.env` dianggap tidak diisi. Fitur yang config-nya kosong menjawab 503, bukan crash (contoh: Privy, gas treasury, employer demo).
 
 ## 6. Data model (Postgres via Prisma)
@@ -263,7 +280,8 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 | `SESSION_TTL_DAYS` | Masa berlaku sesi (default 7) |
 | `WEB_URL`, `CORS_ORIGINS` | Link undangan dan origin web yang diizinkan |
 | `CHAIN_ID`, `RPC_URL`, `GAS_TREASURY_PRIVATE_KEY`, `GAS_DRIP_*` | Gas drip: key treasury (testnet), jumlah per drip, batas harian total (`GAS_DRIP_DAILY_LIMIT`) dan per IP (`GAS_DRIP_IP_DAILY_LIMIT`) |
-| `PAYROLL_ADDRESS` | Kontrak `TricklePayroll`, untuk cek split saat menghapus penerima dan untuk judge mode. Kosong = cek split dilewati (dicatat di log) dan judge mode menjawab 503 |
+| `PAYROLL_ADDRESS` | Kontrak `TricklePayroll` v2, untuk cek split saat menghapus penerima, indexer stream, dan judge mode. Kosong = cek split dan cek stream dilewati (dicatat di log), indexer mati, judge mode menjawab 503 |
+| `STREAM_SYNC_SECONDS` | Jeda antar-putaran indexer stream (default 15). `0` mematikan loop; pengecekan `STREAM_ACTIVE` tetap menyinkronkan sendiri |
 | `PAYOUT_ADDRESS`, `PAYOUT_WEBHOOK_SECRET`, `MOCK_PAYOUT_SECONDS` | Payouts: alamat tujuan transfer penerima, secret signature webhook, dan lama provider mock memproses. Tanpa `PAYOUT_ADDRESS` (atau `PAYROLL_ADDRESS`/`BANK_ENCRYPTION_KEY`), `POST /payouts` menjawab 503; tanpa secret, webhook 503 |
 | `BANK_ENCRYPTION_KEY` | Kunci enkripsi nomor rekening (`openssl rand -hex 32`). Kosong = tambah rekening menjawab 503. Jangan diganti setelah ada data: nomor lama tidak bisa dibaca lagi |
 | `DEMO_EMPLOYER_PRIVATE_KEY`, `DEMO_STREAM_*` | Judge mode: key employer demo (butuh MON untuk gas), jumlah, durasi, batas harian total dan per IP |
@@ -278,7 +296,8 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 
 ## 9. Masalah yang diketahui / utang
 
-- **Cek stream aktif saat menghapus pekerja belum terverifikasi.** `StreamReader` default selalu menjawab "tidak aktif" sampai indexer SC tersedia. Kontrak sudah ter-deploy (`0xE7292E79…652e` di Monad testnet, `packages/shared/deployments/testnet.json`), tapi tidak punya view "stream milik pekerja", dan RPC publik membatasi `eth_getLogs` ke 100 blok.
+- **FE pekerja masih memindai log `StreamCreated` sendiri di browser** (`apps/web/lib/chain/payroll-reader.ts`), sehingga terkena batas 100 blok. Bisa diganti `GET /users/me/streams`.
+- **Indexer membaca ulang semua stream yang belum settled di setiap putaran.** Murah selama jumlahnya ratusan (satu multicall per 100). Kalau sudah ribuan, perlu dibatasi, misalnya hanya stream yang berubah menurut event `Withdrawn`/`StreamCanceled` terbaru.
 - **Akun juri tidak punya peran `worker` di DB.** Stream demo hanya ada di chain; tidak ada baris `Worker` atau perusahaan demo. Kalau layar pekerja di FE bergantung pada `roles` dari `/users/me`, FE perlu memakai respons `POST /demo-streams` (`streamId`), atau nanti kita tambahkan perusahaan demo.
 - **Payout yang gagal setelah token diterima diselesaikan manual.** Belum ada endpoint refund atau retry; token tetap di `PAYOUT_ADDRESS`.
 - **Baru provider mock** (D5 belum diputuskan). Xendit/Flip tinggal menambah implementasi `PayoutProvider`.

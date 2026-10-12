@@ -98,11 +98,14 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | DELETE | `/sessions/current` | ✓ | Sign out (revoke this session token) |
 | GET | `/users/me` | ✓ | Current user, roles (employer / worker / recipient) and `companyId` |
 | PATCH | `/users/me` | ✓ | Update my display name |
+| GET | `/users/me/employments` | ✓ | Companies I work for, with employer details (paged; empty if not a worker) |
+| GET | `/users/me/streams` | ✓ | Salary streams paying my wallet, from the stream indexer (paged; includes judge-mode streams) |
 | POST | `/companies` | ✓ | Create a company (one active per account); makes you an employer |
 | GET, PATCH | `/companies/:id` | Owner | Read / update a company |
 | DELETE | `/companies/:id` | Owner | Soft delete; 409 while workers are linked |
 | POST | `/companies/:id/workers` | Owner | Add a worker by wallet address (restores a removed one) |
 | GET | `/companies/:id/workers` | Owner | Active workers (paged) |
+| GET | `/companies/:id/streams` | Owner | Streams funded by the owner's wallet, from the stream indexer (paged) |
 | GET | `/workers/:id` | Owner or the worker | Read a worker |
 | PATCH | `/workers/:id` | Owner | Update name, position, reference salary |
 | DELETE | `/workers/:id` | Owner | Soft delete; 409 while their salary stream is active |

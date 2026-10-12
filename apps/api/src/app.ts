@@ -18,6 +18,8 @@ import { createFxService, type FxService } from './lib/fx.js'
 import { createMockPayoutProvider, type PayoutProvider } from './lib/payout-provider.js'
 import { createPrisma, type Db } from './lib/prisma.js'
 import { createPrivy, type Privy } from './lib/privy.js'
+import { createStreamIndexer, startStreamSync } from './lib/stream-indexer.js'
+import { createStreamStore } from './lib/stream-store.js'
 import { createStreamReader, type StreamReader } from './lib/streams.js'
 import { createTransferVerifier, type TransferVerifier } from './lib/transfers.js'
 import bankAccountRoutes from './modules/bank-accounts/routes.js'
@@ -31,6 +33,7 @@ import payoutRoutes from './modules/payouts/routes.js'
 import sessionRoutes from './modules/sessions/routes.js'
 import userRoutes from './modules/users/routes.js'
 import recipientRoutes from './modules/recipients/routes.js'
+import streamRoutes from './modules/streams/routes.js'
 import workerRoutes from './modules/workers/routes.js'
 import authPlugin from './plugins/auth.js'
 import rbacPlugin from './plugins/rbac.js'
@@ -56,6 +59,8 @@ export interface AppDeps {
   logger?: FastifyServerOptions['logger']
   /** Per-IP rate limiting. Integration tests turn it off because every request shares one IP. */
   rateLimit?: boolean
+  /** `false` skips the background indexer loop; checks still index on demand. Tests pass `false`. */
+  streamSync?: boolean
 }
 
 export async function buildApp(deps: AppDeps) {
@@ -90,14 +95,23 @@ export async function buildApp(deps: AppDeps) {
         verificationKey: env.PRIVY_VERIFICATION_KEY,
       }),
   )
+  const readClient = createReadClient(env)
+  const payroll = env.PAYROLL_ADDRESS as `0x${string}` | undefined
+  const indexer =
+    payroll && !deps.streams
+      ? createStreamIndexer({ client: readClient, payroll, store: createStreamStore(db) })
+      : undefined
   app.decorate(
     'streams',
-    deps.streams ??
-      createStreamReader({
-        client: createReadClient(env),
-        payroll: env.PAYROLL_ADDRESS as `0x${string}` | undefined,
-      }),
+    deps.streams ?? createStreamReader({ client: readClient, payroll, indexer }),
   )
+  if (indexer && deps.streamSync !== false && env.STREAM_SYNC_SECONDS > 0) {
+    let stop: (() => void) | undefined
+    app.addHook('onReady', async () => {
+      stop = startStreamSync(indexer, env.STREAM_SYNC_SECONDS, app.log)
+    })
+    app.addHook('onClose', async () => stop?.())
+  }
   app.decorate('demo', deps.demo ?? createDemoSigner(env))
   app.decorate(
     'transfers',
@@ -119,7 +133,12 @@ export async function buildApp(deps: AppDeps) {
 
   // Swagger UI serves inline scripts, so CSP is left to the web app's host.
   await app.register(helmet, { contentSecurityPolicy: false })
-  await app.register(cors, { origin: env.CORS_ORIGINS, credentials: true })
+  // @fastify/cors v10+ only allows GET, HEAD and POST by default.
+  await app.register(cors, {
+    origin: env.CORS_ORIGINS,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
+  })
   if (deps.rateLimit !== false) {
     await app.register(rateLimit, { max: 120, timeWindow: '1 minute' })
   }
@@ -141,6 +160,7 @@ export async function buildApp(deps: AppDeps) {
         { name: 'Users' },
         { name: 'Companies' },
         { name: 'Workers' },
+        { name: 'Streams' },
         { name: 'Recipients' },
         { name: 'Bank accounts' },
         { name: 'Payouts' },
@@ -170,6 +190,7 @@ export async function buildApp(deps: AppDeps) {
       await v1.register(userRoutes)
       await v1.register(companyRoutes)
       await v1.register(workerRoutes)
+      await v1.register(streamRoutes)
       await v1.register(recipientRoutes)
       await v1.register(bankAccountRoutes)
       await v1.register(payoutRoutes)

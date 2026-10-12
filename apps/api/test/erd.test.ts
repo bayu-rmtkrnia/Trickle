@@ -10,7 +10,7 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf
 const schema = read('../prisma/schema.prisma')
 const erd = read('../../../docs/erd.md')
 
-const SCALARS = new Set(['String', 'Int', 'Float', 'Boolean', 'DateTime'])
+const SCALARS = new Set(['String', 'Int', 'BigInt', 'Float', 'Boolean', 'DateTime'])
 const enums = new Set([...schema.matchAll(/^enum (\w+) \{/gm)].map((m) => m[1]))
 
 /** Columns of each model; relation fields (other models) are skipped. */

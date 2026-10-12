@@ -299,6 +299,22 @@ const collection = {
           auth: bearer('workerToken'),
           tests: [status(200)],
         }),
+        req('My employments (worker)', 'GET', '/api/v1/users/me/employments', {
+          auth: bearer('workerToken'),
+          tests: [status(200)],
+        }),
+        req('My streams (worker)', 'GET', '/api/v1/users/me/streams', {
+          auth: bearer('workerToken'),
+          tests: [status(200)],
+        }),
+        req('Company streams (employer)', 'GET', '/api/v1/companies/{{companyId}}/streams', {
+          auth: bearer('employerToken'),
+          tests: [status(200)],
+        }),
+        req('Company streams - worker (403)', 'GET', '/api/v1/companies/{{companyId}}/streams', {
+          auth: bearer('workerToken'),
+          tests: [status(403)],
+        }),
       ],
     },
     {
@@ -426,7 +442,7 @@ const collection = {
         req('Delete recipient', 'DELETE', '/api/v1/recipients/{{extraRecipientId}}', {
           auth: bearer('workerToken'),
           description:
-            "409 SPLIT_ACTIVE while the worker's on-chain split (splitOf) still sends to this recipient.",
+            "409 SPLIT_ACTIVE while the worker's on-chain split (splitBpsOf) still sends to this recipient.",
           tests: [status(204)],
         }),
       ],

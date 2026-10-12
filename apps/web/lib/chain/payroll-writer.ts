@@ -16,6 +16,8 @@ export interface WithdrawalRequest {
   data: Hex
   chainId: number
   value: bigint
+  /** Pins the account nonce so two signatures of one attempt cannot both be mined. */
+  nonce?: bigint
 }
 export interface WithdrawalResult {
   hash: Hex

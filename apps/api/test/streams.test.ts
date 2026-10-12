@@ -4,22 +4,31 @@ import { createStreamReader } from '../src/lib/streams.js'
 const payroll = '0xE7292E797009E9D53102ec132Ef4Ae549cDD652e'
 
 describe('stream reader', () => {
-  it('reads splitOf from the payroll contract and lowercases the recipient', async () => {
-    const readContract = vi.fn(async () => ['0xAbC0000000000000000000000000000000000001', 3000])
+  it('reads splitBpsOf for one recipient from the payroll contract', async () => {
+    const readContract = vi.fn(async () => 3000)
     const reader = createStreamReader({ client: { readContract } as never, payroll })
-    await expect(reader.splitOf('0xsiti')).resolves.toEqual({
-      recipient: '0xabc0000000000000000000000000000000000001',
-      bps: 3000,
-    })
+    await expect(reader.splitBpsOf('0xsiti', '0xibu')).resolves.toBe(3000)
     expect(readContract).toHaveBeenCalledWith(
-      expect.objectContaining({ address: payroll, functionName: 'splitOf', args: ['0xsiti'] }),
+      expect.objectContaining({
+        address: payroll,
+        functionName: 'splitBpsOf',
+        args: ['0xsiti', '0xibu'],
+      }),
     )
   })
 
-  it('answers null without a payroll address, and no active streams until the indexer exists', async () => {
+  it('answers null and no active streams without a payroll contract', async () => {
     const reader = createStreamReader()
-    await expect(reader.splitOf('0xsiti')).resolves.toBeNull()
+    await expect(reader.splitBpsOf('0xsiti', '0xibu')).resolves.toBeNull()
     await expect(reader.hasActiveStream('0xboss', '0xsiti')).resolves.toBe(false)
     expect(reader.verified).toBe(false)
+  })
+
+  it('asks the stream indexer whether a stream is active', async () => {
+    const hasActiveStream = vi.fn(async () => true)
+    const reader = createStreamReader({ payroll, indexer: { hasActiveStream, syncNew: vi.fn() } })
+    await expect(reader.hasActiveStream('0xboss', '0xsiti')).resolves.toBe(true)
+    expect(hasActiveStream).toHaveBeenCalledWith('0xboss', '0xsiti')
+    expect(reader.verified).toBe(true)
   })
 })

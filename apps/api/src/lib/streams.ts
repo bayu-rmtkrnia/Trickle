@@ -1,10 +1,5 @@
 import { parseAbi, type Address, type PublicClient } from 'viem'
-
-/** A worker's on-chain split: `bps` (0–10000) of each withdrawal goes to `recipient`. */
-export interface Split {
-  recipient: Address
-  bps: number
-}
+import type { StreamIndexer } from './stream-indexer.js'
 
 /**
  * Read-only view of the payroll contract (PLAN §4.2: money lives on the
@@ -14,45 +9,55 @@ export interface Split {
 export interface StreamReader {
   /** `true` when a stream from `employer` to `worker` is neither canceled nor ended. */
   hasActiveStream(employer: Address, worker: Address): Promise<boolean>
-  /** `false` while `hasActiveStream` is a placeholder; surfaced in logs and docs. */
+  /** Stores streams created since the last indexer round. No-op without a payroll contract. */
+  syncNew(): Promise<void>
+  /** `false` when `hasActiveStream` cannot check (no payroll contract); surfaced in logs. */
   readonly verified: boolean
-  /** The worker's split, or `null` when the payroll contract is not configured. */
-  splitOf(worker: Address): Promise<Split | null>
+  /**
+   * Share (bps, 0–10000) of each of `worker`'s withdrawals that goes to `recipient`,
+   * or `null` when the payroll contract is not configured.
+   */
+  splitBpsOf(worker: Address, recipient: Address): Promise<number | null>
 }
 
 const payrollAbi = parseAbi([
-  'function splitOf(address worker) view returns (address recipient, uint16 bps)',
+  'function splitBpsOf(address worker, address recipient) view returns (uint16)',
 ])
 
 interface Options {
   client?: Pick<PublicClient, 'readContract'>
-  /** TricklePayroll address; without it `splitOf` answers `null`. */
+  /** TricklePayroll address; without it `splitBpsOf` answers `null`. */
   payroll?: Address
+  /** Answers `hasActiveStream`. Without it, no stream counts as active. */
+  indexer?: Pick<StreamIndexer, 'hasActiveStream' | 'syncNew'>
 }
 
 /**
- * `splitOf` is a single view call, so it reads the contract directly.
+ * `splitBpsOf` is a single view call, so it reads the contract directly. A
+ * worker may split to several recipients (TricklePayroll v2), so it asks about
+ * one recipient instead of reading the whole list.
  *
- * `hasActiveStream` is a placeholder until the stream indexer exists: the
- * contract has no "streams of a worker" view, and the public Monad RPC limits
- * `eth_getLogs` to 100 blocks, so scanning `StreamCreated` events per request
- * is not viable. It reports no active streams, so deletes are not blocked.
+ * `hasActiveStream` goes through the stream indexer, since the contract has
+ * no "streams of a worker" view. Without a payroll contract there is nothing
+ * to index: it reports no active streams and `verified` is `false`.
  */
-export function createStreamReader({ client, payroll }: Options = {}): StreamReader {
+export function createStreamReader({ client, payroll, indexer }: Options = {}): StreamReader {
   return {
-    verified: false,
-    async hasActiveStream() {
-      return false
+    verified: indexer !== undefined,
+    async hasActiveStream(employer, worker) {
+      return indexer ? indexer.hasActiveStream(employer, worker) : false
     },
-    async splitOf(worker) {
+    async syncNew() {
+      await indexer?.syncNew()
+    },
+    async splitBpsOf(worker, recipient) {
       if (!client || !payroll) return null
-      const [recipient, bps] = await client.readContract({
+      return client.readContract({
         address: payroll,
         abi: payrollAbi,
-        functionName: 'splitOf',
-        args: [worker],
+        functionName: 'splitBpsOf',
+        args: [worker, recipient],
       })
-      return { recipient: recipient.toLowerCase() as Address, bps }
     },
   }
 }

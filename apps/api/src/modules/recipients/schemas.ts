@@ -57,7 +57,7 @@ export const createRecipientSchema = {
 export const listRecipientsSchema = {
   tags,
   summary: 'My recipients (worker)',
-  description: 'Metadata only. The split percentage lives on-chain (`splitOf`).',
+  description: 'Metadata only. The split percentage lives on-chain (`splitsOf`).',
   security,
   querystring: PageQuery,
   response: { 200: Page(RecipientDto), ...errors(401, 403, 422) },
@@ -85,7 +85,7 @@ export const deleteRecipientSchema = {
   summary: 'Remove one of my recipients (soft delete)',
   description:
     "Refused with 409 `SPLIT_ACTIVE` while the worker's on-chain split still sends to this recipient. " +
-    'Call `setSplit(0x0, 0)` or point the split elsewhere first.',
+    'Call `setSplits` without this recipient (or with an empty list) first.',
   security,
   params: IdParams,
   response: { 204: z.null().describe('Removed'), ...errors(401, 403, 404, 409, 422) },
