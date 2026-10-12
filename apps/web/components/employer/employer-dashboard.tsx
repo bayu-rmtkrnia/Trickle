@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type Reac
 import { Button } from '@/components/ui/button'
 import { DashboardHeader } from '@/components/ui/dashboard-header'
 import { PlusIcon, UsersIcon } from '@/components/ui/icons'
+import { AuthGate } from '@/components/auth/auth-gate'
 import { InlineError } from '@/components/ui/inline-error'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -18,6 +19,7 @@ import {
   type PayrollFund,
   type Worker,
 } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/api-error-message'
 import { dashboardCopy as t } from '@/lib/copy/employer'
 import type { EmployerState } from '@/lib/dev-state'
 import { formatUsd } from '@/lib/format'
@@ -32,13 +34,16 @@ type Data = {
   employer: Employer
   workers: Worker[]
   invites: Invite[]
-  fund: PayrollFund
+  /** `null` = saldo belum bisa dibaca (kontrak belum tersambung). */
+  fund: PayrollFund | null
   loadedAt: number
 }
 type Tab = 'workers' | 'invites'
 
+type LoadResult = Data | null | { error: unknown }
+
 /** `null` = belum punya profil perusahaan. */
-async function loadDashboard(): Promise<Data | null | 'failed'> {
+async function loadDashboard(): Promise<LoadResult> {
   try {
     const employer = await getEmployer()
     if (!employer) return null
@@ -48,24 +53,36 @@ async function loadDashboard(): Promise<Data | null | 'failed'> {
       getPayrollFund(),
     ])
     return { employer, workers, invites, fund, loadedAt: Date.now() }
-  } catch {
-    return 'failed'
+  } catch (error) {
+    return { error }
   }
 }
 
-/** Dashboard employer, mobile-first (DESIGN.md 6.6, 7.3). */
+/** Dashboard employer, mobile-first (DESIGN.md 6.6, 7.3). Butuh login, kecuali pratinjau `?state=`. */
 export function EmployerDashboard({ devState }: { devState?: EmployerState }) {
+  return (
+    <AuthGate
+      mock={devState !== undefined}
+      loading={<DashboardSkeleton />}
+      frame={(node) => <Shell>{node}</Shell>}
+    >
+      <DashboardContent devState={devState} />
+    </AuthGate>
+  )
+}
+
+function DashboardContent({ devState }: { devState?: EmployerState }) {
   const router = useRouter()
   const [data, setData] = useState<Data | null>(null)
-  const [loadFailed, setLoadFailed] = useState(false)
+  const [loadError, setLoadError] = useState<unknown>(null)
   const [tab, setTab] = useState<Tab>(devState === 'ada-undangan' ? 'invites' : 'workers')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [revokeTarget, setRevokeTarget] = useState<Invite | null>(null)
 
   const apply = useCallback(
-    (result: Data | null | 'failed') => {
-      if (result === 'failed') setLoadFailed(true)
-      else if (result === null) router.replace('/employer/setup')
+    (result: LoadResult) => {
+      if (result === null) router.replace('/employer/setup')
+      else if ('error' in result) setLoadError(result.error)
       else setData(result)
     },
     [router],
@@ -83,7 +100,7 @@ export function EmployerDashboard({ devState }: { devState?: EmployerState }) {
   }, [devState, apply])
 
   async function retry() {
-    setLoadFailed(false)
+    setLoadError(null)
     apply(await loadDashboard())
   }
 
@@ -96,14 +113,11 @@ export function EmployerDashboard({ devState }: { devState?: EmployerState }) {
     }
   }
 
-  if (loadFailed) {
+  if (loadError) {
+    const { title, message } = apiErrorMessage(loadError)
     return (
       <Shell>
-        <InlineError
-          title={t.loadFailedTitle}
-          message={t.loadFailedMessage}
-          action={{ label: t.retry, onClick: retry }}
-        />
+        <InlineError title={title} message={message} action={{ label: t.retry, onClick: retry }} />
       </Shell>
     )
   }
@@ -111,7 +125,7 @@ export function EmployerDashboard({ devState }: { devState?: EmployerState }) {
   if (!data) return <DashboardSkeleton />
 
   const { employer, workers, invites, fund, loadedAt } = data
-  const runway = computeRunway(fund.balanceUsd, workers)
+  const runway = computeRunway(fund?.balanceUsd ?? null, workers)
   const pendingCount = invites.filter((i) => i.status === 'PENDING').length
   const isEmpty = workers.length === 0 && invites.length === 0
   const openInvite = () => setInviteOpen(true)
@@ -146,7 +160,7 @@ export function EmployerDashboard({ devState }: { devState?: EmployerState }) {
 
         <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
           <RunwayCard
-            balanceUsd={fund.balanceUsd}
+            balanceUsd={fund?.balanceUsd ?? null}
             level={runway.level}
             days={runway.days}
             className="enter enter-2 col-span-2 md:col-span-1"
@@ -171,7 +185,7 @@ export function EmployerDashboard({ devState }: { devState?: EmployerState }) {
               tab={tab}
               onChange={setTab}
               pendingCount={pendingCount}
-              workers={<WorkerList workers={workers} now={loadedAt} />}
+              workers={<WorkerList workers={workers} now={loadedAt} showStreamed={fund !== null} />}
               invites={<InviteList invites={invites} now={loadedAt} onRevoke={setRevokeTarget} />}
             />
           )}

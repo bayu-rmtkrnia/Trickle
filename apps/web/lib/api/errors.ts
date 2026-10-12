@@ -77,7 +77,8 @@ export class ApiError extends Error {
       429: 'rate-limited',
       503: 'unavailable',
     }
-    const kind = (code && codeKinds[code]) ?? statusKinds[status] ?? 'server'
+    const codeKind = code ? codeKinds[code] : undefined
+    const kind = codeKind ?? statusKinds[status] ?? 'server'
     return new ApiError(kind, message ?? kind, { status, code, details })
   }
 }

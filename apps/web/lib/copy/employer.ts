@@ -24,7 +24,6 @@ export const setupCopy = {
   submit: 'Lanjut',
   submitting: 'Menyimpan…',
   failedTitle: 'Profil belum tersimpan',
-  failedMessage: 'Cek koneksimu dan coba lagi.',
   conflictTitle: 'Kamu sudah punya profil perusahaan',
   toDashboard: 'Ke dashboard',
 }
@@ -36,6 +35,9 @@ export const dashboardCopy = {
   retry: 'Coba lagi',
 
   fundLabel: 'Dana payroll',
+  fundUnavailable: 'Belum tersedia',
+  fundUnavailableHint: 'Saldo dana dan sisa hari akan tampil setelah terhubung ke payroll.',
+  workerSinceOnly: (date: string) => `Bergabung ${date}`,
   runwayDays: (n: number) => `Cukup ±${n} hari`,
   runwayLowBadge: (n: number) => `Dana cukup ±${n} hari`,
   runwayCriticalBadge: (n: number) => `Dana tinggal ±${n} hari`,

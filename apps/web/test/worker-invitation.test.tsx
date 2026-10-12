@@ -23,6 +23,7 @@ vi.mock('@/lib/api/invitations', () => ({
 }))
 
 const invitation: Invite = {
+  id: 'invite-1',
   code: 'WORKER1234',
   type: 'WORKER',
   status: 'PENDING',

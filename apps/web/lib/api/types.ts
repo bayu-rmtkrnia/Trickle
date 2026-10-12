@@ -1,10 +1,12 @@
-// Bentuk data mengikuti respons backend (apps/api/src/routes). Saat integrasi,
-// fungsi di ./index.ts diganti fetch; tipe dan komponen tidak berubah.
+// Bentuk data mengikuti respons backend `/api/v1` (apps/api/src/modules).
+// "Employer" di UI = "Company" di backend.
 
-export type InviteType = 'WORKER' | 'FAMILY'
+export type InviteType = 'WORKER' | 'RECIPIENT'
 export type InviteStatus = 'PENDING' | 'ACCEPTED' | 'REVOKED' | 'EXPIRED'
 
 export interface Invite {
+  /** Dipakai untuk membatalkan undangan (`DELETE /invites/{id}`). */
+  id: string
   code: string
   type: InviteType
   status: InviteStatus
@@ -12,7 +14,7 @@ export interface Invite {
   monthlySalaryUsd: number | null
   relation: string | null
   invitedBy: {
-    /** Nama perusahaan untuk WORKER, nama pekerja untuk FAMILY. */
+    /** Nama perusahaan untuk WORKER, nama pekerja untuk RECIPIENT. */
     name: string | null
     /** Alamat akun pengundang. Jangan pernah ditampilkan ke pengguna. */
     address: string
@@ -38,9 +40,24 @@ export interface Worker {
   joinedAt: string
 }
 
-/** Saldo dana payroll employer. Nanti dibaca dari kontrak, bukan dari API. */
+/** Saldo dana payroll employer. Dibaca dari kontrak, bukan dari API. */
 export interface PayrollFund {
   balanceUsd: number
+}
+
+export interface Me {
+  id: string
+  address: string
+  displayName: string | null
+  createdAt: string
+  /** Perusahaan aktif milik user; `null` kalau belum jadi employer. */
+  companyId: string | null
+  roles: { employer: boolean; worker: boolean; recipient: boolean }
+}
+
+export interface Page<T> {
+  data: T[]
+  nextCursor: string | null
 }
 
 export interface CreateEmployerInput {

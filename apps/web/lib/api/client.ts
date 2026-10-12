@@ -5,6 +5,7 @@ export interface ApiRequestOptions extends Omit<RequestInit, 'body' | 'headers'>
   body?: unknown
   fetcher?: typeof fetch
   token?: string
+  query?: Record<string, string | number | undefined>
 }
 
 type ErrorPayload = {
@@ -71,14 +72,18 @@ async function responseBody(response: Response): Promise<unknown> {
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const { baseUrl, body, fetcher = fetch, token, ...requestInit } = options
+  const { baseUrl, body, fetcher = fetch, token, query, ...requestInit } = options
+  const url = new URL(`${apiUrl(baseUrl)}/${path.replace(/^\/+/, '')}`)
+  for (const [key, value] of Object.entries(query ?? {})) {
+    if (value !== undefined) url.searchParams.set(key, String(value))
+  }
   const headers = new Headers()
   if (body !== undefined) headers.set('content-type', 'application/json')
   if (token) headers.set('authorization', `Bearer ${token}`)
 
   let response: Response
   try {
-    response = await fetcher(`${apiUrl(baseUrl)}/${path.replace(/^\/+/, '')}`, {
+    response = await fetcher(url, {
       ...requestInit,
       body: body === undefined ? undefined : JSON.stringify(body),
       headers,
