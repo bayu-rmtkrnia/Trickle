@@ -20,6 +20,12 @@ export interface PendingFamilyPayout {
   nonce: string | null
   submittedAtBlock: string | null
   payoutId: string | null
+  /**
+   * Epoch ms until which a tab is still waiting for the wallet signature of
+   * this attempt. Renewed by that tab; other tabs must not abandon before it
+   * lapses. `null` once the signature result is known.
+   */
+  leaseUntil: string | null
 }
 export interface PayoutStore {
   /** Throws `PENDING_MISMATCH` for a record from another chain/token/wallet. */
@@ -77,7 +83,8 @@ export function pendingPayoutStore(
         !nullable(value.txHash, hash) ||
         !nullable(value.nonce, digits) ||
         !nullable(value.submittedAtBlock, digits) ||
-        !nullable(value.payoutId, id)
+        !nullable(value.payoutId, id) ||
+        !(value.leaseUntil === undefined || nullable(value.leaseUntil, (v) => digits(v, 16)))
       )
         throw new PayoutError('STORAGE_UNAVAILABLE')
       // Keyed per wallet already; a record that disagrees is never resumed.
@@ -100,6 +107,7 @@ export function pendingPayoutStore(
         nonce: (value.nonce as string | null) ?? null,
         submittedAtBlock: (value.submittedAtBlock as string | null) ?? null,
         payoutId: (value.payoutId as string | null) ?? null,
+        leaseUntil: (value.leaseUntil as string | null | undefined) ?? null,
       }
     },
     write(next) {

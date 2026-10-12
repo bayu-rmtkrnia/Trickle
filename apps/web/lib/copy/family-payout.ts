@@ -145,6 +145,8 @@ const messages: Record<string, string> = {
   PENDING_MISMATCH:
     'Ada data pencairan dari konfigurasi jaringan lain. Pencairan baru ditahan agar tidak terkirim dua kali.',
   PENDING_CHANGED: 'Status pencairan berubah di tab lain. Muat ulang sebelum melanjutkan.',
+  SIGNATURE_PENDING:
+    'Persetujuan wallet untuk pencairan ini masih terbuka di tab lain. Selesaikan atau tutup di sana, lalu periksa lagi.',
   RECOVERY_UNVERIFIED:
     'Belum dapat memastikan transfer tidak terkirim. Periksa aktivitas wallet atau masukkan hash transaksinya.',
   PAYOUT_MISMATCH: 'Respons pencairan tidak cocok dengan transfer ini. Coba daftarkan ulang.',

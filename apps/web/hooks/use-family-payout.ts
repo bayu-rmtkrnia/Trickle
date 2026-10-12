@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { getAddress, isAddress, type Hex } from 'viem'
 import { getBankAccount } from '@/lib/api/bank-accounts'
-import { ApiError } from '@/lib/api/errors'
+import { ApiError, isApiError } from '@/lib/api/errors'
 import { requestGas } from '@/lib/api/gas'
 import { createPayout } from '@/lib/api/payouts'
 import { useAccount } from '@/lib/account'
@@ -86,7 +86,19 @@ export function useFamilyPayout(
         if (!current() || !me?.roles.recipient) throw new PayoutError('NOT_RECIPIENT')
         await getBankAccount(bankAccountId, await token(), { signal })
       },
-      register: async (input) => createPayout(input, await token()),
+      register: async (input) => {
+        try {
+          return await createPayout(input, await token())
+        } catch (error) {
+          if (!isApiError(error) || error.status !== 401) throw error
+          // `ensureSession` may keep returning a cached token the server just
+          // rejected; `refreshMe` re-exchanges it. Same hash and bank id only:
+          // registration is idempotent and no transfer is sent again.
+          await latest.current.session.refreshMe()
+          if (!current()) throw new PayoutError('WALLET_CHANGED')
+          return createPayout(input, await token())
+        }
+      },
       send: async (request) => {
         if (!current()) throw new PayoutError('WALLET_CHANGED')
         await latest.current.onSigning?.()

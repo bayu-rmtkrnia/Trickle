@@ -383,6 +383,7 @@ describe('family payout coordinator', () => {
       nonce: '1',
       submittedAtBlock: '1',
       payoutId: null,
+      leaseUntil: null,
     })
     const raw = JSON.parse(storage.getItem(payoutStorageKey(wallet, config))!)
     storage.setItem(payoutStorageKey(wallet, config), JSON.stringify({ ...raw, chainId: 1 }))
@@ -405,5 +406,135 @@ describe('family payout coordinator', () => {
     await run(coordinator)
     expect(pendingPayoutStore(other, config, () => storage).read()).toBeNull()
     expect(storage.getItem(payoutStorageKey(wallet, config))).not.toContain('accountNumber')
+  })
+})
+
+// Review R1: a second tab must not unlock a new payout while the first tab is
+// still waiting for the wallet signature, even though the nonce is unchanged.
+describe('cross-tab signature safety', () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void
+    const promise = new Promise<T>((done) => (resolve = done))
+    return { promise, resolve }
+  }
+  function tabs(options: { now?: () => number } = {}) {
+    const storage = memory()
+    const signature = deferred<{ hash: Hex }>()
+    const send = vi
+      .fn()
+      .mockImplementationOnce(() => signature.promise)
+      .mockResolvedValue({ hash })
+    const first = setup(storage, { send, newId: () => 'attempt-1', ...options })
+    // Same storage and send: the second tab only differs by its coordinator.
+    const second = () =>
+      new PayoutCoordinator({ ...first.deps, newId: () => 'attempt-2', ...options })
+    return { storage, signature, send, first, second }
+  }
+
+  it('blocks abandon and a new payout while the first signature is outstanding', async () => {
+    const { signature, send, first, second } = tabs()
+    first.coordinator.start()
+    const firstRun = first.coordinator.submit(input)
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    const other = second()
+    expect(other.getSnapshot().phase).toBe('submission-unknown')
+    await other.abandon()
+    expect(other.getSnapshot()).toMatchObject({
+      phase: 'submission-unknown',
+      error: expect.objectContaining({ code: 'SIGNATURE_PENDING' }),
+    })
+    expect(first.writer.canAbandon).not.toHaveBeenCalled()
+    other.start()
+    await other.submit(input)
+    signature.resolve({ hash })
+    await firstRun
+    expect(send).toHaveBeenCalledOnce()
+    expect(first.coordinator.getSnapshot().phase).toBe('processing')
+  })
+
+  it('lets the second tab follow the hash the first tab recorded', async () => {
+    const { signature, send, first, second } = tabs()
+    vi.mocked(first.deps.register).mockRejectedValueOnce(new ApiError('network', 'offline'))
+    first.coordinator.start()
+    const firstRun = first.coordinator.submit(input)
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    const other = second()
+    signature.resolve({ hash })
+    await firstRun
+    expect(first.coordinator.getSnapshot().phase).toBe('registration-pending')
+    // The second tab saw no hash at load time; abandon must switch to it.
+    await other.abandon()
+    expect(other.getSnapshot()).toMatchObject({ phase: 'transfer-pending', hash })
+    await other.resume()
+    expect(other.getSnapshot().phase).toBe('processing')
+    expect(send).toHaveBeenCalledOnce()
+  })
+
+  it('pins the stored nonce on the signature request', async () => {
+    const { coordinator, deps } = setup(memory())
+    await run(coordinator)
+    expect(deps.send).toHaveBeenCalledWith(expect.objectContaining({ nonce: b(7) }))
+  })
+
+  it('allows abandon only after the lease lapsed and the nonce check passed', async () => {
+    let clock = 1_000
+    const { first, second, send } = tabs({ now: () => clock })
+    first.coordinator.start()
+    void first.coordinator.submit(input)
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    const other = second()
+    await other.abandon()
+    expect(other.getSnapshot().error).toMatchObject({ code: 'SIGNATURE_PENDING' })
+    // The first tab is gone (no renewals) and its lease has expired.
+    clock += 60_000
+    await other.abandon()
+    expect(first.writer.canAbandon).toHaveBeenCalledWith(wallet, b(7), b(20))
+    expect(other.getSnapshot().phase).toBe('idle')
+  })
+
+  it('renews the lease while the signature is open', async () => {
+    vi.useFakeTimers()
+    try {
+      const { first, send, storage } = tabs()
+      first.coordinator.start()
+      void first.coordinator.submit(input)
+      await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+      const key = payoutStorageKey(wallet, config)
+      const initial = Number(JSON.parse(storage.getItem(key)!).leaseUntil)
+      await vi.advanceTimersByTimeAsync(25_000)
+      expect(Number(JSON.parse(storage.getItem(key)!).leaseUntil)).toBeGreaterThan(initial)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('writes a returned hash back if the record was removed while signing', async () => {
+    const { signature, send, first, storage } = tabs()
+    first.coordinator.start()
+    const firstRun = first.coordinator.submit(input)
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    storage.removeItem(payoutStorageKey(wallet, config))
+    signature.resolve({ hash })
+    await firstRun
+    expect(first.coordinator.getSnapshot()).toMatchObject({ phase: 'processing', hash })
+    expect(first.deps.register).toHaveBeenCalledWith({ txHash: hash, bankAccountId: 'bank-1' })
+  })
+
+  it('surfaces a hash instead of dropping it when another attempt replaced the record', async () => {
+    const { signature, send, first, storage } = tabs()
+    first.coordinator.start()
+    const firstRun = first.coordinator.submit(input)
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    const key = payoutStorageKey(wallet, config)
+    const raw = JSON.parse(storage.getItem(key)!)
+    storage.setItem(key, JSON.stringify({ ...raw, attemptId: 'someone-else' }))
+    signature.resolve({ hash })
+    await firstRun
+    expect(first.coordinator.getSnapshot()).toMatchObject({
+      phase: 'submission-unknown',
+      hash,
+      error: expect.objectContaining({ code: 'PENDING_CHANGED' }),
+    })
+    expect(first.deps.register).not.toHaveBeenCalled()
   })
 })

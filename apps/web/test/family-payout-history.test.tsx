@@ -293,6 +293,56 @@ describe('payout status polling', () => {
     await waitFor(() => expect(within(sheet()).getByText('Selesai')).toBeTruthy())
   })
 
+  // Review R3: a list request started before registration must not erase it.
+  it('keeps a tracked payout when an older list response arrives afterwards', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    let resolveOld!: (value: unknown) => void
+    deps.list.mockImplementationOnce(() => new Promise((done) => (resolveOld = done)))
+    deps.get.mockImplementation(async (id: string) => payout(id, { status: 'COMPLETED' }))
+    render(<Harness />)
+    await waitFor(() => expect(deps.list).toHaveBeenCalledOnce())
+    act(() => exposed!.track(payout('new')))
+    await act(async () => resolveOld({ data: [], nextCursor: null }))
+    expect(exposed!.find('new')).toMatchObject({ id: 'new', status: 'PROCESSING' })
+    // Still active, so it is still polled to its final status.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(deps.get).toHaveBeenCalledWith('new', 'trickle-token', expect.anything())
+    await waitFor(() => expect(exposed!.find('new')?.status).toBe('COMPLETED'))
+  })
+
+  it('does not let a stale list regress a status polling already finalized', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    deps.list.mockResolvedValue({ data: [payout('p1')], nextCursor: null })
+    deps.get.mockImplementation(async (id: string) =>
+      payout(id, { status: 'COMPLETED', updatedAt: '2026-10-12T10:05:00Z' }),
+    )
+    render(<Harness />)
+    await within(sheet()).findByText('Diproses')
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(exposed!.find('p1')?.status).toBe('COMPLETED')
+    // A reload returns the older PROCESSING snapshot.
+    await act(async () => exposed!.reload())
+    await waitFor(() => expect(deps.list).toHaveBeenCalledTimes(2))
+    expect(exposed!.find('p1')?.status).toBe('COMPLETED')
+  })
+
+  it('takes a newer in-flight update from the list', async () => {
+    deps.list
+      .mockResolvedValueOnce({ data: [payout('p1', { status: 'PENDING' })], nextCursor: null })
+      .mockResolvedValueOnce({
+        data: [payout('p1', { status: 'PROCESSING', updatedAt: '2026-10-12T10:01:00Z' })],
+        nextCursor: null,
+      })
+    render(<Harness />)
+    await within(sheet()).findByText('Menunggu')
+    await act(async () => exposed!.reload())
+    await waitFor(() => expect(exposed!.find('p1')?.status).toBe('PROCESSING'))
+  })
+
   it('ignores a detail response for another payout', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     deps.list.mockResolvedValue({ data: [payout('p1')], nextCursor: null })

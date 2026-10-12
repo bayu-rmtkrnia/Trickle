@@ -11,13 +11,32 @@ export const isActivePayout = (payout: PayoutDto) => ACTIVE.includes(payout.stat
 
 const unauthorized = () => new ApiError('unauthorized', 'Sesi tidak tersedia', { status: 401 })
 
-function merge(rows: PayoutDto[], incoming: PayoutDto[], first = false) {
-  const map = new Map(rows.map((row) => [row.id, row]))
-  for (const row of incoming) map.set(row.id, row)
-  const ordered = first
-    ? [...incoming, ...rows.filter((row) => !incoming.some((item) => item.id === row.id))]
-    : [...map.values()]
-  return ordered.map((row) => map.get(row.id)!)
+const terminal = (payout: PayoutDto) => !isActivePayout(payout)
+/**
+ * Picks the newer view of one payout. A final status is never replaced by an
+ * in-flight one (an older list snapshot must not undo a polled COMPLETED);
+ * otherwise the later `updatedAt` wins, ties going to the incoming row.
+ */
+function fresher(current: PayoutDto, incoming: PayoutDto) {
+  if (terminal(current) && !terminal(incoming)) return current
+  if (terminal(incoming) && !terminal(current)) return incoming
+  return Date.parse(incoming.updatedAt) >= Date.parse(current.updatedAt) ? incoming : current
+}
+
+/** Merges by id keeping the fresher row; `prepend` puts new ids first. */
+function merge(rows: PayoutDto[], incoming: PayoutDto[], prepend = false) {
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  const added: PayoutDto[] = []
+  for (const row of incoming) {
+    const existing = byId.get(row.id)
+    if (existing) byId.set(row.id, fresher(existing, row))
+    else {
+      byId.set(row.id, row)
+      added.push(row)
+    }
+  }
+  const kept = rows.map((row) => byId.get(row.id)!)
+  return prepend ? [...added, ...kept] : [...kept, ...added]
 }
 
 /**
@@ -38,6 +57,8 @@ export function useFamilyPayouts(session: SessionContextValue) {
   const [pollError, setPollError] = useState<unknown>(null)
   const [retryUntil, setRetryUntil] = useState(0)
   const rows = useRef<PayoutDto[]>([])
+  /** Payouts registered in this tab; kept even if an older list misses them. */
+  const local = useRef(new Map<string, PayoutDto>())
   useEffect(() => {
     currentSession.current = session
   }, [session])
@@ -81,10 +102,21 @@ export function useFamilyPayouts(session: SessionContextValue) {
         if (controller.signal.aborted) return
         if (cursor && result.nextCursor === cursor)
           throw new ApiError('server', 'Cursor tidak berubah', { code: 'INVALID_RESPONSE' })
-        setPage((previous) => ({
-          data: cursor ? merge(previous?.data ?? [], result.data) : result.data,
-          nextCursor: result.nextCursor,
-        }))
+        setPage((previous) => {
+          if (cursor)
+            return { data: merge(previous?.data ?? [], result.data), nextCursor: result.nextCursor }
+          // A first page replaces the list, but never drops a payout this tab
+          // registered or regresses a row that polling already moved forward.
+          const known = new Map((previous?.data ?? []).map((row) => [row.id, row]))
+          const fromServer = result.data.map((row) => {
+            const seen = known.get(row.id)
+            return seen ? fresher(seen, row) : row
+          })
+          const missing = [...local.current.values()]
+            .filter((row) => !fromServer.some((item) => item.id === row.id))
+            .map((row) => known.get(row.id) ?? row)
+          return { data: [...missing, ...fromServer], nextCursor: result.nextCursor }
+        })
       } catch (problem) {
         if (controller.signal.aborted) return
         if (isApiError(problem) && problem.status === 429)
@@ -205,12 +237,9 @@ export function useFamilyPayouts(session: SessionContextValue) {
     /** Adds a payout just registered by the transfer flow so it is polled too. */
     track: useCallback((payout: PayoutDto) => {
       if (!active.current) return
+      local.current.set(payout.id, payout)
       setPage((previous) => ({
-        data: merge(
-          previous?.data ?? [],
-          [payout],
-          !previous?.data.some((row) => row.id === payout.id),
-        ),
+        data: merge(previous?.data ?? [], [payout], true),
         nextCursor: previous?.nextCursor ?? null,
       }))
     }, []),

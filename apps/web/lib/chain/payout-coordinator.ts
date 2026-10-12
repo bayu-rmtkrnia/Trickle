@@ -54,7 +54,12 @@ export interface PayoutCoordinatorDeps {
   signal?: AbortSignal
   config?: PayrollConfig
   newId?(): string
+  now?(): number
+  /** How long a signature lease lasts without renewal (default 30 s). */
+  leaseMs?: number
 }
+
+const LEASE_MS = 30_000
 
 /** Registration answers that will not change by retrying the same hash. */
 const FINAL_REGISTRATION = ['TX_FAILED', 'TX_NOT_A_PAYOUT', 'PAYOUT_EXISTS']
@@ -142,6 +147,42 @@ export class PayoutCoordinator {
     this.marker = null
     return true
   }
+  private get leaseMs() {
+    return this.deps.leaseMs ?? LEASE_MS
+  }
+  private now() {
+    return this.deps.now?.() ?? Date.now()
+  }
+  private leaseDeadline() {
+    return String(this.now() + this.leaseMs)
+  }
+  private renewLease() {
+    try {
+      if (this.marker && !this.marker.txHash && this.ownsMarker())
+        this.save({ leaseUntil: this.leaseDeadline() })
+    } catch {
+      /* The lease lapses on its own; the signature result is still handled. */
+    }
+  }
+  /**
+   * Records a hash the wallet returned. A real transaction must never lose
+   * its record: if this tab's marker vanished, it is written back; if another
+   * attempt replaced it, the hash is still shown and recovery is required.
+   */
+  private keepHash(hash: Hex) {
+    const stored = this.deps.store.read()
+    if (this.marker && stored?.attemptId === this.marker.attemptId) {
+      this.save({ txHash: hash, leaseUntil: null })
+      return
+    }
+    if (this.marker && !stored) {
+      this.marker = { ...this.marker, txHash: hash, leaseUntil: null }
+      this.deps.store.write(this.marker)
+      return
+    }
+    this.update({ hash })
+    throw new PayoutError('PENDING_CHANGED')
+  }
 
   start() {
     if (this.busy || this.state.phase !== 'idle' || !this.deps.destination) return
@@ -201,15 +242,24 @@ export class PayoutCoordinator {
         nonce,
         submittedAtBlock: afterBlock,
         payoutId: null,
+        leaseUntil: this.leaseDeadline(),
       }
       // Saved before the signature so a lost response still blocks a second transfer.
       this.deps.store.write(marker)
       this.marker = marker
       sending = true
       this.update({ phase: 'signing', checking: false })
-      const { hash } = await this.deps.send(request)
+      // The lease tells other tabs this signature is still outstanding; the
+      // pinned nonce means two signatures of one attempt cannot both be mined.
+      const renew = setInterval(() => this.renewLease(), this.leaseMs / 3)
+      let hash: Hex
+      try {
+        ;({ hash } = await this.deps.send({ ...request, nonce: BigInt(nonce) }))
+      } finally {
+        clearInterval(renew)
+      }
       if (!HASH.test(hash)) throw new PayoutError('INVALID_HASH')
-      this.save({ txHash: hash })
+      this.keepHash(hash)
       this.update({ phase: 'transfer-pending', hash })
       await this.wait(hash)
     } catch (error) {
@@ -218,6 +268,14 @@ export class PayoutCoordinator {
       const beforeSubmission =
         typeof code === 'string' && ['WALLET_CHANGED', 'WALLET_NOT_READY'].includes(code)
       if (sending && !isRejected(error) && !beforeSubmission) {
+        // The wallet call has ended (with an unknown outcome): release the
+        // lease so recovery can reconcile it, but keep the record.
+        try {
+          if (this.marker && !this.marker.txHash && this.ownsMarker())
+            this.save({ leaseUntil: null })
+        } catch {
+          /* The lease simply expires. */
+        }
         this.update({ phase: 'submission-unknown', error, checking: false })
       } else {
         try {
@@ -290,6 +348,16 @@ export class PayoutCoordinator {
     }
   }
 
+  /**
+   * Re-reads this attempt from storage so a hash or lease written by another
+   * tab is seen before acting on it.
+   */
+  private refreshMarker() {
+    const stored = this.deps.store.read()
+    if (this.marker && stored?.attemptId === this.marker.attemptId) this.marker = stored
+    return stored
+  }
+
   /** Checks a submitted (or user-supplied) hash, then registers it. */
   async resume(candidate?: Hex) {
     if (
@@ -298,7 +366,13 @@ export class PayoutCoordinator {
       !['transfer-pending', 'submission-unknown'].includes(this.state.phase)
     )
       return
-    const target = candidate ?? this.state.hash
+    try {
+      this.refreshMarker()
+    } catch (error) {
+      this.update({ error })
+      return
+    }
+    const target = candidate ?? this.marker?.txHash ?? this.state.hash
     if (!target || !HASH.test(target)) {
       this.update({ error: new PayoutError('INVALID_HASH') })
       return
@@ -352,7 +426,12 @@ export class PayoutCoordinator {
     }
   }
 
-  /** Clears a never-signed attempt, only when the nonce proves nothing was sent. */
+  /**
+   * Clears a never-signed attempt. Requires all of: no hash recorded, no live
+   * signature lease from any tab, and the nonce check showing nothing used the
+   * pinned nonce. An unchanged nonce alone is not proof: a wallet prompt may
+   * still be open, which is what the lease covers.
+   */
   async abandon() {
     if (
       this.busy ||
@@ -365,18 +444,37 @@ export class PayoutCoordinator {
     this.busy = true
     this.update({ checking: true, error: null })
     try {
+      const stored = this.refreshMarker()
+      if (!stored || stored.attemptId !== this.marker.attemptId)
+        throw new PayoutError('PENDING_CHANGED')
+      if (stored.txHash) {
+        // Another tab got the hash meanwhile: follow it instead of abandoning.
+        this.restore(stored)
+        this.update({})
+        return
+      }
+      if (stored.leaseUntil && Number(stored.leaseUntil) > this.now())
+        throw new PayoutError('SIGNATURE_PENDING')
       if (
-        !this.ownsMarker() ||
-        !this.marker.nonce ||
-        !this.marker.submittedAtBlock ||
+        !stored.nonce ||
+        !stored.submittedAtBlock ||
         !(await this.deps.writer.canAbandon(
           this.deps.wallet,
-          BigInt(this.marker.nonce),
-          BigInt(this.marker.submittedAtBlock),
+          BigInt(stored.nonce),
+          BigInt(stored.submittedAtBlock),
         )) ||
         !this.deps.isCurrent()
       )
         throw new PayoutError('RECOVERY_UNVERIFIED')
+      // Re-check after the RPC round trip: the lease or hash may have changed.
+      const after = this.refreshMarker()
+      if (
+        !after ||
+        after.attemptId !== stored.attemptId ||
+        after.txHash ||
+        (after.leaseUntil && Number(after.leaseUntil) > this.now())
+      )
+        throw new PayoutError('PENDING_CHANGED')
       if (!this.clearOwnMarker()) throw new PayoutError('PENDING_CHANGED')
       this.update({ phase: 'idle', amountUnits: null, bankAccountId: null, hash: null })
     } catch (error) {
