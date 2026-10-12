@@ -34,9 +34,40 @@ contract TricklePayrollTest is Test {
         token.approve(address(payroll), type(uint256).max);
     }
 
+    address internal family2 = makeAddr("family2");
+    address internal family3 = makeAddr("family3");
+
     function _create() internal returns (uint256) {
         vm.prank(employer);
         return payroll.createStream(worker, AMOUNT, 0, t0 + DURATION);
+    }
+
+    function _split(address recipient, uint16 bps)
+        internal
+        pure
+        returns (ITricklePayroll.Split memory)
+    {
+        return ITricklePayroll.Split({recipient: recipient, bps: bps});
+    }
+
+    function _splits1(address r, uint16 bps)
+        internal
+        pure
+        returns (ITricklePayroll.Split[] memory s)
+    {
+        s = new ITricklePayroll.Split[](1);
+        s[0] = _split(r, bps);
+    }
+
+    function _splits3(uint16 a, uint16 b, uint16 c)
+        internal
+        view
+        returns (ITricklePayroll.Split[] memory s)
+    {
+        s = new ITricklePayroll.Split[](3);
+        s[0] = _split(family, a);
+        s[1] = _split(family2, b);
+        s[2] = _split(family3, c);
     }
 
     // ------------------------------------------------------------------------------------------
@@ -184,7 +215,7 @@ contract TricklePayrollTest is Test {
         vm.warp(t0 + DURATION / 3);
 
         vm.expectEmit(address(payroll));
-        emit ITricklePayroll.Withdrawn(id, worker, AMOUNT / 3, address(0), 0);
+        emit ITricklePayroll.Withdrawn(id, worker, AMOUNT / 3, 0);
         vm.prank(worker);
         payroll.withdraw(id);
 
@@ -249,11 +280,13 @@ contract TricklePayrollTest is Test {
     function test_withdraw_appliesSplit() public {
         uint256 id = _create();
         vm.prank(worker);
-        payroll.setSplit(family, 3_000); // 30%
+        payroll.setSplits(_splits1(family, 3_000)); // 30%
 
         vm.warp(t0 + DURATION);
         vm.expectEmit(address(payroll));
-        emit ITricklePayroll.Withdrawn(id, worker, 2_100e6, family, 900e6);
+        emit ITricklePayroll.Withdrawn(id, worker, 2_100e6, 900e6);
+        vm.expectEmit(address(payroll));
+        emit ITricklePayroll.SplitPaid(id, worker, family, 900e6);
         vm.prank(worker);
         payroll.withdraw(id);
 
@@ -261,10 +294,52 @@ contract TricklePayrollTest is Test {
         assertEq(token.balanceOf(family), 900e6);
     }
 
+    function test_withdraw_appliesThreeSplits() public {
+        uint256 id = _create();
+        vm.prank(worker);
+        payroll.setSplits(_splits3(2_000, 1_000, 500)); // 20% + 10% + 5%
+
+        vm.warp(t0 + DURATION);
+        vm.expectEmit(address(payroll));
+        emit ITricklePayroll.Withdrawn(id, worker, 1_950e6, 1_050e6);
+        vm.expectEmit(address(payroll));
+        emit ITricklePayroll.SplitPaid(id, worker, family, 600e6);
+        vm.expectEmit(address(payroll));
+        emit ITricklePayroll.SplitPaid(id, worker, family2, 300e6);
+        vm.expectEmit(address(payroll));
+        emit ITricklePayroll.SplitPaid(id, worker, family3, 150e6);
+        vm.prank(worker);
+        payroll.withdraw(id);
+
+        assertEq(token.balanceOf(worker), 1_950e6);
+        assertEq(token.balanceOf(family), 600e6);
+        assertEq(token.balanceOf(family2), 300e6);
+        assertEq(token.balanceOf(family3), 150e6);
+    }
+
+    function test_withdraw_skipsZeroShares() public {
+        vm.prank(employer);
+        uint256 id = payroll.createStream(worker, 10, 0, t0 + 1);
+        vm.prank(worker);
+        payroll.setSplits(_splits3(5_000, 500, 500)); // 10 units: 5, 0.5 -> 0, 0.5 -> 0
+
+        vm.warp(t0 + 1);
+        vm.recordLogs();
+        vm.prank(worker);
+        payroll.withdraw(id);
+
+        // Withdrawn + one SplitPaid (family2 and family3 get 0, so no event) + 2 Transfers.
+        assertEq(vm.getRecordedLogs().length, 4);
+        assertEq(token.balanceOf(family), 5);
+        assertEq(token.balanceOf(family2), 0);
+        assertEq(token.balanceOf(family3), 0);
+        assertEq(token.balanceOf(worker), 5);
+    }
+
     function test_withdraw_fullSplitSendsEverythingToRecipient() public {
         uint256 id = _create();
         vm.prank(worker);
-        payroll.setSplit(family, 10_000);
+        payroll.setSplits(_splits1(family, 10_000));
 
         vm.warp(t0 + DURATION);
         vm.prank(worker);
@@ -278,7 +353,7 @@ contract TricklePayrollTest is Test {
         vm.prank(employer);
         uint256 id = payroll.createStream(worker, 3, 0, t0 + 1);
         vm.prank(worker);
-        payroll.setSplit(family, 5_000); // 50% of 3 = 1.5 -> 1
+        payroll.setSplits(_splits1(family, 5_000)); // 50% of 3 = 1.5 -> 1
 
         vm.warp(t0 + 1);
         vm.prank(worker);
@@ -288,12 +363,16 @@ contract TricklePayrollTest is Test {
         assertEq(token.balanceOf(worker), 2);
     }
 
-    function testFuzz_withdraw_splitConservesFunds(uint16 bps, uint40 elapsed) public {
-        bps = uint16(bound(bps, 0, 10_000));
+    function testFuzz_withdraw_splitConservesFunds(uint16 a, uint16 b, uint16 c, uint40 elapsed)
+        public
+    {
+        a = uint16(bound(a, 1, 10_000 - 2));
+        b = uint16(bound(b, 1, 10_000 - 1 - a));
+        c = uint16(bound(c, 1, 10_000 - a - b));
         elapsed = uint40(bound(elapsed, 1, DURATION));
         uint256 id = _create();
         vm.prank(worker);
-        payroll.setSplit(family, bps);
+        payroll.setSplits(_splits3(a, b, c));
 
         vm.warp(t0 + elapsed);
         uint128 available = payroll.withdrawable(id);
@@ -301,8 +380,14 @@ contract TricklePayrollTest is Test {
         vm.prank(worker);
         payroll.withdraw(id);
 
-        assertEq(token.balanceOf(worker) + token.balanceOf(family), available);
-        assertEq(token.balanceOf(family), uint256(available) * bps / 10_000);
+        assertEq(
+            token.balanceOf(worker) + token.balanceOf(family) + token.balanceOf(family2)
+                + token.balanceOf(family3),
+            available
+        );
+        assertEq(token.balanceOf(family), uint256(available) * a / 10_000);
+        assertEq(token.balanceOf(family2), uint256(available) * b / 10_000);
+        assertEq(token.balanceOf(family3), uint256(available) * c / 10_000);
     }
 
     function testFuzz_withdraw_manyTimesTotalsAmount(uint8 steps, uint256 seed) public {
@@ -328,48 +413,113 @@ contract TricklePayrollTest is Test {
     }
 
     // ------------------------------------------------------------------------------------------
-    // setSplit
+    // setSplits
     // ------------------------------------------------------------------------------------------
 
-    function test_setSplit_storesAndEmits() public {
+    function test_setSplits_storesAndEmits() public {
+        ITricklePayroll.Split[] memory splits = _splits3(2_500, 1_000, 500);
         vm.expectEmit(address(payroll));
-        emit ITricklePayroll.SplitUpdated(worker, family, 2_500);
+        emit ITricklePayroll.SplitUpdated(worker, splits);
         vm.prank(worker);
-        payroll.setSplit(family, 2_500);
+        payroll.setSplits(splits);
 
-        (address recipient, uint16 bps) = payroll.splitOf(worker);
-        assertEq(recipient, family);
-        assertEq(bps, 2_500);
+        ITricklePayroll.Split[] memory stored = payroll.splitsOf(worker);
+        assertEq(stored.length, 3);
+        assertEq(stored[0].recipient, family);
+        assertEq(stored[0].bps, 2_500);
+        assertEq(stored[2].recipient, family3);
+        assertEq(stored[2].bps, 500);
+
+        assertEq(payroll.splitBpsOf(worker, family), 2_500);
+        assertEq(payroll.splitBpsOf(worker, family2), 1_000);
+        assertEq(payroll.splitBpsOf(worker, stranger), 0);
     }
 
-    function test_setSplit_disable() public {
+    function test_setSplits_replacesPreviousList() public {
         vm.startPrank(worker);
-        payroll.setSplit(family, 2_500);
-        payroll.setSplit(address(0), 0);
+        payroll.setSplits(_splits3(2_500, 1_000, 500));
+        payroll.setSplits(_splits1(family2, 4_000));
         vm.stopPrank();
 
-        (address recipient, uint16 bps) = payroll.splitOf(worker);
-        assertEq(recipient, address(0));
-        assertEq(bps, 0);
+        ITricklePayroll.Split[] memory stored = payroll.splitsOf(worker);
+        assertEq(stored.length, 1);
+        assertEq(stored[0].recipient, family2);
+        assertEq(payroll.splitBpsOf(worker, family), 0, "old recipient removed");
+        assertEq(payroll.splitBpsOf(worker, family2), 4_000);
     }
 
-    function test_setSplit_revertsAboveMaxBps() public {
+    function test_setSplits_emptyDisables() public {
+        vm.startPrank(worker);
+        payroll.setSplits(_splits1(family, 2_500));
+        payroll.setSplits(new ITricklePayroll.Split[](0));
+        vm.stopPrank();
+
+        assertEq(payroll.splitsOf(worker).length, 0);
+        assertEq(payroll.splitBpsOf(worker, family), 0);
+    }
+
+    function test_setSplits_revertsAboveMaxBps() public {
+        vm.startPrank(worker);
+        vm.expectRevert(ITricklePayroll.InvalidSplit.selector);
+        payroll.setSplits(_splits1(family, 10_001));
+        vm.expectRevert(ITricklePayroll.InvalidSplit.selector);
+        payroll.setSplits(_splits3(5_000, 4_000, 1_001)); // total 10_001
+        vm.stopPrank();
+    }
+
+    function test_setSplits_allowsExactlyFullTotal() public {
+        vm.prank(worker);
+        payroll.setSplits(_splits3(5_000, 4_000, 1_000));
+        assertEq(payroll.splitsOf(worker).length, 3);
+    }
+
+    function test_setSplits_revertsOnZeroRecipient() public {
         vm.prank(worker);
         vm.expectRevert(ITricklePayroll.InvalidSplit.selector);
-        payroll.setSplit(family, 10_001);
+        payroll.setSplits(_splits1(address(0), 100));
     }
 
-    function test_setSplit_revertsOnZeroRecipientWithBps() public {
+    function test_setSplits_revertsOnZeroBps() public {
         vm.prank(worker);
         vm.expectRevert(ITricklePayroll.InvalidSplit.selector);
-        payroll.setSplit(address(0), 100);
+        payroll.setSplits(_splits3(1_000, 0, 1_000));
     }
 
-    function test_setSplit_isPerWorker() public {
+    function test_setSplits_revertsOnDuplicate() public {
+        ITricklePayroll.Split[] memory splits = _splits3(1_000, 1_000, 1_000);
+        splits[2].recipient = family;
         vm.prank(worker);
-        payroll.setSplit(family, 5_000);
-        (address recipient,) = payroll.splitOf(stranger);
-        assertEq(recipient, address(0));
+        vm.expectRevert(abi.encodeWithSelector(ITricklePayroll.DuplicateRecipient.selector, family));
+        payroll.setSplits(splits);
+    }
+
+    function test_setSplits_revertsOnTooManyRecipients() public {
+        ITricklePayroll.Split[] memory splits = new ITricklePayroll.Split[](4);
+        splits[0] = _split(family, 100);
+        splits[1] = _split(family2, 100);
+        splits[2] = _split(family3, 100);
+        splits[3] = _split(stranger, 100);
+        vm.prank(worker);
+        vm.expectRevert(ITricklePayroll.TooManyRecipients.selector);
+        payroll.setSplits(splits);
+        assertEq(payroll.MAX_RECIPIENTS(), 3);
+    }
+
+    function test_setSplits_failedUpdateKeepsOldList() public {
+        vm.startPrank(worker);
+        payroll.setSplits(_splits1(family, 2_500));
+        vm.expectRevert(ITricklePayroll.InvalidSplit.selector);
+        payroll.setSplits(_splits3(5_000, 5_000, 5_000));
+        vm.stopPrank();
+
+        assertEq(payroll.splitBpsOf(worker, family), 2_500);
+        assertEq(payroll.splitsOf(worker).length, 1);
+    }
+
+    function test_setSplits_isPerWorker() public {
+        vm.prank(worker);
+        payroll.setSplits(_splits1(family, 5_000));
+        assertEq(payroll.splitsOf(stranger).length, 0);
     }
 
     // ------------------------------------------------------------------------------------------

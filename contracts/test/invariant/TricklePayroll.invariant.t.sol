@@ -76,18 +76,25 @@ contract PayrollHandler is Test {
         ghostPaidOut += before - token.balanceOf(address(payroll));
     }
 
-    function setSplit(uint256 workerSeed, uint256 recipientSeed, uint16 bps, bool disable)
-        external
-    {
+    /// @dev Picks 0..3 distinct recipients with a valid total of at most 10_000 bps.
+    function setSplits(uint256 workerSeed, uint8 count, uint256 bpsSeed) external {
         address worker = workers[workerSeed % workers.length];
-        vm.prank(worker);
-        if (disable) {
-            payroll.setSplit(address(0), 0);
-        } else {
-            payroll.setSplit(
-                recipients[recipientSeed % recipients.length], uint16(bound(bps, 0, 10_000))
-            );
+        count = uint8(bound(count, 0, recipients.length));
+
+        ITricklePayroll.Split[] memory splits = new ITricklePayroll.Split[](count);
+        uint256 remaining = 10_000;
+        for (uint256 i; i < count; i++) {
+            bpsSeed = uint256(keccak256(abi.encode(bpsSeed)));
+            // Leave at least 1 bps for each later recipient.
+            uint256 bps = bound(bpsSeed, 1, remaining - (count - 1 - i));
+            remaining -= bps;
+            // casting to 'uint16' is safe because bps <= 10_000
+            // forge-lint: disable-next-line(unsafe-typecast)
+            splits[i] = ITricklePayroll.Split({recipient: recipients[i], bps: uint16(bps)});
         }
+
+        vm.prank(worker);
+        payroll.setSplits(splits);
     }
 
     function warp(uint32 seconds_) external {

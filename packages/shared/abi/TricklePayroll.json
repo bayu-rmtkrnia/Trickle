@@ -12,6 +12,19 @@
   },
   {
     "type": "function",
+    "name": "MAX_RECIPIENTS",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "cancel",
     "inputs": [
       {
@@ -133,17 +146,24 @@
   },
   {
     "type": "function",
-    "name": "setSplit",
+    "name": "setSplits",
     "inputs": [
       {
-        "name": "recipient",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "bps",
-        "type": "uint16",
-        "internalType": "uint16"
+        "name": "splits",
+        "type": "tuple[]",
+        "internalType": "struct ITricklePayroll.Split[]",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "bps",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
       }
     ],
     "outputs": [],
@@ -151,7 +171,31 @@
   },
   {
     "type": "function",
-    "name": "splitOf",
+    "name": "splitBpsOf",
+    "inputs": [
+      {
+        "name": "worker",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint16",
+        "internalType": "uint16"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "splitsOf",
     "inputs": [
       {
         "name": "worker",
@@ -161,14 +205,21 @@
     ],
     "outputs": [
       {
-        "name": "recipient",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "bps",
-        "type": "uint16",
-        "internalType": "uint16"
+        "name": "",
+        "type": "tuple[]",
+        "internalType": "struct ITricklePayroll.Split[]",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "bps",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
       }
     ],
     "stateMutability": "view"
@@ -239,8 +290,14 @@
   },
   {
     "type": "event",
-    "name": "SplitUpdated",
+    "name": "SplitPaid",
     "inputs": [
+      {
+        "name": "streamId",
+        "type": "uint256",
+        "indexed": true,
+        "internalType": "uint256"
+      },
       {
         "name": "worker",
         "type": "address",
@@ -254,10 +311,41 @@
         "internalType": "address"
       },
       {
-        "name": "bps",
-        "type": "uint16",
+        "name": "amount",
+        "type": "uint128",
         "indexed": false,
-        "internalType": "uint16"
+        "internalType": "uint128"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "SplitUpdated",
+    "inputs": [
+      {
+        "name": "worker",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "splits",
+        "type": "tuple[]",
+        "indexed": false,
+        "internalType": "struct ITricklePayroll.Split[]",
+        "components": [
+          {
+            "name": "recipient",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "bps",
+            "type": "uint16",
+            "internalType": "uint16"
+          }
+        ]
       }
     ],
     "anonymous": false
@@ -353,19 +441,24 @@
         "internalType": "uint128"
       },
       {
-        "name": "recipient",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "toRecipient",
+        "name": "toRecipients",
         "type": "uint128",
         "indexed": false,
         "internalType": "uint128"
       }
     ],
     "anonymous": false
+  },
+  {
+    "type": "error",
+    "name": "DuplicateRecipient",
+    "inputs": [
+      {
+        "name": "recipient",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   },
   {
     "type": "error",
@@ -458,6 +551,11 @@
         "internalType": "uint256"
       }
     ]
+  },
+  {
+    "type": "error",
+    "name": "TooManyRecipients",
+    "inputs": []
   },
   {
     "type": "error",
