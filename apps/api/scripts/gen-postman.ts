@@ -427,6 +427,20 @@ const collection = {
       ],
     },
     {
+      name: '7b. Judge mode',
+      item: [
+        req('Demo status', 'GET', '/api/v1/demo-streams/status', { tests: [status(200)] }),
+        req('Start demo stream', 'POST', '/api/v1/demo-streams', {
+          auth: bearer('familyToken'),
+          description:
+            'Real testnet stream from the demo employer to the signed-in account, no role needed. 201 the first time, 200 with alreadyStarted=true afterwards. 503 DEMO_UNAVAILABLE without DEMO_EMPLOYER_PRIVATE_KEY, 429 DEMO_IP_LIMIT / DEMO_DAILY_LIMIT.',
+        }),
+        req('Start demo stream - again (idempotent)', 'POST', '/api/v1/demo-streams', {
+          auth: bearer('familyToken'),
+        }),
+      ],
+    },
+    {
       name: '8. FX',
       item: [req('USD to IDR', 'GET', '/api/v1/fx/usd-idr', { tests: [status(200)] })],
     },

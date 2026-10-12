@@ -7,6 +7,7 @@ import { unauthorized } from '../src/lib/errors.js'
 import type { Privy } from '../src/lib/privy.js'
 import type { StreamReader } from '../src/lib/streams.js'
 import type { Chain } from '../src/lib/chain.js'
+import type { DemoSigner } from '../src/lib/demo.js'
 import { createPrisma } from '../src/lib/prisma.js'
 import { expectForbidden } from './helpers.js'
 
@@ -17,6 +18,7 @@ describe.skipIf(!url)('api (integration)', () => {
     NODE_ENV: 'test',
     DATABASE_URL: url,
     GAS_DRIP_DAILY_LIMIT: '3',
+    DEMO_STREAM_IP_DAILY_LIMIT: '2',
   })
   const db = createPrisma(env.DATABASE_URL)
   const sendNative = vi.fn<Chain['sendNative']>()
@@ -29,6 +31,12 @@ describe.skipIf(!url)('api (integration)', () => {
   const hasActiveStream = vi.fn<StreamReader['hasActiveStream']>()
   const splitOf = vi.fn<StreamReader['splitOf']>()
   const streams: StreamReader = { verified: true, hasActiveStream, splitOf }
+  const createStream = vi.fn<DemoSigner['createStream']>()
+  const demo: DemoSigner = {
+    employerAddress: '0x000000000000000000000000000000000000bEEF',
+    getGasBalance: async () => 10n ** 18n,
+    createStream,
+  }
   const noSplit = { recipient: '0x0000000000000000000000000000000000000000', bps: 0 } as const
   let app: Awaited<ReturnType<typeof buildApp>>
 
@@ -71,15 +79,19 @@ describe.skipIf(!url)('api (integration)', () => {
   // Generous timeout: the first buildApp pays for cold imports, which can pass 10s
   // when every test file starts at once.
   beforeAll(async () => {
-    app = await buildApp({ env, db, chain, fx, privy, streams, rateLimit: false })
+    app = await buildApp({ env, db, chain, fx, privy, streams, demo, rateLimit: false })
   }, 30_000)
 
   beforeEach(async () => {
     sendNative.mockReset()
+    createStream.mockReset().mockImplementation(async (_worker, _amount, seconds) => {
+      const start = Math.floor(Date.now() / 1000)
+      return { streamId: 1n, txHash: `0x${'aa'.repeat(32)}`, start, end: start + seconds }
+    })
     hasActiveStream.mockReset().mockResolvedValue(false)
     splitOf.mockReset().mockResolvedValue(noSplit)
     await db.$executeRawUnsafe(
-      'TRUNCATE "Payout","GasDrip","Invite","Recipient","Worker","Company","Session","User" CASCADE',
+      'TRUNCATE "Payout","DemoStream","GasDrip","Invite","Recipient","Worker","Company","Session","User" CASCADE',
     )
   })
 
@@ -1051,6 +1063,73 @@ describe.skipIf(!url)('api (integration)', () => {
       })
       expect(res.statusCode).toBe(429)
       expect(res.json().error.code).toBe('DRIP_DAILY_LIMIT')
+    })
+  })
+
+  describe('judge mode', () => {
+    const start = (token?: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/api/v1/demo-streams',
+        headers: token ? as(token) : {},
+      })
+
+    it('streams to a brand-new account once, and replays afterwards', async () => {
+      expect((await start()).statusCode).toBe(401)
+
+      // A judge has no company, job or recipient yet: no role is needed.
+      const judge = await signIn('judge')
+      const first = await start(judge.token)
+      expect(first.statusCode).toBe(201)
+      expect(first.json()).toMatchObject({
+        workerAddress: judge.address.toLowerCase(),
+        amountUsd: '50',
+        durationSeconds: 3600,
+        status: 'SENT',
+        streamId: '1',
+        alreadyStarted: false,
+      })
+      expect(createStream).toHaveBeenCalledWith(judge.address.toLowerCase(), 50_000_000n, 3600)
+
+      const again = await start(judge.token)
+      expect(again.statusCode).toBe(200)
+      expect(again.json()).toMatchObject({ id: first.json().id, alreadyStarted: true })
+      expect(createStream).toHaveBeenCalledTimes(1)
+    })
+
+    it('lets a failed attempt be retried', async () => {
+      const judge = await signIn('judge')
+      createStream.mockRejectedValueOnce(new Error('execution reverted'))
+      const failed = await start(judge.token)
+      expect(failed.statusCode).toBe(502)
+      expect(failed.json().error.code).toBe('DEMO_STREAM_FAILED')
+
+      expect((await start(judge.token)).statusCode).toBe(201)
+      expect(createStream).toHaveBeenCalledTimes(2)
+    })
+
+    it('caps demo streams per IP', async () => {
+      for (const name of ['judge-a', 'judge-b']) {
+        const u = await signIn(name)
+        expect((await start(u.token)).statusCode).toBe(201)
+      }
+      const third = await signIn('judge-c')
+      const res = await start(third.token)
+      expect(res.statusCode).toBe(429)
+      expect(res.json().error.code).toBe('DEMO_IP_LIMIT')
+      expect(createStream).toHaveBeenCalledTimes(2)
+    })
+
+    it('reports usage for monitoring', async () => {
+      const judge = await signIn('judge')
+      await start(judge.token)
+      const res = await app.inject({ method: 'GET', url: '/api/v1/demo-streams/status' })
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toMatchObject({
+        configured: true,
+        employerGasMon: '1',
+        streamsLast24h: 1,
+      })
     })
   })
 })

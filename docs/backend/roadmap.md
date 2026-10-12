@@ -19,11 +19,11 @@ Aturan main:
 | 5   | Companies CRUD     | `feat/api-companies`           | Rename Employer → Company, soft delete, test 403                                                                     | Sab 3       | ✅     |
 | 6   | Workers CRUD       | `feat/api-workers`             | CRUD + 409 kalau stream masih aktif (cek on-chain lewat interface `StreamReader`)                                    | Sab 3       | ✅     |
 | 7   | Recipients CRUD    | `feat/api-recipients`          | Dari `FamilyLink`, pemiliknya pekerja                                                                                | Min 4       | ✅     |
-| 8   | Invites lengkap    | `feat/api-invites-v1`          | `POST /invites/:code/acceptance`, `DELETE /invites/:id`, undangan dari employer dan pekerja                          | Min 4       | 🔍     |
+| 8   | Invites lengkap    | `feat/api-invites-v1`          | `POST /invites/:code/acceptance`, `DELETE /invites/:id`, undangan dari employer dan pekerja                          | Min 4       | ✅     |
 | 9   | Bank accounts      | `feat/api-bank-accounts`       | AES-256-GCM, hanya 4 digit terakhir yang keluar dari API                                                             | Sen 5       | ⬜     |
 | 10  | Gas & kurs         | `refactor/api-gas-fx-v1`       | `/gas-drips` (rate limit per alamat + IP), `/fx-rates/usd-idr`                                                       | Sen 5       | ⬜     |
 | 11  | Payouts sandbox    | `feat/api-payouts`             | Verifikasi tx → disbursement Xendit/Flip → webhook ber-signature                                                     | Sel 6       | ⬜     |
-| 12  | Judge mode         | `feat/api-demo-streams`        | `POST /demo-streams`, signer demo, rate limit                                                                        | Sel 6–Rab 7 | ⬜     |
+| 12  | Judge mode         | `feat/api-demo-streams`        | `POST /demo-streams`, signer demo, rate limit                                                                        | Sel 6–Rab 7 | 🔍     |
 | 13  | ERD & dokumen      | `docs/api-erd`                 | `docs/erd.md`, Postman, README API                                                                                   | Rab 7       | ⬜     |
 
 Kalau waktu mepet, nomor 12 tetap Must dan tidak boleh dipotong (PLAN §10.2). Yang paling aman dipotong adalah pagination di endpoint yang datanya sedikit.
@@ -126,6 +126,16 @@ D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `
 | Batalkan | Baru: `DELETE /invites/:id`, hanya pembuatnya. PENDING → REVOKED (204, boleh diulang); yang sudah diterima → 409 `INVITE_ALREADY_ACCEPTED`. DTO dapat field `id` |
 | Guard | `POST/GET /invites` dan `DELETE` memakai `requireRole('employer', 'worker')`. Jenis mana yang boleh dibuat tetap dicek service (tergantung body) |
 | Test | Unit revoke di `test/invites.test.ts`; integrasi: batalkan + link mati, batalkan dua kali, 409 setelah diterima, pekerja membatalkan undangan penerimanya, 403 untuk employer lain/pekerja/outsider |
+
+## Rincian Fitur 12: Judge mode
+
+| Bagian | Isi |
+| ------ | --- |
+| Endpoint | `POST /demo-streams`: stream testnet sungguhan dari employer demo ke akun yang login, $50 selama 60 menit (bisa diatur lewat env). 201 untuk panggilan pertama, 200 untuk panggilan berikutnya. `GET /demo-streams/status` untuk memantau gas employer demo |
+| Signer | `lib/demo.ts` (`DemoSigner`): key dari `DEMO_EMPLOYER_PRIVATE_KEY`, alamat token dibaca dari `TricklePayroll.token()`. Signer mint mAUSD sendiri kalau saldonya kurang, `approve` sekali, lalu `createStream`. Transaksi diantrekan satu per satu karena memakai nonce yang sama. Test memakai signer palsu |
+| Data | Tabel `DemoStream`, unik per `userId` (migrasi `20261012110000_demo_streams`). Yang gagal boleh dicoba ulang |
+| Batas | Satu per akun, `DEMO_STREAM_IP_DAILY_LIMIT` per IP per hari, `DEMO_STREAM_DAILY_LIMIT` total per hari, ditambah rate limit 5/menit |
+| Test | Unit di `test/demo-streams.test.ts`. Integrasi: tanpa peran, idempoten, coba ulang setelah gagal, batas per IP, status |
 
 ## Ketergantungan yang belum terjawab
 

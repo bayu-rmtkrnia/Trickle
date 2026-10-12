@@ -69,7 +69,7 @@ Trickle/
 │       │   ├── types.ts            # Fastify type augmentation
 │       │   ├── lib/                # chain (viem), fx, privy, streams, prisma, errors, pagination, roles, tokens, shared schemas
 │       │   ├── plugins/            # auth (session tokens), rbac (requireRole / requireOwnership), uniform error handling
-│       │   └── modules/            # health, sessions, users, companies, workers, recipients, invites, gas, fx; each one has:
+│       │   └── modules/            # health, sessions, users, companies, workers, recipients, invites, gas, demo-streams, fx; each one has:
 │       │       └── <resource>/     #   routes → controller → service → repository, plus schemas (Zod)
 │       ├── test/                   # Vitest unit + integration tests
 │       ├── openapi.json            # Generated API spec (import into Postman / FE codegen)
@@ -116,9 +116,11 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | POST | `/invites/:code/acceptance` | ✓ | Accept an invite |
 | POST | `/gas/drip` | ✓ | Sponsor gas for a new account, once per address |
 | GET | `/gas/status` | – | Treasury balance and daily usage |
+| POST | `/demo-streams` | ✓ | Judge mode: real testnet stream from the demo employer to me, once per account |
+| GET | `/demo-streams/status` | – | Demo employer gas and daily usage |
 | GET | `/fx/usd-idr` | – | USD→IDR rate with cache and fallback |
 
-Planned for the next milestone: `/payouts`, `/webhooks/payout`, `/demo/try-as-worker` (they depend on the deployed contract and payout sandbox).
+Planned for the next milestone: `/bank-accounts`, `/payouts`, `/webhooks/payout-provider`.
 
 ## Running locally
 

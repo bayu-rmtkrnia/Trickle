@@ -20,7 +20,7 @@ export interface Chain {
   sendNative(to: Address, value: bigint): Promise<Hash>
 }
 
-const toViemChain = (env: Pick<Env, 'CHAIN_ID' | 'RPC_URL'>) =>
+export const toViemChain = (env: Pick<Env, 'CHAIN_ID' | 'RPC_URL'>) =>
   env.CHAIN_ID === monadTestnet.id
     ? monadTestnet
     : defineChain({
