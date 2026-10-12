@@ -66,6 +66,7 @@ model User {
   payouts         Payout[]
   sessions        Session[]
   demoStream      DemoStream?
+  bankAccounts    BankAccount[]
 }
 
 /// API session. Only the SHA-256 of the bearer token is stored, so a leaked
@@ -186,6 +187,32 @@ model GasDrip {
   updatedAt DateTime      @updatedAt
 
   @@index([createdAt])
+}
+
+/// Where a recipient cashes out (PLAN §6.3). The account number is only
+/// stored encrypted (AES-256-GCM, `BANK_ENCRYPTION_KEY`); the API returns the
+/// last 4 digits and never the full number.
+model BankAccount {
+  id                String    @id @default(cuid())
+  userId            String
+  /// Bank code, e.g. BCA, BNI, MANDIRI
+  bankCode          String
+  /// Name on the account, as the bank knows it
+  accountName       String
+  /// Optional nickname, e.g. "Rekening utama"
+  label             String?
+  /// `v1.<iv>.<tag>.<ciphertext>`, with the user id as AAD
+  numberEncrypted   String
+  numberLast4       String
+  /// HMAC of bank code + number: finds duplicates without decrypting
+  numberFingerprint String
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, numberFingerprint])
 }
 
 /// Judge mode: one real testnet stream from the demo employer per account,

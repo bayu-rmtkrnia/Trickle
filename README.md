@@ -69,7 +69,7 @@ Trickle/
 │       │   ├── types.ts            # Fastify type augmentation
 │       │   ├── lib/                # chain (viem), fx, privy, streams, prisma, errors, pagination, roles, tokens, shared schemas
 │       │   ├── plugins/            # auth (session tokens), rbac (requireRole / requireOwnership), uniform error handling
-│       │   └── modules/            # health, sessions, users, companies, workers, recipients, invites, gas, demo-streams, fx; each one has:
+│       │   └── modules/            # health, sessions, users, companies, workers, recipients, bank-accounts, invites, gas, demo-streams, fx; each one has:
 │       │       └── <resource>/     #   routes → controller → service → repository, plus schemas (Zod)
 │       ├── test/                   # Vitest unit + integration tests
 │       ├── openapi.json            # Generated API spec (import into Postman / FE codegen)
@@ -109,6 +109,11 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | GET | `/recipients/:id` | Owner or the recipient | Read a recipient |
 | PATCH | `/recipients/:id` | Owner | Update name and relation |
 | DELETE | `/recipients/:id` | Owner | Soft delete; 409 while the on-chain split still pays them |
+| POST | `/bank-accounts` | Recipient | Add a payout bank account; the number is encrypted (AES-256-GCM) |
+| GET | `/bank-accounts` | Recipient | My bank accounts (paged), last 4 digits only |
+| GET | `/bank-accounts/:id` | Owner | Read one, last 4 digits only |
+| PATCH | `/bank-accounts/:id` | Owner | Update name and label |
+| DELETE | `/bank-accounts/:id` | Owner | Soft delete |
 | POST | `/invites` | Employer or worker | Worker invite (employer) or recipient invite (worker) |
 | GET | `/invites` | Employer or worker | Invites I created (paged) |
 | DELETE | `/invites/:id` | Creator | Cancel a pending invite; 409 once accepted |
@@ -120,7 +125,7 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | GET | `/demo-streams/status` | – | Demo employer gas and daily usage |
 | GET | `/fx/usd-idr` | – | USD→IDR rate with cache and fallback |
 
-Planned for the next milestone: `/bank-accounts`, `/payouts`, `/webhooks/payout-provider`.
+Planned for the next milestone: `/payouts`, `/webhooks/payout-provider`.
 
 ## Running locally
 

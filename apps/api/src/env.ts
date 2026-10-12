@@ -51,6 +51,17 @@ const EnvSchema = z.object({
   GAS_DRIP_AMOUNT_MON: z.string().default('0.05'),
   GAS_DRIP_DAILY_LIMIT: z.coerce.number().int().positive().default(200),
 
+  /**
+   * 32 random bytes as hex (`openssl rand -hex 32`). Encrypts bank account
+   * numbers at rest. Without it, adding a bank account answers 503. Changing it
+   * makes existing numbers unreadable, so keep it with the other secrets.
+   */
+  BANK_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'must be 32 bytes of hex (openssl rand -hex 32)')
+    .optional()
+    .or(z.literal('').transform(() => undefined)),
+
   // Judge mode (POST /demo-streams). Testnet only. Without the key, the endpoint answers 503.
   DEMO_EMPLOYER_PRIVATE_KEY: hexKey.optional().or(z.literal('').transform(() => undefined)),
   DEMO_STREAM_AMOUNT_USD: z

@@ -4,7 +4,7 @@ Isinya keadaan aplikasi **saat ini**: apa saja yang sudah ada, di mana letaknya,
 
 > **Aturan:** setiap PR yang menambah atau mengubah fitur, endpoint, tabel, env var, atau keputusan desain **wajib memperbarui file ini** di PR yang sama. Kalau ada isi file ini yang tidak lagi sesuai dengan kode, berarti file ini yang salah, jadi perbaiki.
 
-Terakhir diperbarui: 12 Okt 2026 (Fitur 12: judge mode).
+Terakhir diperbarui: 12 Okt 2026 (Fitur 9: rekening bank).
 
 ---
 
@@ -73,6 +73,8 @@ Semua endpoint resource ada di bawah `/api/v1`, kecuali `/health` dan `/docs` (S
 | recipients | `POST/GET /recipients` | Pekerja | Selalu daftar milik sendiri. POST lewat alamat wallet; memulihkan penerima yang pernah dihapus |
 | | `GET /recipients/:id` | Pekerja pemilik atau penerima itu sendiri | |
 | | `PATCH/DELETE /recipients/:id` | Pekerja pemilik | DELETE = soft delete, 409 `SPLIT_ACTIVE` kalau split on-chain masih ke penerima ini |
+| bank-accounts | `POST/GET /bank-accounts` | Penerima | Selalu milik sendiri. Nomor dienkripsi; respons hanya berisi 4 digit terakhir |
+| | `GET/PATCH/DELETE /bank-accounts/:id` | Penerima pemilik | PATCH hanya nama dan label. DELETE = soft delete |
 | invites | `POST /invites`, `GET /invites` | Employer atau pekerja | Employer mengundang pekerja, pekerja mengundang penerima |
 | | `DELETE /invites/:id` | Pembuat undangan | PENDING → REVOKED; 409 kalau sudah diterima |
 | | `GET /invites/:code` | – | Publik supaya link bisa dibuka sebelum login |
@@ -86,7 +88,7 @@ Kolom Auth: – publik, ✓ semua user yang login, *Pemilik* hanya pemilik resou
 
 Detail request dan response: `openapi.json` atau `http://localhost:4000/docs`.
 
-**Belum ada** (lihat roadmap): rekening bank terenkripsi (9), refactor gas/fx (10), payouts (11), ERD (13).
+**Belum ada** (lihat roadmap): refactor gas/fx (10), payouts (11), ERD (13).
 
 ## 4. Arsitektur API
 
@@ -122,6 +124,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 ### Data & uang
 - **Uang hanya ada di chain.** Postgres tidak pernah menyimpan saldo atau jumlah yang sudah mengalir; data itu selalu dibaca dari kontrak atau indexer (PLAN §4.2). Kenapa: satu sumber kebenaran, jadi tidak ada risiko angka DB berbeda dengan angka on-chain.
 - **Gaji referensi disimpan dalam sen (`Int`)**, lalu dikonversi di `lib/money.ts`. Kenapa: menghindari pembulatan float.
+- **Data sensitif dienkripsi at-rest.** Nomor rekening hanya disimpan dalam bentuk terenkripsi (lihat Fitur 9), dan token sesi hanya disimpan hash-nya.
 - **Tidak ada private key pengguna di server.** Hanya ada dua key, keduanya untuk testnet: treasury gas (`GAS_TREASURY_PRIVATE_KEY`) dan employer demo untuk judge mode (`DEMO_EMPLOYER_PRIVATE_KEY`) (PLAN §4.2).
 
 ### Auth & sesi (Fitur 3)
@@ -172,6 +175,17 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Id dipakai untuk membatalkan, kode untuk menerima.** Kode adalah rahasia yang dibagikan ke penerima, sedangkan pembuat mengelola undangannya lewat id seperti resource lain.
 - **`requireRole('employer', 'worker')` di route, aturan per jenis di service.** Route tidak bisa tahu jenis undangan sebelum body divalidasi, jadi service yang menolak employer membuat `RECIPIENT` tanpa jadi pekerja, dan sebaliknya.
 
+### Rekening bank (Fitur 9)
+- **Nomor rekening dienkripsi AES-256-GCM di API sebelum masuk Postgres** (`lib/crypto.ts`, PLAN K4). Kenapa: kalau database atau backup bocor, nomor rekening tetap tidak terbaca. GCM sekaligus mendeteksi data yang diubah.
+- **IV acak 12 byte untuk setiap nilai**, jadi nomor yang sama menghasilkan ciphertext berbeda dan tidak bisa dibandingkan.
+- **User id pemilik dipakai sebagai AAD.** Ciphertext yang dipindahkan ke baris milik user lain gagal didekripsi.
+- **Duplikat dideteksi lewat fingerprint HMAC** (bank + nomor) yang unik per user, bukan dengan mendekripsi semua baris. Nomor asli tetap tidak bisa ditebak dari fingerprint tanpa kunci.
+- **Satu kunci di env (`BANK_ENCRYPTION_KEY`), dua subkey turunan HKDF** untuk enkripsi dan fingerprint, supaya satu kunci tidak dipakai untuk dua tujuan. Token diberi versi (`v1.`) supaya rotasi kunci bisa ditambahkan nanti.
+- **API tidak pernah mengembalikan nomor lengkap**, hanya `accountNumberLast4`. Detail error 422 juga hanya berisi nama field, bukan nilai yang dikirim. Dekripsi baru dibutuhkan saat payout (Fitur 11).
+- **Hanya peran `recipient`** (PLAN §6.3 "R pemilik"): penerima yang mencairkan ke bank, sedangkan pekerja menarik gaji on-chain.
+- **PATCH hanya nama dan label.** Mengganti nomor sama dengan rekening baru, jadi caranya tambah rekening baru lalu hapus yang lama. Ini juga menjaga riwayat payout tetap menunjuk ke rekening yang benar.
+- **Maksimal 5 rekening aktif per user** (409 `BANK_ACCOUNT_LIMIT`), supaya satu akun tidak bisa memenuhi tabel.
+
 ### Judge mode (Fitur 12)
 - **Stream-nya sungguhan, bukan simulasi.** Employer demo memanggil `createStream` di `TricklePayroll` (Monad testnet), jadi saldo yang dilihat juri berasal dari kontrak, sama seperti pekerja asli (PLAN §3.1 langkah 5; §3.2: tidak ada data palsu). Token-nya mAUSD (mock), dan hal itu disebut di API docs.
 - **Butuh login, tapi tanpa peran.** Yang diminta adalah stream "ke alamat pemanggil" (PLAN §6.3), dan itu hanya bisa dibuktikan lewat sesi. Kalau alamat dikirim lewat body, siapa pun bisa menghabiskan kuota untuk alamat orang lain. Akun juri masih baru, jadi tidak ada `requireRole`.
@@ -205,6 +219,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 | `Worker` | Hubungan kerja: `companyId`, `userId`, `displayName`, `position`, gaji referensi (sen), `deletedAt`. Unik per (perusahaan, user) |
 | `Recipient` | Penerima milik pekerja: `ownerId` (pekerja), `userId` (penerima), `displayName`, `relation`, `deletedAt`. Unik per (pemilik, user) |
 | `Invite` | Undangan WORKER (dengan `companyId`) / RECIPIENT, status PENDING/ACCEPTED/REVOKED (EXPIRED dihitung saat dibaca) |
+| `BankAccount` | Rekening penerima: `bankCode`, `accountName`, `label`, `numberEncrypted` (AES-256-GCM), `numberLast4`, `numberFingerprint` (HMAC, unik per user), `deletedAt` |
 | `GasDrip` | Log drip, satu per alamat |
 | `DemoStream` | Stream judge mode, satu per akun: alamat, jumlah (unit token), durasi, status PENDING/SENT/FAILED, `streamId` on-chain, `txHash`, IP |
 | `Payout` | Disiapkan untuk Fitur 11, belum dipakai |
@@ -223,6 +238,7 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 | `WEB_URL`, `CORS_ORIGINS` | Link undangan dan origin web yang diizinkan |
 | `CHAIN_ID`, `RPC_URL`, `GAS_TREASURY_PRIVATE_KEY`, `GAS_DRIP_*` | Gas drip |
 | `PAYROLL_ADDRESS` | Kontrak `TricklePayroll`, untuk cek split saat menghapus penerima dan untuk judge mode. Kosong = cek split dilewati (dicatat di log) dan judge mode menjawab 503 |
+| `BANK_ENCRYPTION_KEY` | Kunci enkripsi nomor rekening (`openssl rand -hex 32`). Kosong = tambah rekening menjawab 503. Jangan diganti setelah ada data: nomor lama tidak bisa dibaca lagi |
 | `DEMO_EMPLOYER_PRIVATE_KEY`, `DEMO_STREAM_*` | Judge mode: key employer demo (butuh MON untuk gas), jumlah, durasi, batas harian total dan per IP |
 | `FX_*` | Kurs |
 
@@ -239,5 +255,7 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 - Gas drip mengasumsikan akun baru butuh MON (asumsi era Mera). Dengan Privy perlu ditinjau ulang di Fitur 10.
 - **Cek stream aktif saat menghapus pekerja belum terverifikasi.** `StreamReader` default selalu menjawab "tidak aktif" sampai indexer SC tersedia. Kontrak sudah ter-deploy (`0xE7292E79…652e` di Monad testnet, branch `feat/contracts-payroll`, belum di-merge).
 - **Akun juri tidak punya peran `worker` di DB.** Stream demo hanya ada di chain; tidak ada baris `Worker` atau perusahaan demo. Kalau layar pekerja di FE bergantung pada `roles` dari `/users/me`, FE perlu memakai respons `POST /demo-streams` (`streamId`), atau nanti kita tambahkan perusahaan demo.
+- **Tabel `Payout` masih punya kolom nomor rekening teks biasa** dari skema awal (belum dipakai). Fitur 11 akan menggantinya dengan referensi ke `BankAccount`.
+- **Belum ada rotasi kunci enkripsi.** Token sudah diberi versi (`v1.`), tapi re-enkripsi ke kunci baru belum dibuat.
 - `apps/web` belum memanggil API (masih data mock). Saat integrasi, FE perlu memakai `POST /sessions` + `Authorization: Bearer`, dan `/users/me` untuk peran.
 - D10 (login tanpa kata sandi untuk rubrik K4) masih Open di koordinator.

@@ -18,6 +18,7 @@ import { createFxService, type FxService } from './lib/fx.js'
 import { createPrisma, type Db } from './lib/prisma.js'
 import { createPrivy, type Privy } from './lib/privy.js'
 import { createStreamReader, type StreamReader } from './lib/streams.js'
+import bankAccountRoutes from './modules/bank-accounts/routes.js'
 import companyRoutes from './modules/companies/routes.js'
 import demoStreamRoutes from './modules/demo-streams/routes.js'
 import fxRoutes from './modules/fx/routes.js'
@@ -108,7 +109,7 @@ export async function buildApp(deps: AppDeps) {
         title: 'Trickle API',
         version: '1.1.0',
         description:
-          'Metadata API for Trickle: sessions, users, companies, workers, recipients, invites, gas sponsorship, judge mode and FX. Money lives on-chain; this API never stores balances.\n\n' +
+          'Metadata API for Trickle: sessions, users, companies, workers, recipients, bank accounts, invites, gas sponsorship, judge mode and FX. Money lives on-chain; this API never stores balances.\n\n' +
           'Sign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\n' +
           'Resource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). ' +
           'List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`.',
@@ -120,6 +121,7 @@ export async function buildApp(deps: AppDeps) {
         { name: 'Companies' },
         { name: 'Workers' },
         { name: 'Recipients' },
+        { name: 'Bank accounts' },
         { name: 'Invites' },
         { name: 'Gas' },
         { name: 'Demo' },
@@ -147,6 +149,7 @@ export async function buildApp(deps: AppDeps) {
       await v1.register(companyRoutes)
       await v1.register(workerRoutes)
       await v1.register(recipientRoutes)
+      await v1.register(bankAccountRoutes)
       await v1.register(inviteRoutes)
       await v1.register(gasRoutes)
       await v1.register(demoStreamRoutes)
