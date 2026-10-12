@@ -233,6 +233,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Gas drip idempoten per alamat** lewat unique constraint `GasDrip.address`. Drip yang gagal bisa dicoba ulang, dan ada batas harian (`GAS_DRIP_DAILY_LIMIT`).
 - **Kurs FX di-cache di memori.** Kalau provider mati, API memakai kurs terakhir lalu kurs fallback statis, dan respons selalu menyebut `source`-nya.
 - **Rate limit global 120/menit per IP**, dengan batas lebih ketat di sign-in, gas drip, dan demo stream. Batas harian per IP untuk gas drip dan demo stream disimpan di DB.
+- **CORS menyebut `methods` secara eksplisit** (`GET, HEAD, POST, PATCH, DELETE`). Kenapa: sejak v10, default `@fastify/cors` hanya `GET,HEAD,POST`, sehingga preflight `PATCH`/`DELETE` dari browser ditolak. Kalau menambah route dengan method lain (misalnya `PUT`), daftarnya juga harus ditambah.
 - **Semua config divalidasi saat start** (`src/env.ts`). String kosong di `.env` dianggap tidak diisi. Fitur yang config-nya kosong menjawab 503, bukan crash (contoh: Privy, gas treasury, employer demo).
 
 ## 6. Data model (Postgres via Prisma)

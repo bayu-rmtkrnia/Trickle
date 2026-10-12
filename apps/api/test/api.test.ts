@@ -133,6 +133,22 @@ describe.skipIf(!url)('api (integration)', () => {
     expect(res.json()).toMatchObject({ status: 'ok', db: 'ok' })
   })
 
+  it('lets the web app preflight PATCH and DELETE', async () => {
+    for (const method of ['PATCH', 'DELETE']) {
+      const res = await app.inject({
+        method: 'OPTIONS',
+        url: '/api/v1/users/me',
+        headers: {
+          origin: 'http://localhost:3000',
+          'access-control-request-method': method,
+          'access-control-request-headers': 'authorization,content-type',
+        },
+      })
+      expect(res.statusCode, method).toBe(204)
+      expect(res.headers['access-control-allow-methods'], method).toContain(method)
+    }
+  })
+
   describe('sessions and users', () => {
     it('signs in with a Privy token and signs out', async () => {
       const first = await app.inject({
