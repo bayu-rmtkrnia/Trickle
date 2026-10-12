@@ -68,6 +68,8 @@ Semua endpoint resource ada di bawah `/api/v1`, kecuali `/health` dan `/docs` (S
 | | `DELETE /sessions/current` | ✓ | Logout sesi ini saja |
 | users | `GET /users/me`, `PATCH /users/me` | ✓ | Profil, peran, dan `companyId`; PATCH hanya `displayName` |
 | | `GET /users/me/employments` | ✓ | Perusahaan tempat saya bekerja (dashboard pekerja), paged, beserta data employer |
+| streams | `GET /companies/:id/streams` | Pemilik perusahaan | Stream dari wallet pemilik, dari indexer; `worker` ditautkan ke baris `Worker` |
+| | `GET /users/me/streams` | ✓ | Stream yang membayar wallet saya; `company` ditautkan lewat alamat employer, termasuk stream judge mode (`company: null`) |
 | companies | `POST /companies` | ✓ | Satu perusahaan aktif per akun |
 | | `GET/PATCH/DELETE /companies/:id` | Pemilik | Peran lain dan employer lain mendapat 403. DELETE = soft delete |
 | workers | `POST/GET /companies/:id/workers` | Pemilik perusahaan | POST lewat alamat wallet; memulihkan pekerja yang pernah dihapus |
@@ -172,6 +174,11 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Pengecekan yang memblokir aksi membaca ulang dari chain.** `hasActiveStream` menyinkronkan stream baru dulu, mengambil kandidat (belum dibatalkan, belum berakhir) dari DB, lalu membaca ulang kandidat itu on-chain. Kenapa: stream yang baru dibuat atau baru dibatalkan tidak boleh menunggu putaran berikutnya. Stream yang belum mulai (`start` di masa depan) dihitung aktif, karena dananya sudah terkunci.
 - **Loop jalan di proses API** (`startStreamSync`, tiap `STREAM_SYNC_SECONDS`, default 15). Putaran tidak pernah tumpang tindih; error dicatat dan dicoba lagi di putaran berikutnya. Kenapa tidak worker terpisah: Railway menjalankan satu instance, dan upsert-nya idempoten, jadi tetap aman kalau nanti ada beberapa instance.
 - **`id` bertipe `BIGINT`**, bukan teks seperti `DemoStream.streamId`, supaya "id terbesar" dihitung numerik (teks mengurutkan `"10"` sebelum `"2"`).
+- **Daftar stream menyinkronkan stream baru dulu** (`StreamReader.syncNew`, satu `eth_call` + multicall kalau ada stream baru), jadi stream yang baru dibuat employer langsung muncul. Kalau RPC gagal, daftar tetap dijawab dari cache dan kegagalannya dicatat di log.
+- **Stream milik alamat, bukan perusahaan.** Kontrak hanya tahu wallet employer, jadi `/companies/:id/streams` berisi stream dari wallet pemilik perusahaan, dan `worker` diisi kalau alamat penerimanya pekerja di perusahaan itu (`null` kalau bukan). Sebaliknya `/users/me/streams` mencari perusahaan aktif milik alamat employer; employer demo judge mode tidak punya perusahaan, jadi `company: null`.
+- **`status` dihitung saat dibaca** (`CANCELED`, `SCHEDULED`, `ACTIVE`, `ENDED`), sama seperti `EXPIRED` di undangan. Jumlah yang sudah mengalir tidak dikirim karena berubah tiap detik: FE menghitungnya dari `startsAt`/`endsAt` atau membaca `withdrawable` on-chain. `withdrawnUnits` bisa tertinggal sampai satu putaran (`syncedAt`).
+- **Cursor daftar stream adalah id on-chain** (`id < cursor`, urut terbaru dulu), bukan id baris seperti list lain, karena PK-nya memang id stream. Cursor yang bukan angka ditolak 422.
+- **`/users/me/streams` tanpa cek peran**, seperti `/users/me/employments`: akun juri menerima stream demo tanpa baris `Worker`.
 - **Pekerja melihat pekerjaannya lewat `GET /users/me/employments`**, bukan `GET /workers?userId=`. Kenapa: datanya selalu milik pemanggil, jadi tidak perlu cek kepemilikan, dan FE tidak perlu tahu id pekerjanya dulu. Tanpa cek peran: akun yang bukan pekerja mendapat `data: []`, bukan 403, supaya dashboard cukup satu panggilan. `employer` memakai bentuk `Company` yang sama (termasuk `ownerAddress`, alamat pengirim stream).
 - **`GET /workers/:id` boleh diakses pekerja itu sendiri**, tapi `PATCH`/`DELETE` hanya employer (PLAN §6.3: "W hanya GET dirinya sendiri"). `requireOwnership` menerima beberapa pemilik untuk kasus seperti ini.
 
@@ -289,7 +296,7 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 
 ## 9. Masalah yang diketahui / utang
 
-- **Belum ada endpoint daftar stream.** Indexer sudah mengisi tabel `Stream`, tapi `GET /companies/:id/streams` dan `GET /users/me/streams` baru menyusul. FE pekerja masih memindai log sendiri di browser.
+- **FE pekerja masih memindai log `StreamCreated` sendiri di browser** (`apps/web/lib/chain/payroll-reader.ts`), sehingga terkena batas 100 blok. Bisa diganti `GET /users/me/streams`.
 - **Indexer membaca ulang semua stream yang belum settled di setiap putaran.** Murah selama jumlahnya ratusan (satu multicall per 100). Kalau sudah ribuan, perlu dibatasi, misalnya hanya stream yang berubah menurut event `Withdrawn`/`StreamCanceled` terbaru.
 - **Akun juri tidak punya peran `worker` di DB.** Stream demo hanya ada di chain; tidak ada baris `Worker` atau perusahaan demo. Kalau layar pekerja di FE bergantung pada `roles` dari `/users/me`, FE perlu memakai respons `POST /demo-streams` (`streamId`), atau nanti kita tambahkan perusahaan demo.
 - **Payout yang gagal setelah token diterima diselesaikan manual.** Belum ada endpoint refund atau retry; token tetap di `PAYOUT_ADDRESS`.

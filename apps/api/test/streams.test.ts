@@ -26,7 +26,7 @@ describe('stream reader', () => {
 
   it('asks the stream indexer whether a stream is active', async () => {
     const hasActiveStream = vi.fn(async () => true)
-    const reader = createStreamReader({ payroll, indexer: { hasActiveStream } })
+    const reader = createStreamReader({ payroll, indexer: { hasActiveStream, syncNew: vi.fn() } })
     await expect(reader.hasActiveStream('0xboss', '0xsiti')).resolves.toBe(true)
     expect(hasActiveStream).toHaveBeenCalledWith('0xboss', '0xsiti')
     expect(reader.verified).toBe(true)
