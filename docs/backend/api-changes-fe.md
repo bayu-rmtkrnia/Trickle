@@ -154,7 +154,7 @@ Kolom **Akses**: – publik; ✓ login tanpa syarat peran; *Employer/Worker/Reci
 
 `Recipient = { id, ownerId, userId, address, displayName, relation, addedAt }`
 
-`address` adalah yang dipakai sebagai `recipient` di `setSplit(recipient, bps)`. Persentase split **tidak** disimpan di API; baca dari kontrak (`splitOf`). Penerima yang masih dipakai split ditolak dihapus (409 `SPLIT_ACTIVE`): matikan atau ganti split dulu.
+`address` adalah yang dipakai sebagai `recipient` di `setSplits([{ recipient, bps }, ...])` (maks. 3 penerima). Persentase split **tidak** disimpan di API; baca dari kontrak (`splitsOf`). Penerima yang masih dipakai split ditolak dihapus (409 `SPLIT_ACTIVE`): matikan atau ganti split dulu.
 
 ### Undangan
 
@@ -250,7 +250,7 @@ Alurnya:
 
 `GasDrip = { address, status, amountMon, txHash, alreadyDripped, createdAt }`
 
-- Panggil sebelum transaksi pertama akun (mis. withdraw, `setSplit`, transfer untuk payout). Sekali per alamat.
+- Panggil sebelum transaksi pertama akun (mis. withdraw, `setSplits`, transfer untuk payout). Sekali per alamat.
 - `SENT` artinya transaksi gas sudah dikirim, **belum tentu terkonfirmasi**. Tunggu receipt `txHash` sebelum mengirim transaksi pengguna.
 - `PENDING` dengan `txHash: null`: drip sebelumnya masih diproses. Coba lagi sebentar.
 
@@ -276,7 +276,7 @@ Alurnya:
 1. Buka link → `GET /invites/:code` (tanpa login) → login → `POST /invites/:code/acceptance`.
 2. `POST /gas-drips` sebelum transaksi pertama.
 3. Saldo dan withdraw dari kontrak. Kurs: `GET /fx-rates/usd-idr`.
-4. Keluarga: `POST /invites` (RECIPIENT) atau `POST /recipients`, lalu `setSplit` di kontrak dengan `address` penerima.
+4. Keluarga: `POST /invites` (RECIPIENT) atau `POST /recipients`, lalu `setSplits` di kontrak dengan `address` penerima.
 
 **Penerima (`/f`)**
 1. Buka link → login → `POST /invites/:code/acceptance`.

@@ -2347,7 +2347,7 @@
       "get": {
         "summary": "My recipients (worker)",
         "tags": ["Recipients"],
-        "description": "Metadata only. The split percentage lives on-chain (`splitOf`).",
+        "description": "Metadata only. The split percentage lives on-chain (`splitsOf`).",
         "parameters": [
           {
             "schema": {
@@ -2621,7 +2621,7 @@
       "delete": {
         "summary": "Remove one of my recipients (soft delete)",
         "tags": ["Recipients"],
-        "description": "Refused with 409 `SPLIT_ACTIVE` while the worker's on-chain split still sends to this recipient. Call `setSplit(0x0, 0)` or point the split elsewhere first.",
+        "description": "Refused with 409 `SPLIT_ACTIVE` while the worker's on-chain split still sends to this recipient. Call `setSplits` without this recipient (or with an empty list) first.",
         "parameters": [
           {
             "schema": {
