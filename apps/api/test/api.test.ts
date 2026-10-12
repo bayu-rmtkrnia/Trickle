@@ -37,8 +37,8 @@ describe.skipIf(!url)('api (integration)', () => {
   }
   const fx = { usdIdr: vi.fn() }
   const hasActiveStream = vi.fn<StreamReader['hasActiveStream']>()
-  const splitOf = vi.fn<StreamReader['splitOf']>()
-  const streams: StreamReader = { verified: true, hasActiveStream, splitOf }
+  const splitBpsOf = vi.fn<StreamReader['splitBpsOf']>()
+  const streams: StreamReader = { verified: true, hasActiveStream, splitBpsOf }
   const createStream = vi.fn<DemoSigner['createStream']>()
   const demo: DemoSigner = {
     employerAddress: '0x000000000000000000000000000000000000bEEF',
@@ -52,7 +52,6 @@ describe.skipIf(!url)('api (integration)', () => {
   }
   // Completes on the first status check, so tests need no waiting.
   const payoutProvider = createMockPayoutProvider({ completeAfterSeconds: 0 })
-  const noSplit = { recipient: '0x0000000000000000000000000000000000000000', bps: 0 } as const
   let app: Awaited<ReturnType<typeof buildApp>>
 
   const account = (name: string) => privateKeyToAccount(keccak256(toHex(`test:${name}`)))
@@ -116,7 +115,7 @@ describe.skipIf(!url)('api (integration)', () => {
       return { streamId: 1n, txHash: `0x${'aa'.repeat(32)}`, start, end: start + seconds }
     })
     hasActiveStream.mockReset().mockResolvedValue(false)
-    splitOf.mockReset().mockResolvedValue(noSplit)
+    splitBpsOf.mockReset().mockResolvedValue(0)
     await db.$executeRawUnsafe(
       'TRUNCATE "Payout","BankAccount","DemoStream","GasDrip","Invite","Recipient","Worker","Company","Session","User" CASCADE',
     )
@@ -131,6 +130,22 @@ describe.skipIf(!url)('api (integration)', () => {
     const res = await app.inject({ method: 'GET', url: '/health' })
     expect(res.statusCode).toBe(200)
     expect(res.json()).toMatchObject({ status: 'ok', db: 'ok' })
+  })
+
+  it('lets the web app preflight PATCH and DELETE', async () => {
+    for (const method of ['PATCH', 'DELETE']) {
+      const res = await app.inject({
+        method: 'OPTIONS',
+        url: '/api/v1/users/me',
+        headers: {
+          origin: 'http://localhost:3000',
+          'access-control-request-method': method,
+          'access-control-request-headers': 'authorization,content-type',
+        },
+      })
+      expect(res.statusCode, method).toBe(204)
+      expect(res.headers['access-control-allow-methods'], method).toContain(method)
+    }
   })
 
   describe('sessions and users', () => {
@@ -920,10 +935,7 @@ describe.skipIf(!url)('api (integration)', () => {
 
     it('refuses to remove a recipient the on-chain split still pays', async () => {
       const { siti, recipientId } = await addIbu()
-      splitOf.mockResolvedValueOnce({
-        recipient: account('ibu').address.toLowerCase() as Address,
-        bps: 3000,
-      })
+      splitBpsOf.mockResolvedValueOnce(3000)
 
       const blocked = await app.inject({
         method: 'DELETE',
@@ -932,7 +944,10 @@ describe.skipIf(!url)('api (integration)', () => {
       })
       expect(blocked.statusCode).toBe(409)
       expect(blocked.json().error.code).toBe('SPLIT_ACTIVE')
-      expect(splitOf).toHaveBeenCalledWith(siti.address.toLowerCase())
+      expect(splitBpsOf).toHaveBeenCalledWith(
+        siti.address.toLowerCase(),
+        account('ibu').address.toLowerCase(),
+      )
 
       const removed = await app.inject({
         method: 'DELETE',

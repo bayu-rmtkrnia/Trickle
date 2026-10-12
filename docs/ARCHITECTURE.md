@@ -171,7 +171,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Peran `family` di-rename jadi `recipient`** di `/users/me` dan `requireRole`, mengikuti PLAN K5. Aman karena FE belum memanggil API. Jenis undangan ikut di-rename jadi `RECIPIENT` di Fitur 8.
 - **`/recipients` (koleksi) tidak punya `:id` pemilik**: daftar dan tambah selalu memakai pekerja yang login, jadi cukup `requireRole('worker')` tanpa cek kepemilikan. Kenapa: pekerja hanya boleh mengelola penerimanya sendiri, dan ini menghindari id pekerja di URL.
 - **Penerima boleh `GET` dirinya sendiri**, tapi hanya pekerja pemilik yang boleh mengubah atau menghapus (sama seperti `/workers/:id`).
-- **Hapus ditolak 409 `SPLIT_ACTIVE` kalau split on-chain masih mengarah ke penerima ini** (PLAN §4.2). Kenapa berbeda dengan pekerja: kontrak punya view `splitOf(worker)`, jadi cukup satu `eth_call` ke `PAYROLL_ADDRESS` tanpa indexer. ABI-nya cukup satu fragmen di `lib/streams.ts`, supaya tidak menunggu `packages/shared` di-merge.
+- **Hapus ditolak 409 `SPLIT_ACTIVE` kalau split on-chain masih mengarah ke penerima ini** (PLAN §4.2). Kenapa berbeda dengan pekerja: kontrak punya view `splitBpsOf(worker, recipient)`, jadi cukup satu `eth_call` ke `PAYROLL_ADDRESS` tanpa indexer. Sejak TricklePayroll v2 (maks. 3 penerima per pekerja) `splitOf` sudah tidak ada; API menanyakan bps untuk penerima yang mau dihapus saja, bukan seluruh daftar `splitsOf`. ABI-nya cukup satu fragmen di `lib/streams.ts`, supaya tidak menunggu `packages/shared` di-merge.
 - **Tanpa `PAYROLL_ADDRESS`, hapus tetap jalan dan dicatat di log.** Kenapa: development lokal dan test tidak perlu RPC; di deploy env ini wajib diisi.
 
 ### Undangan (Fitur 8)
@@ -233,6 +233,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Gas drip idempoten per alamat** lewat unique constraint `GasDrip.address`. Drip yang gagal bisa dicoba ulang, dan ada batas harian (`GAS_DRIP_DAILY_LIMIT`).
 - **Kurs FX di-cache di memori.** Kalau provider mati, API memakai kurs terakhir lalu kurs fallback statis, dan respons selalu menyebut `source`-nya.
 - **Rate limit global 120/menit per IP**, dengan batas lebih ketat di sign-in, gas drip, dan demo stream. Batas harian per IP untuk gas drip dan demo stream disimpan di DB.
+- **CORS menyebut `methods` secara eksplisit** (`GET, HEAD, POST, PATCH, DELETE`). Kenapa: sejak v10, default `@fastify/cors` hanya `GET,HEAD,POST`, sehingga preflight `PATCH`/`DELETE` dari browser ditolak. Kalau menambah route dengan method lain (misalnya `PUT`), daftarnya juga harus ditambah.
 - **Semua config divalidasi saat start** (`src/env.ts`). String kosong di `.env` dianggap tidak diisi. Fitur yang config-nya kosong menjawab 503, bukan crash (contoh: Privy, gas treasury, employer demo).
 
 ## 6. Data model (Postgres via Prisma)

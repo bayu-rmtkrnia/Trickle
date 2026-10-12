@@ -119,7 +119,12 @@ export async function buildApp(deps: AppDeps) {
 
   // Swagger UI serves inline scripts, so CSP is left to the web app's host.
   await app.register(helmet, { contentSecurityPolicy: false })
-  await app.register(cors, { origin: env.CORS_ORIGINS, credentials: true })
+  // @fastify/cors v10+ only allows GET, HEAD and POST by default.
+  await app.register(cors, {
+    origin: env.CORS_ORIGINS,
+    credentials: true,
+    methods: ['GET', 'HEAD', 'POST', 'PATCH', 'DELETE'],
+  })
   if (deps.rateLimit !== false) {
     await app.register(rateLimit, { max: 120, timeWindow: '1 minute' })
   }

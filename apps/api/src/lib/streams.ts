@@ -1,11 +1,5 @@
 import { parseAbi, type Address, type PublicClient } from 'viem'
 
-/** A worker's on-chain split: `bps` (0–10000) of each withdrawal goes to `recipient`. */
-export interface Split {
-  recipient: Address
-  bps: number
-}
-
 /**
  * Read-only view of the payroll contract (PLAN §4.2: money lives on the
  * contract, never in Postgres). The API only asks what it needs to refuse a
@@ -16,22 +10,27 @@ export interface StreamReader {
   hasActiveStream(employer: Address, worker: Address): Promise<boolean>
   /** `false` while `hasActiveStream` is a placeholder; surfaced in logs and docs. */
   readonly verified: boolean
-  /** The worker's split, or `null` when the payroll contract is not configured. */
-  splitOf(worker: Address): Promise<Split | null>
+  /**
+   * Share (bps, 0–10000) of each of `worker`'s withdrawals that goes to `recipient`,
+   * or `null` when the payroll contract is not configured.
+   */
+  splitBpsOf(worker: Address, recipient: Address): Promise<number | null>
 }
 
 const payrollAbi = parseAbi([
-  'function splitOf(address worker) view returns (address recipient, uint16 bps)',
+  'function splitBpsOf(address worker, address recipient) view returns (uint16)',
 ])
 
 interface Options {
   client?: Pick<PublicClient, 'readContract'>
-  /** TricklePayroll address; without it `splitOf` answers `null`. */
+  /** TricklePayroll address; without it `splitBpsOf` answers `null`. */
   payroll?: Address
 }
 
 /**
- * `splitOf` is a single view call, so it reads the contract directly.
+ * `splitBpsOf` is a single view call, so it reads the contract directly. A
+ * worker may split to several recipients (TricklePayroll v2), so it asks about
+ * one recipient instead of reading the whole list.
  *
  * `hasActiveStream` is a placeholder until the stream indexer exists: the
  * contract has no "streams of a worker" view, and the public Monad RPC limits
@@ -44,15 +43,14 @@ export function createStreamReader({ client, payroll }: Options = {}): StreamRea
     async hasActiveStream() {
       return false
     },
-    async splitOf(worker) {
+    async splitBpsOf(worker, recipient) {
       if (!client || !payroll) return null
-      const [recipient, bps] = await client.readContract({
+      return client.readContract({
         address: payroll,
         abi: payrollAbi,
-        functionName: 'splitOf',
-        args: [worker],
+        functionName: 'splitBpsOf',
+        args: [worker, recipient],
       })
-      return { recipient: recipient.toLowerCase() as Address, bps }
     },
   }
 }

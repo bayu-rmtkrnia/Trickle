@@ -426,7 +426,7 @@ const collection = {
         req('Delete recipient', 'DELETE', '/api/v1/recipients/{{extraRecipientId}}', {
           auth: bearer('workerToken'),
           description:
-            "409 SPLIT_ACTIVE while the worker's on-chain split (splitOf) still sends to this recipient.",
+            "409 SPLIT_ACTIVE while the worker's on-chain split (splitBpsOf) still sends to this recipient.",
           tests: [status(204)],
         }),
       ],
