@@ -119,7 +119,8 @@ Before switching to real AUSD: check its decimals and whether it supports permit
 
 Published in `packages/shared/`:
 - `deployments/testnet.json`: chain id, addresses, deploy block, deploy tx hash
-- `abi/TricklePayroll.json`, `abi/MockAUSD.json`
+- `abi/TricklePayroll.json`, `abi/MockAUSD.json`, plus typed `abi/*.ts` (`as const`) for viem
+- `split.ts`: `validateSplits`, `previewSplit`, `percentToBps`, the split rules of §2 on the client (see `packages/shared/README.md`)
 
 FE: run the per-second balance locally from `start`, `end`, `amount` and `withdrawn` using the formula in §1; re-sync on `Withdrawn`/`StreamCanceled` or after the user's own tx (PLAN F1). Do not poll the RPC every second.
 
@@ -139,10 +140,17 @@ The original product plan let a worker send to more than one family member; v1 s
 
 ### Migrating to v2 with viem
 
-Checked against the v2 deployment with viem 2.56: the selectors and event topics below match `packages/shared/abi/TricklePayroll.json`. The shared JSON ABI works at runtime but is untyped once imported; this human-readable ABI gives typed `args`.
+Checked against the v2 deployment with viem 2.56. **Prefer the typed ABI in `packages/shared/abi/TricklePayroll.ts`** (`tricklePayrollAbi`, generated from the JSON, so it can never drift). The JSON file works at runtime but is untyped once imported. Split validation and preview live in `packages/shared/split.ts`; see `packages/shared/README.md`.
 
 ```ts
-import { parseAbi, parseEventLogs, type Address } from 'viem'
+import { parseEventLogs, type Address } from 'viem'
+import { tricklePayrollAbi as payrollAbi } from '../../../../packages/shared/abi/TricklePayroll'
+```
+
+If a file cannot import from `packages/shared` (for example `apps/api`, whose build has `rootDir: src`), this hand-written subset has the same selectors and event topics:
+
+```ts
+import { parseAbi } from 'viem'
 
 export const payrollAbi = parseAbi([
   'struct Split { address recipient; uint16 bps; }',
@@ -190,14 +198,13 @@ await walletClient.writeContract({
 // Turn off: args: [[]]
 ```
 
-**Preview before withdrawing.** Same math as the contract, so the numbers match to the unit.
+**Validate before `setSplits`, preview before withdrawing.** Same rules and rounding as the contract (tested against the Solidity test vectors and the testnet smoke run), so nothing reverts and the numbers match the receipt to the unit.
 
 ```ts
-function previewSplit(gross: bigint, splits: readonly { recipient: Address; bps: number }[]) {
-  const shares = splits.map((s) => ({ recipient: s.recipient, amount: (gross * BigInt(s.bps)) / 10_000n }))
-  const toRecipients = shares.reduce((sum, s) => sum + s.amount, 0n)
-  return { toWorker: gross - toRecipients, shares }
-}
+import { percentToBps, previewSplit, validateSplits } from '../../../../packages/shared/split'
+
+const error = validateSplits(draft) // null, or { code: 'TOO_MANY_RECIPIENTS' | 'DUPLICATE_RECIPIENT' | 'TOTAL_OVER_100' | ... }
+const { toWorker, toRecipients, shares } = previewSplit(withdrawable, splits)
 ```
 
 **Read the result from the withdraw receipt.** Recipients whose share rounded to 0 have no `SplitPaid` log.
