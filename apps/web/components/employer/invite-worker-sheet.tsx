@@ -7,7 +7,7 @@ import { ChatIcon, CheckCircleIcon, CheckIcon, CopyIcon } from '@/components/ui/
 import { InlineError } from '@/components/ui/inline-error'
 import { Sheet } from '@/components/ui/sheet'
 import { createInvite, type Invite } from '@/lib/api'
-import { inviteSheetCopy as t } from '@/lib/copy/employer'
+import { useEmployerCopy } from './use-employer-copy'
 import { dailyFromMonthly } from '@/lib/format'
 import { useCopy } from '@/lib/use-copy'
 
@@ -34,6 +34,7 @@ export function InviteWorkerSheet({
   companyName: string
   onCreated: (invite: Invite) => void
 }) {
+  const t = useEmployerCopy().copy.inviteSheet
   const nameId = useId()
   const salaryId = useId()
   const [name, setName] = useState('')
