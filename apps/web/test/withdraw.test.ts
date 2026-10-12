@@ -87,6 +87,7 @@ function fixture() {
       to: config.payrollAddress,
       input: calldata,
       value: b(0),
+      nonce: b(7),
     })),
   }
   return { port, writer: createPayrollWriter(port) }
@@ -302,6 +303,7 @@ function coordinatorFixture() {
     store,
     isCurrent: () => current,
     onSuccess,
+    submissionNonce: async () => b(7),
   })
   return {
     coordinator,
@@ -410,7 +412,7 @@ describe('withdrawal transaction lifecycle', () => {
   })
   it('recovers a stored pending transaction after reload without asking for another signature', async () => {
     const { writer, send, store } = coordinatorFixture()
-    store.write({ streamId: '1', hash })
+    store.write({ streamId: '1', hash, nonce: '7' })
     const fresh = new WithdrawalCoordinator({
       worker,
       writer,

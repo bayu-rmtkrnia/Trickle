@@ -291,6 +291,25 @@ describe('worker family section', () => {
     expect(screen.getByRole('dialog', { name: 'Atur pembagian' })).toBeTruthy()
   })
 
+  it('keeps the split sheet open even when the closing sheet popstate arrives late', async () => {
+    // A slow history: popstate for the closing sheet lands well after 500 ms.
+    const realBack = window.history.back.bind(window.history)
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {
+      setTimeout(realBack, 800)
+    })
+    deps.deleteRecipient.mockRejectedValue(
+      new ApiError('conflict', 'x', { status: 409, code: 'SPLIT_ACTIVE' }),
+    )
+    show()
+    fireEvent.click(await screen.findByRole('button', { name: 'Hapus penerima Ibu Sari' }))
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Hapus penerima' }))
+    await within(dialog()).findByText('Penerima masih menerima pembagian')
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Atur pembagian' }))
+    await new Promise((resolve) => setTimeout(resolve, 1300))
+    expect(screen.getByRole('dialog', { name: 'Atur pembagian' })).toBeTruthy()
+    back.mockRestore()
+  }, 10_000)
+
   it('removes a recipient without an active split', async () => {
     show()
     fireEvent.click(await screen.findByRole('button', { name: 'Hapus penerima Adik' }))

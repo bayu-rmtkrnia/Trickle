@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { PersonCard } from '@/components/ui/person-card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { afterSheetHistory } from '@/components/ui/sheet'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { WorkerStreamState } from '@/hooks/use-worker-streams'
 import { useSplitSettings } from '@/hooks/use-split-settings'
@@ -40,6 +39,7 @@ export function WorkerFamilySection({
   const [inviteKey, setInviteKey] = useState(0)
   const [removing, setRemoving] = useState<RecipientDto | null>(null)
   const [inviteError, setInviteError] = useState<unknown>(null)
+  const splitAfterRemove = useRef(false)
   const { copied, copy } = useCopy()
   const settings = useSplitSettings(walletAddress, streams.refresh, () => {
     // Privy shows its own modal; close ours so it does not trap focus.
@@ -247,11 +247,16 @@ export function WorkerFamilySection({
       <RemoveRecipientSheet
         recipient={removing}
         onClose={() => setRemoving(null)}
+        onClosed={() => {
+          if (!splitAfterRemove.current) return
+          splitAfterRemove.current = false
+          openSplit()
+        }}
         onRemove={family.remove}
         onEditSplit={() => {
-          // Close this sheet first; open the split sheet after its history settles.
+          // Open the split sheet only once this sheet's history entry is gone.
+          splitAfterRemove.current = true
           setRemoving(null)
-          afterSheetHistory(openSplit)
         }}
       />
     </section>

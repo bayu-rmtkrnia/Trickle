@@ -92,7 +92,12 @@ describe('review withdrawal regressions', () => {
   })
 
   it('keeps a newer submission record when a second observer finishes an old receipt', async () => {
-    let pending: PendingWithdrawal | null = { streamId: '1', hash: h1, afterBlock: '1' }
+    let pending: PendingWithdrawal | null = {
+      streamId: '1',
+      hash: h1,
+      afterBlock: '1',
+      nonce: '6',
+    }
     const store = {
       read: () => pending,
       write: (value: PendingWithdrawal | null) => {
@@ -108,6 +113,7 @@ describe('review withdrawal regressions', () => {
       isCurrent: () => true,
       onSuccess: () => {},
       send: async () => ({ hash: h2 }),
+      submissionNonce: async () => BigInt(7),
     }
     const tabA = new WithdrawalCoordinator({
       ...common,

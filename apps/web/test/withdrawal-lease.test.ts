@@ -262,6 +262,7 @@ describe('withdrawal attempt ownership across tabs', () => {
       send,
       isCurrent: () => true,
       onSuccess: vi.fn(),
+      submissionNonce: async () => b(7),
       lock,
     }
     const one = new WithdrawalCoordinator(deps)
@@ -329,5 +330,92 @@ describe('withdrawal attempt ownership across tabs', () => {
     const manual = `0x${'b'.repeat(64)}` as Hex
     await recovered.resume(manual)
     expect(w.settle).toHaveBeenCalledWith(worker, b(1), manual, b(20), b(7))
+  })
+})
+
+describe('withdrawal recovery records', () => {
+  it('does not bring back a stashed attempt after it settled', async () => {
+    window.localStorage.clear()
+    const store = pendingWithdrawalStore(worker)
+    const signature = deferred<{ hash: Hex }>()
+    const send = vi.fn(() => signature.promise)
+    const deps: WithdrawalDependencies = {
+      worker,
+      writer: writer(),
+      store,
+      send,
+      isCurrent: () => true,
+      onSuccess: vi.fn(),
+      submissionNonce: async () => b(7),
+    }
+    const first = new WithdrawalCoordinator(deps)
+    first.select(b(1))
+    const run = first.submit()
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    // Another signed attempt holds the slot, so this one is stashed.
+    const otherHash = `0x${'c'.repeat(64)}` as Hex
+    store.write({
+      streamId: '1',
+      hash: otherHash,
+      attemptId: 'other',
+      afterBlock: '20',
+      nonce: '6',
+    })
+    signature.resolve({ hash })
+    await run
+    expect(first.getSnapshot()).toMatchObject({ phase: 'unknown', hash })
+    await first.resume()
+    expect(first.getSnapshot().phase).toBe('success')
+    // The other attempt is still pending and must come back; this one must not.
+    const reloaded = new WithdrawalCoordinator(deps)
+    expect(reloaded.getSnapshot()).toMatchObject({ phase: 'unknown', hash: otherHash })
+    await reloaded.resume()
+    expect(reloaded.getSnapshot().phase).toBe('success')
+    const again = new WithdrawalCoordinator(deps)
+    expect(again.getSnapshot()).toMatchObject({ phase: 'idle', hash: null })
+    window.localStorage.clear()
+  })
+
+  it('removes a stashed record by attempt id', () => {
+    window.localStorage.clear()
+    const store = pendingWithdrawalStore(worker)
+    store.stash!({ streamId: '1', hash, attemptId: 'a' })
+    store.stash!({ streamId: '1', hash: null, attemptId: 'b' })
+    store.removeStashed!('a')
+    expect(store.takeStashed!()).toMatchObject({ attemptId: 'b' })
+    expect(store.takeStashed!()).toBeNull()
+    window.localStorage.clear()
+  })
+
+  it.each([
+    ['a stored hash', { streamId: '1', hash, afterBlock: '20', attemptId: 'old' }, undefined],
+    [
+      'a manual hash',
+      { streamId: '1', hash: null, afterBlock: '20', attemptId: 'old' },
+      `0x${'b'.repeat(64)}` as Hex,
+    ],
+  ])('refuses to recover %s from a record without a nonce', async (_, record, manual) => {
+    const { store, writer: w, open, send } = tabs()
+    store.set(record as PendingWithdrawal)
+    const recovered = open()
+    await recovered.resume(manual)
+    expect(recovered.getSnapshot()).toMatchObject({
+      phase: 'unknown',
+      error: expect.objectContaining({ code: 'RECOVERY_UNVERIFIED' }),
+    })
+    expect(w.settle).not.toHaveBeenCalled()
+    expect(send).not.toHaveBeenCalled()
+  })
+
+  it('refuses to start a withdrawal whose nonce cannot be pinned', async () => {
+    const { first, send, store } = tabs({ submissionNonce: undefined })
+    first.select(b(1))
+    await first.submit()
+    expect(first.getSnapshot()).toMatchObject({
+      phase: 'failed',
+      error: expect.objectContaining({ code: 'RECOVERY_UNVERIFIED' }),
+    })
+    expect(send).not.toHaveBeenCalled()
+    expect(store.raw()).toBeNull()
   })
 })

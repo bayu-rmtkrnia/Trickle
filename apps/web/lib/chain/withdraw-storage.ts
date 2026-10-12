@@ -93,5 +93,10 @@ export function pendingWithdrawalStore(wallet: string): PendingStore {
       if (first) writeStash(list)
       return first
     },
+    removeStashed(attemptId) {
+      const list = readStash()
+      const next = list.filter((item) => item.attemptId !== attemptId)
+      if (next.length !== list.length) writeStash(next)
+    },
   }
 }

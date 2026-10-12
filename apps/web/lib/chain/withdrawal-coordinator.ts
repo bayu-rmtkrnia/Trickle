@@ -33,6 +33,8 @@ export interface PendingStore {
   stash?(p: PendingWithdrawal): void
   /** Removes and returns the oldest stashed record. */
   takeStashed?(): PendingWithdrawal | null
+  /** Drops a stashed record once its attempt is settled or definitely failed. */
+  removeStashed?(attemptId: string): void
 }
 /**
  * Runs `run` only if no other tab holds the same lock, atomically. Returns
@@ -193,8 +195,13 @@ export class WithdrawalCoordinator {
       return
     }
     this.deps.store.stash?.(mine)
+    this.marker = mine
     this.update({ hash })
     throw new WithdrawalError('PENDING_CHANGED')
+  }
+  /** A finished attempt must not resurface from the stash after reload. */
+  private forget(attemptId: string | undefined) {
+    if (attemptId) this.deps.store.removeStashed?.(attemptId)
   }
   select(id: bigint) {
     if (this.busy || ['pending', 'unknown'].includes(this.state.phase) || id < BigInt(1)) return
@@ -220,6 +227,8 @@ export class WithdrawalCoordinator {
       const request = await this.deps.writer.prepare(this.deps.worker, id, this.deps.signal)
       const afterBlock = (await this.deps.writer.submissionBlock()).toString()
       const nonce = await this.deps.submissionNonce?.()
+      // Without a pinned nonce the attempt could never be safely recovered.
+      if (nonce === undefined) throw new WithdrawalError('RECOVERY_UNVERIFIED')
       if (!this.deps.isCurrent()) return
       // The whole check-then-claim-then-sign step runs under one cross-tab
       // lock, so two tabs can never both see an empty slot and both sign.
@@ -293,6 +302,7 @@ export class WithdrawalCoordinator {
     }
   }
   private async wait(id: bigint, hash: Hex) {
+    const attemptId = this.marker?.attemptId
     try {
       const afterBlock = this.marker?.afterBlock
       const nonce = this.marker?.nonce
@@ -305,6 +315,7 @@ export class WithdrawalCoordinator {
         nonce ? BigInt(nonce) : undefined,
       )
       this.clearOwnMarker()
+      this.forget(attemptId)
       if (!this.deps.isCurrent()) return
       this.update({ phase: 'success', result, hash: result.hash, error: null })
       try {
@@ -316,7 +327,10 @@ export class WithdrawalCoordinator {
       const final =
         error instanceof WithdrawalError && ['REVERTED', 'REPLACED'].includes(error.code)
       try {
-        if (final) this.clearOwnMarker()
+        if (final) {
+          this.clearOwnMarker()
+          this.forget(attemptId)
+        }
         if (this.deps.isCurrent()) this.update({ phase: final ? 'failed' : 'unknown', error })
       } catch (cleanupError) {
         if (this.deps.isCurrent()) this.update({ phase: 'unknown', error: cleanupError })
@@ -341,6 +355,11 @@ export class WithdrawalCoordinator {
     const target = hash ?? this.marker?.hash ?? this.state.hash
     if (!target || !HASH.test(target)) {
       this.update({ error: new WithdrawalError('INVALID_HASH') })
+      return
+    }
+    // A record without a nonce cannot tie any hash to this attempt.
+    if (!this.marker?.nonce) {
+      this.update({ phase: 'unknown', error: new WithdrawalError('RECOVERY_UNVERIFIED') })
       return
     }
     this.busy = true

@@ -13,11 +13,14 @@ const t = workerFamilyCopy.removeSheet
 export function RemoveRecipientSheet({
   recipient,
   onClose,
+  onClosed,
   onRemove,
   onEditSplit,
 }: {
   recipient: RecipientDto | null
   onClose: () => void
+  /** Fires after this sheet and its history entry are fully closed. */
+  onClosed?: () => void
   onRemove: (id: string) => Promise<void>
   onEditSplit: () => void
 }) {
@@ -48,6 +51,7 @@ export function RemoveRecipientSheet({
     <Sheet
       open={recipient !== null}
       onClose={close}
+      onClosed={onClosed}
       title={t.title}
       description={recipient ? t.body(recipient.displayName) : undefined}
       footer={

@@ -153,7 +153,7 @@ describe('withdrawal hook account lifecycle', () => {
     expect(deps.success).toHaveBeenCalledOnce()
   })
   it('isolates resumed transactions and late receipts when the wallet changes', async () => {
-    pendingWithdrawalStore(worker).write({ streamId: '1', hash: hash as `0x${string}` })
+    pendingWithdrawalStore(worker).write({ streamId: '1', hash: hash as `0x${string}`, nonce: '0' })
     let resolve!: (value: typeof receipt) => void
     deps.port.receipt = () =>
       new Promise((r) => {
