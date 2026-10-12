@@ -136,3 +136,75 @@ The original product plan let a worker send to more than one family member; v1 s
 | `Withdrawn(streamId, worker, toWorker, recipient, toRecipient)` | `Withdrawn(streamId, worker, toWorker, toRecipients)` + one `SplitPaid(streamId, worker, recipient, amount)` per recipient |
 | `SplitUpdated(worker, recipient, bps)` | `SplitUpdated(worker, Split[] splits)` |
 | | New errors: `TooManyRecipients()`, `DuplicateRecipient(address)` |
+
+### Migrating to v2 with viem
+
+Checked against the v2 deployment with viem 2.56: the selectors and event topics below match `packages/shared/abi/TricklePayroll.json`. The shared JSON ABI works at runtime but is untyped once imported; this human-readable ABI gives typed `args`.
+
+```ts
+import { parseAbi, parseEventLogs, type Address } from 'viem'
+
+export const payrollAbi = parseAbi([
+  'struct Split { address recipient; uint16 bps; }',
+  'function splitsOf(address worker) view returns (Split[])',
+  'function splitBpsOf(address worker, address recipient) view returns (uint16)',
+  'function setSplits(Split[] splits)',
+  'function withdraw(uint256 streamId)',
+  'event Withdrawn(uint256 indexed streamId, address indexed worker, uint128 toWorker, uint128 toRecipients)',
+  'event SplitPaid(uint256 indexed streamId, address indexed worker, address indexed recipient, uint128 amount)',
+])
+```
+
+**Read the split list** (worker dashboard). Returns `readonly { recipient: Address; bps: number }[]`; empty when the split is off.
+
+```ts
+const splits = await publicClient.readContract({
+  address: payroll,
+  abi: payrollAbi,
+  functionName: 'splitsOf',
+  args: [worker],
+})
+```
+
+**API: is this recipient still in the split?** Replaces the v1 `splitOf` comparison for `409 SPLIT_ACTIVE`.
+
+```ts
+const bps = await publicClient.readContract({
+  address: payroll,
+  abi: payrollAbi,
+  functionName: 'splitBpsOf',
+  args: [worker, recipient],
+})
+if (bps > 0) throw conflict('SPLIT_ACTIVE', '...')
+```
+
+**Set or clear the split.** The list is replaced as a whole, so send every recipient the worker wants to keep.
+
+```ts
+await walletClient.writeContract({
+  address: payroll,
+  abi: payrollAbi,
+  functionName: 'setSplits',
+  args: [[{ recipient: siti, bps: 2_000 }, { recipient: budi, bps: 1_000 }]], // 20% + 10%
+})
+// Turn off: args: [[]]
+```
+
+**Preview before withdrawing.** Same math as the contract, so the numbers match to the unit.
+
+```ts
+function previewSplit(gross: bigint, splits: readonly { recipient: Address; bps: number }[]) {
+  const shares = splits.map((s) => ({ recipient: s.recipient, amount: (gross * BigInt(s.bps)) / 10_000n }))
+  const toRecipients = shares.reduce((sum, s) => sum + s.amount, 0n)
+  return { toWorker: gross - toRecipients, shares }
+}
+```
+
+**Read the result from the withdraw receipt.** Recipients whose share rounded to 0 have no `SplitPaid` log.
+
+```ts
+const receipt = await publicClient.waitForTransactionReceipt({ hash })
+const logs = parseEventLogs({ abi: payrollAbi, logs: receipt.logs, eventName: ['Withdrawn', 'SplitPaid'] })
+const withdrawn = logs.find((l) => l.eventName === 'Withdrawn')?.args // { streamId, worker, toWorker, toRecipients }
+const paid = logs.flatMap((l) => (l.eventName === 'SplitPaid' ? [l.args] : [])) // [{ recipient, amount }, ...]
+```
