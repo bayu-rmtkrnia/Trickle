@@ -1,15 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useBankAccounts } from '@/hooks/use-bank-accounts'
+import { useFamilyBalance } from '@/hooks/use-family-balance'
+import { useFamilyPayout } from '@/hooks/use-family-payout'
+import { useUsdIdr } from '@/hooks/use-usd-idr'
 import { useAccount } from '@/lib/account'
 import { familyDashboardCopy as t } from '@/lib/copy/family'
-import { useSession } from '@/providers/session-provider'
+import { payoutCopy as p } from '@/lib/copy/family-payout'
+import { useSession, type SessionContextValue } from '@/providers/session-provider'
 import { BankAccountList } from './bank-account-list'
 import { FamilyBalanceCard } from './family-balance-card'
 import { FamilyShell } from './family-shell'
+import { PayoutSheet } from './payout-sheet'
 
 export function FamilyDashboard() {
   const account = useAccount()
@@ -110,16 +116,103 @@ export function FamilyDashboard() {
     )
   return (
     <FamilyShell name={name}>
-      <div className="flex flex-col gap-8">
-        <FamilyBalanceCard
-          key={`${account.user.id}:${session.user.address}`}
-          walletAddress={session.user.address}
-          identity={`${account.user.id}:${session.user.id}`}
-          ensureSession={session.ensureSession}
-        />
-        <BankAccountList key={`${account.user.id}:${session.user.id}`} session={session} />
-      </div>
+      <FamilyOverview
+        key={`${account.user.id}:${session.user.id}:${session.user.address}`}
+        session={session}
+        wallet={session.user.address}
+        identity={`${account.user.id}:${session.user.id}`}
+      />
     </FamilyShell>
+  )
+}
+
+/**
+ * Everything below is scoped to one account (see the key above): the balance,
+ * rate, bank accounts and payout flow restart empty after a switch.
+ */
+function FamilyOverview({
+  session,
+  wallet,
+  identity,
+}: {
+  session: SessionContextValue
+  wallet: string
+  identity: string
+}) {
+  const balance = useFamilyBalance(wallet)
+  const fx = useUsdIdr(identity, session.ensureSession)
+  const bank = useBankAccounts(session)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement | null>(null)
+  const signingHandoff = useRef(false)
+  const payout = useFamilyPayout(wallet, balance.refresh, () => {
+    // Privy shows its own modal; close ours so it does not trap focus.
+    signingHandoff.current = true
+    Array.from(rootRef.current?.querySelectorAll<HTMLDialogElement>('dialog') ?? [])
+      .find((dialog) => dialog.open)
+      ?.close()
+    setSheetOpen(false)
+  })
+  const phase = payout.state.phase
+  useEffect(() => {
+    if (!signingHandoff.current || ['idle', 'confirming', 'signing'].includes(phase)) return
+    let active = true
+    queueMicrotask(() => {
+      if (active && signingHandoff.current) {
+        signingHandoff.current = false
+        setSheetOpen(true)
+      }
+    })
+    return () => {
+      active = false
+    }
+  }, [phase])
+  const snapshot = balance.phase === 'ready' ? balance.snapshot : null
+  const inFlight = phase !== 'idle' && phase !== 'confirming'
+  const accounts = bank.page?.data ?? []
+  const canStart =
+    payout.ready &&
+    payout.configured &&
+    !!snapshot &&
+    snapshot.balance > BigInt(0) &&
+    accounts.length > 0
+  const hint = inFlight
+    ? p.phases[phase]
+    : !payout.configured
+      ? p.notConfigured
+      : !bank.page
+        ? t.actionsPending
+        : accounts.length === 0
+          ? p.noBank
+          : snapshot && snapshot.balance === BigInt(0)
+            ? p.noBalance
+            : p.testModeHint
+  function openPayout() {
+    if (!inFlight) payout.start()
+    setSheetOpen(true)
+  }
+  return (
+    <div ref={rootRef} className="flex flex-col gap-8">
+      <FamilyBalanceCard
+        balance={balance}
+        fx={fx}
+        payoutLabel={inFlight ? p.status : p.open}
+        payoutDisabled={!inFlight && !canStart}
+        payoutHint={hint}
+        onPayout={openPayout}
+      />
+      <BankAccountList bank={bank} />
+      <PayoutSheet
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        payout={payout}
+        accounts={accounts}
+        balance={snapshot?.balance ?? null}
+        tokenSymbol={snapshot?.tokenSymbol ?? 'mAUSD'}
+        quote={fx.quote}
+        walletAddress={wallet}
+      />
+    </div>
   )
 }
 

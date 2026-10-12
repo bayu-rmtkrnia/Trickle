@@ -5,17 +5,15 @@ import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { PersonCard } from '@/components/ui/person-card'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useBankAccounts } from '@/hooks/use-bank-accounts'
+import type { BankAccountsState } from '@/hooks/use-bank-accounts'
 import { MAX_BANK_ACCOUNTS, type BankAccountDto } from '@/lib/api/bank-accounts'
 import { bankCopy as t, bankError, bankNames } from '@/lib/copy/family'
-import type { SessionContextValue } from '@/providers/session-provider'
 import { BankAccountSheet } from './bank-account-sheet'
 import { DeleteBankAccountSheet } from './delete-bank-account-sheet'
 
 type Target = { mode: 'create' } | { mode: 'edit'; account: BankAccountDto }
 
-export function BankAccountList({ session }: { session: SessionContextValue }) {
-  const bank = useBankAccounts(session)
+export function BankAccountList({ bank }: { bank: BankAccountsState }) {
   const [target, setTarget] = useState<Target>({ mode: 'create' })
   const [formOpen, setFormOpen] = useState(false)
   const [removing, setRemoving] = useState<BankAccountDto | null>(null)

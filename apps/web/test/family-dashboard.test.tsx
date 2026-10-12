@@ -19,6 +19,10 @@ vi.mock('@/providers/session-provider', () => ({ useSession: () => deps.session 
 vi.mock('@/lib/chain/family-balance', () => ({ readFamilyBalance: deps.read }))
 vi.mock('@/lib/api/fx', () => ({ getUsdIdr: deps.fx }))
 vi.mock('@/components/family/bank-account-list', () => ({ BankAccountList: () => null }))
+vi.mock('@/lib/api/bank-accounts', async (actual) => ({
+  ...(await actual<typeof import('@/lib/api/bank-accounts')>()),
+  listBankAccounts: vi.fn(async () => ({ data: [], nextCursor: null })),
+}))
 
 const b = BigInt
 const wallet = '0x2222222222222222222222222222222222222222'

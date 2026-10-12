@@ -6,8 +6,8 @@ import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { Sheet } from '@/components/ui/sheet'
 import { StatusBadge } from '@/components/ui/status-badge'
-import { useFamilyBalance } from '@/hooks/use-family-balance'
-import { useUsdIdr } from '@/hooks/use-usd-idr'
+import type { FamilyBalanceState } from '@/hooks/use-family-balance'
+import type { UsdIdrState } from '@/hooks/use-usd-idr'
 import { WAVE_SRC } from '@/lib/brand'
 import { payrollConfig } from '@/lib/chain/config'
 import { formatToken } from '@/lib/chain/format-token'
@@ -24,16 +24,20 @@ const dateTime = (value: number | string) =>
   }).format(new Date(value))
 
 export function FamilyBalanceCard({
-  walletAddress,
-  identity,
-  ensureSession,
+  balance,
+  fx,
+  payoutLabel,
+  payoutDisabled,
+  payoutHint,
+  onPayout,
 }: {
-  walletAddress: string | null
-  identity: string | null
-  ensureSession: () => Promise<string | null>
+  balance: FamilyBalanceState
+  fx: UsdIdrState
+  payoutLabel: string
+  payoutDisabled: boolean
+  payoutHint: string
+  onPayout: () => void
 }) {
-  const balance = useFamilyBalance(walletAddress)
-  const fx = useUsdIdr(identity, ensureSession)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const { phase, snapshot, error } = balance
   const quote = fx.quote
@@ -125,10 +129,10 @@ export function FamilyBalanceCard({
         <h2 id="family-actions-heading" className="font-semibold text-brand-text">
           {t.actionsTitle}
         </h2>
-        <p className="mt-1 text-label text-muted">{t.actionsPending}</p>
+        <p className="mt-1 text-label text-muted">{payoutHint}</p>
         <div className="mt-auto flex flex-col gap-2 pt-4">
-          <Button block disabled>
-            {t.payout}
+          <Button block disabled={payoutDisabled} onClick={onPayout}>
+            {payoutLabel}
           </Button>
           <Button variant="secondary" block disabled>
             {t.history}

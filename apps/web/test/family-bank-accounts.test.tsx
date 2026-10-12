@@ -2,6 +2,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { BankAccountList } from '@/components/family/bank-account-list'
+import { useBankAccounts } from '@/hooks/use-bank-accounts'
 import { ApiError } from '@/lib/api/errors'
 import type { BankAccountDto } from '@/lib/api/bank-accounts'
 import type { SessionContextValue } from '@/providers/session-provider'
@@ -31,6 +32,10 @@ const account = (id: string, last4: string, extra: Partial<BankAccountDto> = {})
   ...extra,
 })
 let session: SessionContextValue
+
+function Harness() {
+  return <BankAccountList bank={useBankAccounts(session)} />
+}
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -68,7 +73,7 @@ function dialog(name: string) {
   return screen.getByRole('dialog', { name })
 }
 async function openAdd() {
-  render(<BankAccountList session={session} />)
+  render(<Harness />)
   fireEvent.click(await screen.findByRole('button', { name: 'Tambah rekening' }))
   return dialog('Tambah rekening')
 }
@@ -79,7 +84,7 @@ function fill(sheet: HTMLElement, values: Record<string, string>) {
 
 describe('family bank accounts', () => {
   it('lists bank and last 4 digits only', async () => {
-    render(<BankAccountList session={session} />)
+    render(<Harness />)
     expect(await screen.findByText('BCA')).toBeTruthy()
     expect(screen.getByText('Sari Wulandari · •••• 0123')).toBeTruthy()
     expect(deps.list).toHaveBeenCalledWith('trickle-token', undefined, expect.anything())
@@ -87,12 +92,12 @@ describe('family bank accounts', () => {
 
   it('shows an empty state that differs from a load failure', async () => {
     deps.list.mockResolvedValueOnce({ data: [], nextCursor: null })
-    const view = render(<BankAccountList session={session} />)
+    const view = render(<Harness />)
     expect(await screen.findByText('Belum ada rekening')).toBeTruthy()
     view.unmount()
 
     deps.list.mockRejectedValueOnce(new ApiError('network', 'offline'))
-    render(<BankAccountList session={session} />)
+    render(<Harness />)
     expect(await screen.findByText('Rekening belum dapat dimuat')).toBeTruthy()
     expect(screen.queryByText('Belum ada rekening')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Coba lagi' }))
@@ -106,7 +111,7 @@ describe('family bank accounts', () => {
         data: [account('bank-1', '0123'), account('bank-2', '4567')],
         nextCursor: null,
       })
-    render(<BankAccountList session={session} />)
+    render(<Harness />)
     fireEvent.click(await screen.findByRole('button', { name: 'Muat rekening lainnya' }))
     expect(await screen.findByText('Sari Wulandari · •••• 4567')).toBeTruthy()
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
@@ -198,7 +203,7 @@ describe('family bank accounts', () => {
       data: ['1', '2', '3', '4', '5'].map((n) => account(`bank-${n}`, `000${n}`)),
       nextCursor: null,
     })
-    render(<BankAccountList session={session} />)
+    render(<Harness />)
     const add = await screen.findByRole('button', { name: 'Tambah rekening' })
     expect(add.hasAttribute('disabled')).toBe(true)
     expect(screen.getByText('Maksimal 5 rekening. Hapus salah satu untuk menambah.')).toBeTruthy()
@@ -209,7 +214,7 @@ describe('family bank accounts', () => {
       data: [account('bank-1', '0123', { label: 'Lama' })],
       nextCursor: null,
     })
-    render(<BankAccountList session={session} />)
+    render(<Harness />)
     fireEvent.click(await screen.findByRole('button', { name: 'Ubah rekening BCA 0123' }))
     const sheet = dialog('Ubah rekening')
     expect(within(sheet).queryByLabelText('Nomor rekening')).toBeNull()
@@ -228,7 +233,7 @@ describe('family bank accounts', () => {
 
   it('removes a row the server no longer has while editing', async () => {
     deps.update.mockRejectedValue(new ApiError('not-found', 'x', { status: 404 }))
-    render(<BankAccountList session={session} />)
+    render(<Harness />)
     fireEvent.click(await screen.findByRole('button', { name: 'Ubah rekening BCA 0123' }))
     const sheet = dialog('Ubah rekening')
     fireEvent.click(within(sheet).getByRole('button', { name: 'Simpan rekening' }))
@@ -237,7 +242,7 @@ describe('family bank accounts', () => {
   })
 
   it('deletes only after confirmation', async () => {
-    render(<BankAccountList session={session} />)
+    render(<Harness />)
     fireEvent.click(await screen.findByRole('button', { name: 'Hapus rekening BCA 0123' }))
     expect(deps.remove).not.toHaveBeenCalled()
     const sheet = dialog('Hapus rekening?')
@@ -249,7 +254,7 @@ describe('family bank accounts', () => {
 
   it('keeps the row and explains a failed delete', async () => {
     deps.remove.mockRejectedValue(new ApiError('server', 'x', { status: 500 }))
-    render(<BankAccountList session={session} />)
+    render(<Harness />)
     fireEvent.click(await screen.findByRole('button', { name: 'Hapus rekening BCA 0123' }))
     const sheet = dialog('Hapus rekening?')
     fireEvent.click(within(sheet).getByRole('button', { name: 'Hapus rekening' }))
@@ -258,11 +263,11 @@ describe('family bank accounts', () => {
   })
 
   it('does not show another account data after remounting for a new identity', async () => {
-    const view = render(<BankAccountList key="a" session={session} />)
+    const view = render(<Harness key="a" />)
     await screen.findByText('Sari Wulandari · •••• 0123')
     let resolve!: (value: unknown) => void
     deps.list.mockImplementation(() => new Promise((done) => (resolve = done)))
-    view.rerender(<BankAccountList key="b" session={session} />)
+    view.rerender(<Harness key="b" />)
     expect(screen.queryByText('Sari Wulandari · •••• 0123')).toBeNull()
     await waitFor(() => expect(deps.list).toHaveBeenCalledTimes(2))
     await act(async () =>

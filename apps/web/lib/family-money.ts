@@ -1,5 +1,6 @@
 // Money helpers for the family dashboard. Token amounts stay bigint; the IDR
 // figure is a display estimate only (the payout amount comes from the backend).
+import { parseUnits } from 'viem'
 
 const RATE_SCALE = BigInt(1_000_000)
 
@@ -26,4 +27,24 @@ export function formatIdrUnits(rupiah: bigint) {
 /** `16.250,5` style rate for the detail sheet. */
 export function formatRate(rate: number) {
   return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(rate)
+}
+
+export type TokenAmountParse =
+  { ok: true; units: bigint } | { ok: false; reason: 'empty' | 'invalid' | 'precision' | 'zero' }
+
+/**
+ * Parses a user-typed token amount ("12,5" or "12.5") into base units with
+ * bigint math. Exponents, signs, thousands separators and more decimals than
+ * the token supports are rejected rather than rounded.
+ */
+export function parseTokenAmount(raw: string, decimals: number): TokenAmountParse {
+  const value = raw.trim()
+  if (!value) return { ok: false, reason: 'empty' }
+  const match = /^(\d+)(?:[.,](\d+))?$/.exec(value)
+  if (!match) return { ok: false, reason: 'invalid' }
+  const fraction = match[2] ?? ''
+  if (fraction.length > decimals) return { ok: false, reason: 'precision' }
+  const units = parseUnits(fraction ? `${match[1]}.${fraction}` : match[1]!, decimals)
+  if (units === BigInt(0)) return { ok: false, reason: 'zero' }
+  return { ok: true, units }
 }
