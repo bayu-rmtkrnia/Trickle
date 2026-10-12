@@ -5,13 +5,17 @@ import { useEffect, useState } from 'react'
 import { LOGO_HEIGHT, LOGO_INTRO_SRC, LOGO_WIDTH } from '@/lib/brand'
 import { splashCopy as t } from '@/lib/copy/common'
 
-const MIN_VISIBLE_MS = 2700
+/** Lama animasi logo intro (DESIGN.md 12.1). */
+const INTRO_MS = 2650
+/** Logo final ditahan sebentar sebelum dashboard muncul. */
+const HOLD_MS = 2000
+const MIN_VISIBLE_MS = INTRO_MS + HOLD_MS
 const FADE_MS = 200
 
 /**
  * Splash cold start (DESIGN.md 12.2): layar penuh `bg`, logo animasi di tengah.
- * App tetap dimuat di belakangnya; splash minimal ±2,7 detik sejak halaman
- * mulai dimuat, lalu fade-out 200 ms. Reduced-motion: langsung hilang begitu siap.
+ * App tetap dimuat di belakangnya; splash tampil sampai animasi logo selesai
+ * ditambah jeda tahan, lalu fade-out 200 ms. Reduced-motion: langsung hilang begitu siap.
  */
 export function SplashScreen() {
   const [phase, setPhase] = useState<'show' | 'leaving' | 'gone'>('show')
