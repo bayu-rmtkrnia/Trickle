@@ -8,12 +8,16 @@ import {ITricklePayroll} from "./ITricklePayroll.sol";
 
 /// @title TricklePayroll
 /// @notice Employers prefund salary streams that unlock linearly per second. Workers withdraw
-/// whenever they want, and can route a share of every withdrawal to a family member.
+/// whenever they want, and can route a share of every withdrawal to up to MAX_RECIPIENTS family
+/// members.
 /// @dev No owner, no admin, no upgrades. Hackathon prototype, not audited.
 contract TricklePayroll is ITricklePayroll, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     uint16 internal constant MAX_BPS = 10_000;
+
+    /// @notice Keeps withdraw gas bounded: at most this many extra transfers per withdrawal.
+    uint256 public constant MAX_RECIPIENTS = 3;
 
     IERC20 public immutable token;
 
@@ -21,7 +25,7 @@ contract TricklePayroll is ITricklePayroll, ReentrancyGuard {
     uint256 public nextStreamId = 1;
 
     mapping(uint256 => Stream) internal _streams;
-    mapping(address => Split) internal _splits;
+    mapping(address => Split[]) internal _splits;
 
     constructor(IERC20 token_) {
         if (address(token_) == address(0)) revert ZeroAddress();
@@ -72,25 +76,52 @@ contract TricklePayroll is ITricklePayroll, ReentrancyGuard {
 
         s.withdrawn += available;
 
-        Split memory split = _splits[msg.sender];
-        // Rounds down, so any dust stays with the worker.
-        uint128 toRecipient =
-            split.recipient == address(0) ? 0 : uint128(uint256(available) * split.bps / MAX_BPS);
-        uint128 toWorker = available - toRecipient;
+        Split[] memory splits = _splits[msg.sender];
+        uint128[] memory shares = new uint128[](splits.length);
+        uint128 toRecipients = 0;
+        for (uint256 i; i < splits.length; ++i) {
+            // Rounds down, so any dust stays with the worker. Total bps <= 10_000, so the
+            // shares never add up to more than `available`.
+            shares[i] = uint128(uint256(available) * splits[i].bps / MAX_BPS);
+            toRecipients += shares[i];
+        }
+        uint128 toWorker = available - toRecipients;
 
-        emit Withdrawn(streamId, msg.sender, toWorker, split.recipient, toRecipient);
+        emit Withdrawn(streamId, msg.sender, toWorker, toRecipients);
+        for (uint256 i; i < splits.length; ++i) {
+            if (shares[i] > 0) {
+                emit SplitPaid(streamId, msg.sender, splits[i].recipient, shares[i]);
+            }
+        }
 
         if (toWorker > 0) token.safeTransfer(msg.sender, toWorker);
-        if (toRecipient > 0) token.safeTransfer(split.recipient, toRecipient);
+        for (uint256 i; i < splits.length; ++i) {
+            if (shares[i] > 0) token.safeTransfer(splits[i].recipient, shares[i]);
+        }
     }
 
     /// @inheritdoc ITricklePayroll
-    function setSplit(address recipient, uint16 bps) external {
-        if (bps > MAX_BPS) revert InvalidSplit();
-        if (recipient == address(0) && bps != 0) revert InvalidSplit();
+    function setSplits(Split[] calldata splits) external {
+        if (splits.length > MAX_RECIPIENTS) revert TooManyRecipients();
 
-        _splits[msg.sender] = Split({recipient: recipient, bps: bps});
-        emit SplitUpdated(msg.sender, recipient, bps);
+        delete _splits[msg.sender];
+        Split[] storage stored = _splits[msg.sender];
+
+        uint256 totalBps = 0;
+        for (uint256 i; i < splits.length; ++i) {
+            Split calldata split = splits[i];
+            if (split.recipient == address(0) || split.bps == 0) revert InvalidSplit();
+            for (uint256 j; j < i; ++j) {
+                if (splits[j].recipient == split.recipient) {
+                    revert DuplicateRecipient(split.recipient);
+                }
+            }
+            totalBps += split.bps;
+            stored.push(split);
+        }
+        if (totalBps > MAX_BPS) revert InvalidSplit();
+
+        emit SplitUpdated(msg.sender, splits);
     }
 
     /// @inheritdoc ITricklePayroll
@@ -132,9 +163,17 @@ contract TricklePayroll is ITricklePayroll, ReentrancyGuard {
     }
 
     /// @inheritdoc ITricklePayroll
-    function splitOf(address worker) external view returns (address recipient, uint16 bps) {
-        Split memory split = _splits[worker];
-        return (split.recipient, split.bps);
+    function splitsOf(address worker) external view returns (Split[] memory) {
+        return _splits[worker];
+    }
+
+    /// @inheritdoc ITricklePayroll
+    function splitBpsOf(address worker, address recipient) external view returns (uint16) {
+        Split[] storage splits = _splits[worker];
+        for (uint256 i; i < splits.length; ++i) {
+            if (splits[i].recipient == recipient) return splits[i].bps;
+        }
+        return 0;
     }
 
     // ---------------------------------------------------------------------------------------------
