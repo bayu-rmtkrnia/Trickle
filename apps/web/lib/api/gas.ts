@@ -14,7 +14,7 @@ export async function requestGas(
   address: string,
   options: Pick<ApiRequestOptions, 'baseUrl' | 'fetcher' | 'signal'> = {},
 ): Promise<GasDrip> {
-  const value = await apiRequest<GasDrip>('gas/drip', { ...options, token, method: 'POST' })
+  const value = await apiRequest<GasDrip>('gas-drips', { ...options, token, method: 'POST' })
   if (
     !value ||
     typeof value.address !== 'string' ||

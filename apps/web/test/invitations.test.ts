@@ -24,7 +24,7 @@ describe('real invitation HTTP adapters', () => {
     expect(value).toEqual(data)
   })
 
-  it('posts acceptance to /accept once with a Trickle bearer and no replay on 401', async () => {
+  it('posts acceptance to /acceptance once with a Trickle bearer and no replay on 401', async () => {
     const requests: Request[] = []
     await expect(
       acceptInvitation('WORKER1234', 'trickle-session', {
@@ -39,13 +39,13 @@ describe('real invitation HTTP adapters', () => {
       }),
     ).rejects.toMatchObject({ kind: 'unauthorized', status: 401 })
     expect(requests).toHaveLength(1)
-    expect(requests[0]?.url).toBe('https://api.example.com/api/v1/invites/WORKER1234/accept')
+    expect(requests[0]?.url).toBe('https://api.example.com/api/v1/invites/WORKER1234/acceptance')
     expect(requests[0]?.method).toBe('POST')
     expect(requests[0]?.headers.get('authorization')).toBe('Bearer trickle-session')
     expect(await requests[0]?.text()).toBe('')
   })
 
-  it('creates FAMILY invitations with the real discriminated body', async () => {
+  it('creates RECIPIENT invitations with the real discriminated body', async () => {
     let body: unknown
     await createFamilyInvitation({ inviteeName: 'Ibu', relation: 'Ibu' }, 'trickle-session', {
       baseUrl: 'https://api.example.com/api/v1',
@@ -54,10 +54,10 @@ describe('real invitation HTTP adapters', () => {
         return Response.json({ code: 'FAMILY1234' })
       },
     })
-    expect(body).toEqual({ type: 'FAMILY', inviteeName: 'Ibu', relation: 'Ibu' })
+    expect(body).toEqual({ type: 'RECIPIENT', inviteeName: 'Ibu', relation: 'Ibu' })
   })
 
-  it('lists FAMILY invitations with an encoded cursor', async () => {
+  it('lists RECIPIENT invitations with an encoded cursor', async () => {
     let requestedUrl = ''
     const page = await listFamilyInvitations('trickle-session', 'cursor/with space', {
       baseUrl: 'https://api.example.com/api/v1',
@@ -67,7 +67,7 @@ describe('real invitation HTTP adapters', () => {
       },
     })
     expect(requestedUrl).toBe(
-      'https://api.example.com/api/v1/invites?type=FAMILY&cursor=cursor%2Fwith+space',
+      'https://api.example.com/api/v1/invites?type=RECIPIENT&cursor=cursor%2Fwith+space',
     )
     expect(page).toEqual({ data: [], nextCursor: null })
   })

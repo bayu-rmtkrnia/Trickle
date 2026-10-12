@@ -33,7 +33,8 @@ const sessionOne: SessionResponse = {
 
 const workerOne: Me = {
   ...sessionOne.user,
-  roles: { employer: false, worker: true, family: false },
+  companyId: null,
+  roles: { employer: false, worker: true, recipient: false },
 }
 
 function account(userId = 'did:privy:worker-1'): SessionAccount {

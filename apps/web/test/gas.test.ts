@@ -16,7 +16,7 @@ describe('real gas drip adapter', () => {
     const result = await requestGas('session', address, {
       baseUrl: 'http://api.test/api/v1',
       fetcher: async (url, init) => {
-        expect(String(url)).toBe('http://api.test/api/v1/gas/drip')
+        expect(String(url)).toBe('http://api.test/api/v1/gas-drips')
         expect(init?.method).toBe('POST')
         expect(new Headers(init?.headers).get('authorization')).toBe('Bearer session')
         return Response.json(dto)

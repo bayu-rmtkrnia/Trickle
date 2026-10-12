@@ -41,7 +41,8 @@ const me = {
   displayName: 'Siti',
   address: '0x2222',
   createdAt: invitation.createdAt,
-  roles: { employer: false, worker: true, family: false },
+  companyId: null,
+  roles: { employer: false, worker: true, recipient: false },
 }
 
 beforeEach(() => {
