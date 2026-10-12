@@ -20,7 +20,8 @@ const url = process.env.TEST_DATABASE_URL
 describe.skipIf(!url)('api (integration)', () => {
   const env = loadEnv({
     NODE_ENV: 'test',
-    DATABASE_URL: url,
+    // The describe body still runs when skipped; any URL keeps loadEnv happy (no connection is made).
+    DATABASE_URL: url ?? 'postgresql://unused@localhost/unused',
     GAS_DRIP_DAILY_LIMIT: '3',
     GAS_DRIP_IP_DAILY_LIMIT: '2',
     DEMO_STREAM_IP_DAILY_LIMIT: '2',

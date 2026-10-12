@@ -22,9 +22,9 @@ Aturan main:
 | 8   | Invites lengkap    | `feat/api-invites-v1`          | `POST /invites/:code/acceptance`, `DELETE /invites/:id`, undangan dari employer dan pekerja                          | Min 4       | ✅     |
 | 9   | Bank accounts      | `feat/api-bank-accounts`       | AES-256-GCM, hanya 4 digit terakhir yang keluar dari API                                                             | Sen 5       | ✅     |
 | 10  | Gas & kurs         | `refactor/api-gas-fx-v1`       | `/gas-drips` (rate limit per alamat + IP), `/fx-rates/usd-idr`                                                       | Sen 5       | ✅     |
-| 11  | Payouts sandbox    | `feat/api-payouts`             | Verifikasi tx → disbursement Xendit/Flip → webhook ber-signature                                                     | Sel 6       | 🔍     |
+| 11  | Payouts sandbox    | `feat/api-payouts`             | Verifikasi tx → disbursement Xendit/Flip → webhook ber-signature                                                     | Sel 6       | ✅     |
 | 12  | Judge mode         | `feat/api-demo-streams`        | `POST /demo-streams`, signer demo, rate limit                                                                        | Sel 6–Rab 7 | ✅     |
-| 13  | ERD & dokumen      | `docs/api-erd`                 | `docs/erd.md`, Postman, README API                                                                                   | Rab 7       | ⬜     |
+| 13  | ERD & dokumen      | `docs/api-erd`                 | `docs/erd.md`, Postman, README API                                                                                   | Rab 7       | 🔍     |
 
 Kalau waktu mepet, nomor 12 tetap Must dan tidak boleh dipotong (PLAN §10.2). Yang paling aman dipotong adalah pagination di endpoint yang datanya sedikit.
 
@@ -166,6 +166,17 @@ D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `
 | Status | `GET /payouts/:id` menanyakan provider selama PROCESSING. Webhook HMAC-SHA256 atas `<timestamp>.<raw body>` (`PAYOUT_WEBHOOK_SECRET`), umur maks 5 menit, idempoten |
 | Data | Migrasi `20261012130000_payouts`: kolom rekening teks biasa dihapus, diganti `bankAccountId`; tambah `fxRate`, `fxSource`, `failureReason`, `providerRef` unik |
 | Test | Unit verifier, provider mock, service (semua cabang error, webhook signature). Integrasi: alur lengkap, replay, rekening orang lain 404, webhook unsigned/signed/terlambat/unknown/JSON rusak, 403 |
+
+## Rincian Fitur 13: ERD & dokumen
+
+| Bagian | Isi |
+| ------ | --- |
+| ERD | `docs/erd.md`: diagram Mermaid semua tabel dan kolom, tabel relasi (kardinalitas, FK, aturan hapus), constraint dan index, enum, data sensitif, riwayat migrasi |
+| Sinkron | `test/erd.test.ts`: gagal kalau ada tabel, kolom, atau migrasi di skema yang tidak ada di `docs/erd.md` |
+| README | Tech stack dan struktur repo terkini (kontrak, `packages/shared`), legenda kolom Auth, tabel env per fitur opsional, alur Postman sampai payout |
+| ARCHITECTURE | Peta repo dan `lib/`, link ke ERD, keputusan desain diurutkan per fitur, daftar utang diperbarui |
+| Perbaikan | `pnpm test` tanpa `TEST_DATABASE_URL` tidak lagi gagal di `api.test.ts` (sekarang di-skip dengan benar) |
+| Ditunda | Menghapus alias `/gas/drip`, `/gas/status`, `/fx/usd-idr`: FE (`feat/frontend`) masih memakai `/fx/usd-idr` |
 
 ## Ketergantungan yang belum terjawab
 

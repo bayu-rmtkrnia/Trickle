@@ -37,14 +37,14 @@ Employer tops up payroll (fiat → AUSD via Agora) → contract streams wages pe
 | ----- | ---------- |
 | Backend API | Node.js 22, TypeScript, [Fastify 5](https://fastify.dev) |
 | Validation & API docs | Zod 4, `fastify-type-provider-zod`, OpenAPI 3 via `@fastify/swagger` (served at `/docs`) |
-| Database | PostgreSQL 16, Prisma 7 ORM + migrations |
+| Database | PostgreSQL 16, Prisma 7 ORM + migrations. ERD: [`docs/erd.md`](docs/erd.md) |
 | Auth | [Privy](https://privy.io) embedded wallets; the API exchanges the Privy access token for its own revocable session token. Roles derived from DB relations (RBAC guards) |
 | Chain access | [viem](https://viem.sh) on Monad testnet (chain id 10143) |
 | Testing | Vitest (unit + integration against Postgres), Postman collection |
 | Tooling | pnpm workspaces, ESLint, Prettier, GitHub Actions CI, gitleaks secret scanning, Docker Compose |
-| Smart contract (planned) | Solidity + Foundry, `TricklePayroll.sol` |
+| Smart contract | Solidity + Foundry, `TricklePayroll` on Monad testnet (`0xE7292E797009E9D53102ec132Ef4Ae549cDD652e`) |
 | Web app (in progress) | Next.js + Privy (`apps/web`) |
-| Integrations (planned) | AUSD, Xendit/Flip sandbox payouts |
+| Integrations | Mock AUSD (testnet token, 6 decimals); payouts through a mock sandbox provider behind a `PayoutProvider` interface (Xendit/Flip pluggable) |
 
 ## Project structure
 
@@ -67,7 +67,7 @@ Trickle/
 │       │   ├── app.ts              # Fastify app: plugins, Swagger, routes
 │       │   ├── env.ts              # Environment variable validation
 │       │   ├── types.ts            # Fastify type augmentation
-│       │   ├── lib/                # chain (viem), fx, privy, streams, prisma, errors, pagination, roles, tokens, shared schemas
+│       │   ├── lib/                # chain (viem), streams, transfers, demo signer, payout provider, crypto (AES-256-GCM), fx, privy, prisma, errors, pagination, roles, tokens
 │       │   ├── plugins/            # auth (session tokens), rbac (requireRole / requireOwnership), uniform error handling
 │       │   └── modules/            # health, sessions, users, companies, workers, recipients, bank-accounts, payouts, invites, gas, demo-streams, fx; each one has:
 │       │       └── <resource>/     #   routes → controller → service → repository, plus schemas (Zod)
@@ -75,7 +75,9 @@ Trickle/
 │       ├── openapi.json            # Generated API spec (import into Postman / FE codegen)
 │       └── .env.example
 │   └── web/                        # Next.js web app (Privy login)
-├── docs/                           # Plans, roadmap, ARCHITECTURE.md
+├── contracts/                      # TricklePayroll (Foundry): streams, withdraw + split, cancel
+├── packages/shared/                # Contract ABIs + deployed addresses for the web app and API
+├── docs/                           # PLAN, ARCHITECTURE.md, erd.md (database), backend roadmap
 ├── docker-compose.yml              # Local Postgres
 ├── LICENSE                         # MIT
 └── package.json / pnpm-workspace.yaml
@@ -85,7 +87,7 @@ Trickle/
 
 Interactive docs: `http://localhost:4000/docs`. All errors use `{ "error": { "code": "...", "message": "...", "details": ... } }`. Schema validation failures return 422 with one `details` entry per invalid field; unreadable bodies (e.g. broken JSON) return 400.
 
-**Auth** column: – public, ✓ any signed-in user, *Owner* only the employer who owns that company (other roles and other employers get 403). Roles come from data, not a stored field: see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
+**Auth** column: – public; ✓ any signed-in account, no role needed; *Employer*, *Worker*, *Recipient* that role; *Owner* only the account that owns that resource; *Signed* an HMAC signature instead of a session. Other roles and other owners get 403, which the integration tests check for every sensitive endpoint. Roles come from data, not a stored field: see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). The database schema is in [`docs/erd.md`](docs/erd.md).
 
 Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1/users/me`. Only `/health` and `/docs` live at the root. List endpoints (marked *paged*) take `?limit=` (1–100, default 20) and `?cursor=`, and return `{ "data": [...], "nextCursor": "..." }`; pass `nextCursor` back as `cursor` until it is `null`.
 
@@ -96,7 +98,7 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | DELETE | `/sessions/current` | ✓ | Sign out (revoke this session token) |
 | GET | `/users/me` | ✓ | Current user, roles (employer / worker / recipient) and `companyId` |
 | PATCH | `/users/me` | ✓ | Update my display name |
-| POST | `/companies` | ✓ | Create a company (one active per account) |
+| POST | `/companies` | ✓ | Create a company (one active per account); makes you an employer |
 | GET, PATCH | `/companies/:id` | Owner | Read / update a company |
 | DELETE | `/companies/:id` | Owner | Soft delete; 409 while workers are linked |
 | POST | `/companies/:id/workers` | Owner | Add a worker by wallet address (restores a removed one) |
@@ -143,6 +145,15 @@ pnpm db:migrate
 pnpm dev                                     # API on http://localhost:4000
 ```
 
+Optional features answer 503 until their settings are filled in `apps/api/.env` (all testnet; never commit real keys):
+
+| Feature | Settings |
+| ------- | -------- |
+| Bank accounts, payouts | `BANK_ENCRYPTION_KEY` (`openssl rand -hex 32`) |
+| Payouts | `PAYROLL_ADDRESS`, `PAYOUT_ADDRESS`, `PAYOUT_WEBHOOK_SECRET` |
+| Gas sponsorship | `GAS_TREASURY_PRIVATE_KEY`, funded with testnet MON |
+| Judge mode | `DEMO_EMPLOYER_PRIVATE_KEY` (funded with testnet MON), `PAYROLL_ADDRESS` |
+
 Tests (integration tests need a separate database):
 
 ```bash
@@ -160,7 +171,8 @@ TEST_DATABASE_URL=postgresql://trickle:trickle@localhost:5433/trickle_test pnpm 
    ```
    Paste each printed token into the `employerToken`, `workerToken` and `familyToken` collection variables.
    To try the real sign-in, put an access token from the web app (`getAccessToken()`) into `privyAccessToken`.
-3. Run the folders top to bottom. They follow the flow employer → worker invite → family invite, and end with sign-out.
+3. Run the folders top to bottom. They follow the flow employer → worker invite → recipient invite → bank account → payout, and end with sign-out.
+   The payout folder needs a real transfer of mock AUSD to `PAYOUT_ADDRESS` (put its hash in `payoutTxHash`), and the signed webhook needs `payoutWebhookSecret`.
 
 `pnpm session <name>` always maps a name to the same throwaway address and refuses to run with `NODE_ENV=production`.
 
