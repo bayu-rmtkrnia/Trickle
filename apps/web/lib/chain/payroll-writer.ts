@@ -1,13 +1,5 @@
-import {
-  decodeEventLog,
-  encodeFunctionData,
-  isAddress,
-  parseAbiItem,
-  type Address,
-  type Abi,
-  type Hex,
-} from 'viem'
-import abi from '../../../../packages/shared/abi/TricklePayroll.json'
+import { decodeEventLog, encodeFunctionData, isAddress, type Address, type Hex } from 'viem'
+import { tricklePayrollAbi } from '../../../../packages/shared/abi/TricklePayroll'
 import { payrollConfig as config } from './config'
 import type { ChainPort } from './payroll-reader'
 export interface WithdrawalRequest {
@@ -19,12 +11,18 @@ export interface WithdrawalRequest {
   /** Pins the account nonce so two signatures of one attempt cannot both be mined. */
   nonce?: bigint
 }
+export interface SplitPayment {
+  recipient: Address
+  amount: bigint
+}
 export interface WithdrawalResult {
   hash: Hex
   streamId: bigint
   toWorker: bigint
-  recipient: Address
-  toRecipient: bigint
+  /** Sum of `paid`, as reported by `Withdrawn`. */
+  toRecipients: bigint
+  /** One entry per `SplitPaid`, in log order. Zero shares emit no event. */
+  paid: SplitPayment[]
 }
 export interface WithdrawalReceipt {
   transactionHash: Hex
@@ -52,10 +50,7 @@ const checkAbort = (signal?: AbortSignal) => {
   if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
 }
 export const withdrawalData = (id: bigint) =>
-  encodeFunctionData({ abi: abi as Abi, functionName: 'withdraw', args: [id] })
-const withdrawnEvent = parseAbiItem(
-  'event Withdrawn(uint256 indexed streamId, address indexed worker, uint128 toWorker, address indexed recipient, uint128 toRecipient)',
-)
+  encodeFunctionData({ abi: tricklePayrollAbi, functionName: 'withdraw', args: [id] })
 export function createPayrollWriter(port: WithdrawalPort) {
   async function verified(signal?: AbortSignal) {
     const head = await port.block()
@@ -174,35 +169,46 @@ export function createPayrollWriter(port: WithdrawalPort) {
       )
         throw new WithdrawalError(receipt.replacement ? 'REPLACED' : 'TRANSACTION_MISMATCH')
       if (receipt.status === 'reverted') throw new WithdrawalError('REVERTED')
-      const events = []
+      const withdrawn: { toWorker: bigint; toRecipients: bigint }[] = []
+      const paid: SplitPayment[] = []
       for (const log of receipt.logs) {
         if (!equal(log.address, config.payrollAddress)) continue
+        let decoded
         try {
-          const decoded = decodeEventLog({
-            abi: [withdrawnEvent],
+          decoded = decodeEventLog({
+            abi: tricklePayrollAbi,
             data: log.data,
             topics: log.topics as [Hex, ...Hex[]],
             strict: true,
           })
-          if (decoded.args.streamId === id && equal(decoded.args.worker, worker))
-            events.push(decoded.args)
         } catch {
-          /* Other events are not withdrawal settlement. */
+          continue
+        }
+        if (decoded.eventName === 'Withdrawn') {
+          if (decoded.args.streamId === id && equal(decoded.args.worker, worker))
+            withdrawn.push({
+              toWorker: decoded.args.toWorker,
+              toRecipients: decoded.args.toRecipients,
+            })
+        } else if (decoded.eventName === 'SplitPaid') {
+          if (decoded.args.streamId === id && equal(decoded.args.worker, worker))
+            paid.push({ recipient: decoded.args.recipient, amount: decoded.args.amount })
         }
       }
-      const settlement = events[0]
+      const settlement = withdrawn[0]
       if (
-        events.length !== 1 ||
+        withdrawn.length !== 1 ||
         !settlement ||
-        settlement.toWorker + settlement.toRecipient <= BigInt(0)
+        settlement.toWorker + settlement.toRecipients <= BigInt(0) ||
+        paid.reduce((sum, item) => sum + item.amount, BigInt(0)) !== settlement.toRecipients
       )
         throw new WithdrawalError('RECEIPT_UNVERIFIED')
       return {
         hash: receipt.transactionHash,
         streamId: id,
         toWorker: settlement.toWorker,
-        recipient: settlement.recipient,
-        toRecipient: settlement.toRecipient,
+        toRecipients: settlement.toRecipients,
+        paid,
       }
     },
   }

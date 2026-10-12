@@ -38,7 +38,7 @@ function props() {
     state,
     streams: [stream],
     timestamp: b(150),
-    splitBps: 3000,
+    splits: [{ recipient: '0x3333333333333333333333333333333333333333' as const, bps: 3000 }],
     tokenSymbol: 'mAUSD',
     select: vi.fn(),
     submit: vi.fn(),
@@ -52,7 +52,9 @@ describe('withdrawal sheet', () => {
     render(<WithdrawSheet {...p} />)
     expect(p.submit).not.toHaveBeenCalled()
     expect(screen.getByText('0,28 mAUSD')).toBeTruthy()
-    expect(screen.getByText('0,12 mAUSD')).toBeTruthy()
+    // One recipient: the family total and that recipient's share are the same amount.
+    expect(screen.getAllByText('0,12 mAUSD')).toHaveLength(2)
+    expect(screen.getByText('Penerima 1 (0x3333…3333)')).toBeTruthy()
     fireEvent.click(screen.getByRole('button', { name: 'Konfirmasi penarikan' }))
     expect(p.submit).toHaveBeenCalledOnce()
   })
@@ -76,14 +78,40 @@ describe('withdrawal sheet', () => {
             hash: `0x${'a'.repeat(64)}`,
             streamId: b(1),
             toWorker: b(350000),
-            recipient: stream.worker,
-            toRecipient: b(150000),
+            toRecipients: b(150000),
+            paid: [
+              { recipient: '0x3333333333333333333333333333333333333333', amount: b(100000) },
+              { recipient: '0x4444444444444444444444444444444444444444', amount: b(50000) },
+            ],
           },
         }}
       />,
     )
     expect(screen.getByText('0,35 mAUSD')).toBeTruthy()
+    expect(screen.getByText('0,15 mAUSD')).toBeTruthy()
+    expect(screen.getByText('Penerima 1 (0x3333…3333)')).toBeTruthy()
+    expect(screen.getByText('0,1 mAUSD')).toBeTruthy()
+    expect(screen.getByText('Penerima 2 (0x4444…4444)')).toBeTruthy()
+    expect(screen.getByText('0,05 mAUSD')).toBeTruthy()
     expect(screen.queryByText('0,28 mAUSD')).toBeNull()
+  })
+  it('previews every recipient before confirmation', () => {
+    const p = props()
+    render(
+      <WithdrawSheet
+        {...p}
+        splits={[
+          { recipient: '0x3333333333333333333333333333333333333333', bps: 2000 },
+          { recipient: '0x4444444444444444444444444444444444444444', bps: 1000 },
+          { recipient: '0x5555555555555555555555555555555555555555', bps: 500 },
+        ]}
+      />,
+    )
+    // 0,4 gross: 0,08 + 0,04 + 0,02 to family, 0,26 to the worker.
+    expect(screen.getByText('0,26 mAUSD')).toBeTruthy()
+    expect(screen.getByText('0,14 mAUSD')).toBeTruthy()
+    expect(screen.getByText('Penerima 3 (0x5555…5555)')).toBeTruthy()
+    expect(screen.getByText('0,02 mAUSD')).toBeTruthy()
   })
   it('offers receipt recheck, not another signature, when status is unknown', () => {
     const p = props()

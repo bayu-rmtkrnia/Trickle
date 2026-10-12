@@ -20,6 +20,9 @@ export const payrollCopy = {
   walletBalance: 'Saldo token di wallet',
   workerShare: 'Perkiraan bagian kamu',
   familyShare: 'Perkiraan bagian keluarga',
+  recipientShare: (index: number, address: string, percent: string) =>
+    `Penerima ${index} (${address.slice(0, 6)}…${address.slice(-4)}, ${percent}%)`,
+  noSplit: 'Belum ada pembagian ke keluarga.',
   splitHint:
     'Pembagian terjadi saat penarikan. Nilai akhirnya mengikuti transaksi yang dikonfirmasi.',
   streams: 'Payroll kamu',

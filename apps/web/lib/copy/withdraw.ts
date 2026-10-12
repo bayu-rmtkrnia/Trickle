@@ -12,6 +12,8 @@ export const withdrawCopy = {
   gross: 'Total perkiraan',
   worker: 'Bagian kamu',
   family: 'Bagian keluarga',
+  recipient: (index: number, address: string) =>
+    `Penerima ${index} (${address.slice(0, 6)}…${address.slice(-4)})`,
   estimate: 'Jumlah masih berupa perkiraan. Nilai akhirnya mengikuti transaksi yang dikonfirmasi.',
   demo: 'Ini token testnet untuk pengujian, tanpa nilai uang nyata.',
   stale: 'Perbarui payroll sebelum mengonfirmasi penarikan.',

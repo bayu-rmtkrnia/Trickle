@@ -9,8 +9,8 @@ const result: WithdrawalResult = {
   hash: h1,
   streamId: BigInt(1),
   toWorker: BigInt(1),
-  recipient: worker,
-  toRecipient: BigInt(0),
+  toRecipients: BigInt(0),
+  paid: [],
 }
 function writer(settle: () => Promise<WithdrawalResult>) {
   return {

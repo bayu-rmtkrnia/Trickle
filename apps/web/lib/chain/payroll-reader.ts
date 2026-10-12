@@ -1,5 +1,6 @@
 import { getAddress, isAddress, type Address } from 'viem'
 import { payrollConfig, type PayrollConfig } from './config'
+import { validateSplits, type Split } from './split'
 import { availableAt } from './stream-math'
 import { ChainReadError, type StreamSnapshot, type WorkerSnapshot } from './types'
 
@@ -27,7 +28,7 @@ export interface ChainPort {
   logs(worker: Address, from: bigint, to: bigint): Promise<CreationLog[]>
   stream(id: bigint, block: bigint): Promise<StreamSnapshot>
   withdrawable(id: bigint, block: bigint): Promise<bigint>
-  split(worker: Address, block: bigint): Promise<{ recipient: Address; bps: number }>
+  splits(worker: Address, block: bigint): Promise<readonly Split[]>
   balance(worker: Address, block: bigint): Promise<bigint>
 }
 type Checkpoint = {
@@ -232,22 +233,17 @@ export function createPayrollReader(
           )
           streams.push(...batch)
         }
-        const [split, walletBalance] = await Promise.all([
-          port.split(worker, head.number),
+        const [splits, walletBalance] = await Promise.all([
+          port.splits(worker, head.number),
           port.balance(worker, head.number),
         ])
         abort(signal)
-        if (
-          !Number.isInteger(split.bps) ||
-          split.bps < 0 ||
-          split.bps > 10000 ||
-          walletBalance < BigInt(0)
-        )
+        if (validateSplits(splits) !== null || walletBalance < BigInt(0))
           throw new ChainReadError('SNAPSHOT_MISMATCH')
         await stable(port, head, signal)
         return {
           streams,
-          split,
+          splits,
           walletBalance,
           blockNumber: head.number,
           blockTimestamp: head.timestamp,

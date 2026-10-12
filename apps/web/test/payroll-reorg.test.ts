@@ -57,7 +57,7 @@ it('recovers orphaned discovery state after a reorg between scan ranges', async 
       canceled: false,
     }),
     withdrawable: async () => BigInt(500),
-    split: async () => ({ recipient: token, bps: 0 }),
+    splits: async () => [],
     balance: async () => BigInt(0),
   }
   const reader = createPayrollReader(() => port, config, {

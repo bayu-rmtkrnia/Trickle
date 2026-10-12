@@ -1,4 +1,5 @@
 import type { Address } from 'viem'
+import type { Split } from './split'
 
 export interface StreamSnapshot {
   id: bigint
@@ -13,7 +14,8 @@ export interface StreamSnapshot {
 }
 export interface WorkerSnapshot {
   streams: StreamSnapshot[]
-  split: { recipient: Address; bps: number }
+  /** `splitsOf(worker)`: up to `MAX_RECIPIENTS` family recipients, validated. */
+  splits: readonly Split[]
   walletBalance: bigint
   blockNumber: bigint
   blockTimestamp: bigint

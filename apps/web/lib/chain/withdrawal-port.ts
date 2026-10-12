@@ -1,5 +1,5 @@
-import { createPublicClient, http, type Abi, type Address, type Hex } from 'viem'
-import abi from '../../../../packages/shared/abi/TricklePayroll.json'
+import { createPublicClient, http, type Address, type Hex } from 'viem'
+import { tricklePayrollAbi } from '../../../../packages/shared/abi/TricklePayroll'
 import { payrollChain, payrollConfig as config } from './config'
 import { createViemPort } from './viem-port'
 import type { WithdrawalPort, WithdrawalReceipt } from './payroll-writer'
@@ -13,13 +13,14 @@ export function createWithdrawalPort(
     chain: payrollChain,
     transport: http(config.rpcUrl, { timeout: 10000, retryCount: 0, fetchOptions: { signal } }),
   })
-  const call = (worker: Address, id: bigint) => ({
-    address: config.payrollAddress,
-    abi: abi as Abi,
-    functionName: 'withdraw',
-    args: [id],
-    account: worker,
-  })
+  const call = (worker: Address, id: bigint) =>
+    ({
+      address: config.payrollAddress,
+      abi: tricklePayrollAbi,
+      functionName: 'withdraw',
+      args: [id],
+      account: worker,
+    }) as const
   return {
     ...createViemPort(signal),
     transactionCount: async (worker, tag) =>

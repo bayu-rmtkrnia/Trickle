@@ -35,7 +35,7 @@ const stream = {
 }
 const snapshot = {
   streams: [stream],
-  split: { recipient: worker, bps: 3000 },
+  splits: [{ recipient: worker, bps: 3000 }],
   walletBalance: b(2000000),
   blockNumber: b(15),
   blockTimestamp: b(150),
@@ -73,14 +73,15 @@ describe('live salary card', () => {
       ...deps.state,
       snapshot: {
         ...snapshot,
-        split: { recipient: worker, bps: 5000 },
+        splits: [{ recipient: employer, bps: 5000 }],
         streams: [1, 2].map((id) => ({ ...stream, id: b(id), amount: b(2), withdrawn: b(0) })),
       },
     }
     render(<SalaryCard walletAddress={worker} />)
     fireEvent.click(screen.getByRole('button', { name: 'Info detail' }))
     expect(screen.getByText('0,000002 MockAUSD')).toBeTruthy()
-    expect(screen.getByText('0 MockAUSD')).toBeTruthy()
+    // Family total and the single recipient both round to 0 per stream.
+    expect(screen.getAllByText('0 MockAUSD')).toHaveLength(2)
   })
   it('separates gross available salary, wallet balance and family split estimates', () => {
     render(<SalaryCard walletAddress={worker} />)
@@ -89,9 +90,40 @@ describe('live salary card', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Info detail' }))
     expect(screen.getByText('2 MockAUSD')).toBeTruthy()
     expect(screen.getByText('0,28 MockAUSD')).toBeTruthy()
-    expect(screen.getByText('0,12 MockAUSD')).toBeTruthy()
+    // One recipient: the family total and that recipient's share are the same amount.
+    expect(screen.getAllByText('0,12 MockAUSD')).toHaveLength(2)
+    expect(screen.getByText('Penerima 1 (0x2222…2222, 30%)')).toBeTruthy()
     expect(screen.getByText('Aset demo')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Tarik gaji' }).hasAttribute('disabled')).toBe(false)
+  })
+  it('previews each recipient share across streams with per-stream rounding', () => {
+    const second = '0x4444444444444444444444444444444444444444'
+    deps.state = {
+      ...deps.state,
+      snapshot: {
+        ...snapshot,
+        splits: [
+          { recipient: employer, bps: 2000 },
+          { recipient: second, bps: 1000 },
+        ],
+      },
+    }
+    render(<SalaryCard walletAddress={worker} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Info detail' }))
+    // 0,4 available: 20% = 0,08, 10% = 0,04, worker keeps 0,28.
+    expect(screen.getByText('0,28 MockAUSD')).toBeTruthy()
+    expect(screen.getByText('0,12 MockAUSD')).toBeTruthy()
+    expect(screen.getByText('Penerima 1 (0x1111…1111, 20%)')).toBeTruthy()
+    expect(screen.getByText('0,08 MockAUSD')).toBeTruthy()
+    expect(screen.getByText('Penerima 2 (0x4444…4444, 10%)')).toBeTruthy()
+    expect(screen.getByText('0,04 MockAUSD')).toBeTruthy()
+  })
+  it('says there is no family split when splitsOf is empty', () => {
+    deps.state = { ...deps.state, snapshot: { ...snapshot, splits: [] } }
+    render(<SalaryCard walletAddress={worker} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Info detail' }))
+    expect(screen.getByText('Belum ada pembagian ke keluarga.')).toBeTruthy()
+    expect(screen.queryByText(/Penerima 1/)).toBeNull()
   })
   it('only matches employer metadata to the actual stream employer address', () => {
     render(
