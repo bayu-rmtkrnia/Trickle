@@ -1,0 +1,26 @@
+{
+  "network": "monad-testnet",
+  "chainId": 10143,
+  "rpcUrl": "https://testnet-rpc.monad.xyz",
+  "deployer": "0xDE744Da2f30DA75CfBb43D7bD07E0c0f81Cc9147",
+  "commit": "ea11d30",
+  "explorer": "https://testnet.monadvision.com",
+  "verified": "sourcify (exact match)",
+  "contracts": {
+    "TricklePayroll": {
+      "address": "0xE7292E797009E9D53102ec132Ef4Ae549cDD652e",
+      "deployBlock": 69831375,
+      "txHash": "0x74ac3d13c1b7ea1706793faf7f46bf298488e0d73871d3c846a080d096e22cff",
+      "abi": "../abi/TricklePayroll.json"
+    },
+    "MockAUSD": {
+      "address": "0xACC43329a0A3dbf69d1BE6309b24E39d54896f97",
+      "deployBlock": 69831367,
+      "txHash": "0x67398d145bae87abac6750e727da3a8d035b6e0ddda4567028f33d833a1c7f03",
+      "abi": "../abi/MockAUSD.json",
+      "decimals": 6,
+      "mock": true,
+      "note": "MOCK TOKEN for testnet demos. Open mint, no value. Not AUSD."
+    }
+  }
+}

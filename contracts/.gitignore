@@ -1,0 +1,5 @@
+out/
+cache/
+# Local broadcast logs; the deployed address and block live in packages/shared/deployments.
+broadcast/
+.env
