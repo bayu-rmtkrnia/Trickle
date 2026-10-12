@@ -29,8 +29,9 @@ function writer(settle: () => Promise<WithdrawalResult>) {
 }
 
 describe('review withdrawal regressions', () => {
-  it('releases an approval interrupted by reload only after nonce and chain checks', async () => {
+  it('releases an approval interrupted by reload only after the lease lapsed and nonce and chain checks', async () => {
     let pending: PendingWithdrawal | null = null
+    let clock = 1_000
     const store = {
       read: () => pending,
       write: (value: PendingWithdrawal | null) => {
@@ -46,11 +47,14 @@ describe('review withdrawal regressions', () => {
       send: async (): Promise<{ hash: typeof h1 }> => new Promise(() => {}),
       submissionNonce: async () => BigInt(7),
       verifyAbandoned: vi.fn(async () => true),
+      now: () => clock,
     }
     const interrupted = new WithdrawalCoordinator(deps)
     interrupted.select(BigInt(1))
     void interrupted.submit()
     await vi.waitFor(() => expect(pending?.hash).toBeNull())
+    // The reloaded page no longer renews the lease; it expires.
+    clock += 60_000
     const recovered = new WithdrawalCoordinator(deps)
     expect(recovered.getSnapshot().phase).toBe('unknown')
     await recovered.abandon()

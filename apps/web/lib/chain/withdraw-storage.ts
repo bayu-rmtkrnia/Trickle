@@ -23,7 +23,10 @@ export function pendingWithdrawalStore(wallet: string): PendingStore {
           (value.hash !== null &&
             (typeof value.hash !== 'string' || !/^0x[0-9a-f]{64}$/i.test(value.hash))) ||
           (value.afterBlock !== undefined &&
-            (typeof value.afterBlock !== 'string' || !/^\d{1,78}$/.test(value.afterBlock)))
+            (typeof value.afterBlock !== 'string' || !/^\d{1,78}$/.test(value.afterBlock))) ||
+          (value.leaseUntil !== undefined &&
+            value.leaseUntil !== null &&
+            (typeof value.leaseUntil !== 'string' || !/^\d{1,16}$/.test(value.leaseUntil)))
         )
           throw Error('Invalid pending record')
         return {
@@ -32,6 +35,7 @@ export function pendingWithdrawalStore(wallet: string): PendingStore {
           ...(value.nonce !== undefined ? { nonce: value.nonce } : {}),
           ...(value.attemptId !== undefined ? { attemptId: value.attemptId } : {}),
           ...(value.afterBlock !== undefined ? { afterBlock: value.afterBlock } : {}),
+          ...(value.leaseUntil !== undefined ? { leaseUntil: value.leaseUntil } : {}),
         }
       } catch {
         throw new WithdrawalError('STORAGE_UNAVAILABLE')

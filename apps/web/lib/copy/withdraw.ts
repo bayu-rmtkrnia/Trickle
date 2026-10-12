@@ -81,6 +81,8 @@ export function withdrawalMessage(error: unknown): string {
     RECOVERY_UNVERIFIED:
       'Belum dapat memastikan permintaan ini tidak terkirim. Periksa aktivitas wallet atau masukkan hash transaksinya.',
     PENDING_CHANGED: 'Status penarikan berubah di tab lain. Muat ulang sebelum melanjutkan.',
+    SIGNATURE_PENDING:
+      'Persetujuan wallet untuk penarikan ini masih terbuka di tab lain. Selesaikan atau tutup di sana, lalu periksa lagi.',
   }
   if (code && messages[code]) return messages[code]!
   const value = error as {
