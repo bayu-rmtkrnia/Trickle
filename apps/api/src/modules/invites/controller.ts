@@ -4,6 +4,7 @@ import type {
   createInviteSchema,
   getInviteSchema,
   listInvitesSchema,
+  revokeInviteSchema,
 } from './schemas.js'
 import type { InviteService } from './service.js'
 
@@ -20,8 +21,14 @@ export function createInviteController(service: InviteService) {
   const getByCode: Handler<typeof getInviteSchema> = async (req) =>
     service.getByCode(req.params.code)
 
-  const accept: Handler<typeof acceptInviteSchema> = async (req) =>
-    service.accept(req.params.code, req.user.sub)
+  const accept: Handler<typeof acceptInviteSchema> = async (req, reply) => {
+    return reply.code(201).send(await service.accept(req.params.code, req.user.sub))
+  }
 
-  return { create, listMine, getByCode, accept }
+  const revoke: Handler<typeof revokeInviteSchema> = async (req, reply) => {
+    await service.revoke(req.params.id)
+    return reply.code(204).send(null)
+  }
+
+  return { create, listMine, getByCode, accept, revoke }
 }
