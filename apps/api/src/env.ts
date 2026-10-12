@@ -47,6 +47,9 @@ const EnvSchema = z.object({
     .optional()
     .or(z.literal('').transform(() => undefined)),
 
+  /** Seconds between stream indexer rounds (needs PAYROLL_ADDRESS). 0 turns the loop off. */
+  STREAM_SYNC_SECONDS: z.coerce.number().int().min(0).default(15),
+
   GAS_TREASURY_PRIVATE_KEY: hexKey.optional().or(z.literal('').transform(() => undefined)),
   GAS_DRIP_AMOUNT_MON: z.string().default('0.05'),
   GAS_DRIP_DAILY_LIMIT: z.coerce.number().int().positive().default(200),

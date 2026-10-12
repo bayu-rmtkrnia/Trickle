@@ -58,11 +58,11 @@ model User {
   companies       Company[]
   employments     Worker[]
   /// People this user (as a worker) sends part of their salary to
-  recipients      Recipient[] @relation("RecipientOwner")
+  recipients      Recipient[]   @relation("RecipientOwner")
   /// Workers who added this user as their recipient
-  recipientOf     Recipient[] @relation("RecipientUser")
-  invitesCreated  Invite[]    @relation("InviteCreatedBy")
-  invitesAccepted Invite[]    @relation("InviteAcceptedBy")
+  recipientOf     Recipient[]   @relation("RecipientUser")
+  invitesCreated  Invite[]      @relation("InviteCreatedBy")
+  invitesAccepted Invite[]      @relation("InviteAcceptedBy")
   payouts         Payout[]
   sessions        Session[]
   demoStream      DemoStream?
@@ -271,4 +271,31 @@ model Payout {
 
   @@index([userId])
   @@index([bankAccountId])
+}
+
+/// Cache of TricklePayroll streams, filled by the stream indexer from
+/// `nextStreamId` + `getStream` (no event scan). The contract stays the source of
+/// truth (PLAN §4.2): rows are re-read until settled, and checks that block an
+/// action re-read their candidates on-chain first.
+model Stream {
+  /// On-chain stream id
+  id             BigInt   @id
+  /// Lowercased 0x address that funded the stream
+  employer       String
+  /// Lowercased 0x address that is paid
+  worker         String
+  /// Token units (6 decimals)
+  amountUnits    String
+  withdrawnUnits String
+  refundedUnits  String
+  startsAt       DateTime
+  endsAt         DateTime
+  canceled       Boolean
+  /// `withdrawn + refunded == amount`: nothing can change any more, so the indexer stops re-reading it
+  settled        Boolean
+  syncedAt       DateTime @updatedAt
+
+  @@index([employer, worker])
+  @@index([worker])
+  @@index([settled])
 }

@@ -11,6 +11,7 @@ import type { DemoSigner } from '../src/lib/demo.js'
 import { createFieldCipher } from '../src/lib/crypto.js'
 import { createMockPayoutProvider } from '../src/lib/payout-provider.js'
 import { createPrisma } from '../src/lib/prisma.js'
+import { createStreamStore, type StreamRow } from '../src/lib/stream-store.js'
 import type { TransferVerifier } from '../src/lib/transfers.js'
 import { signWebhook } from '../src/modules/payouts/service.js'
 import { expectForbidden } from './helpers.js'
@@ -117,7 +118,7 @@ describe.skipIf(!url)('api (integration)', () => {
     hasActiveStream.mockReset().mockResolvedValue(false)
     splitBpsOf.mockReset().mockResolvedValue(0)
     await db.$executeRawUnsafe(
-      'TRUNCATE "Payout","BankAccount","DemoStream","GasDrip","Invite","Recipient","Worker","Company","Session","User" CASCADE',
+      'TRUNCATE "Payout","BankAccount","DemoStream","GasDrip","Invite","Recipient","Worker","Company","Session","User","Stream" CASCADE',
     )
   })
 
@@ -1559,6 +1560,44 @@ describe.skipIf(!url)('api (integration)', () => {
       expect(res.json()).toEqual(rate)
       expect(res.headers.deprecation).toBe('true')
       expect(res.headers.link).toBe('</api/v1/fx-rates/usd-idr>; rel="successor-version"')
+    })
+  })
+
+  describe('stream store', () => {
+    const boss = '0x00000000000000000000000000000000000000b0' as Address
+    const siti = '0x00000000000000000000000000000000000000a1' as Address
+    const now = new Date('2026-10-13T00:00:00Z')
+    const row = (id: bigint, over: Partial<StreamRow> = {}): StreamRow => ({
+      id,
+      employer: boss,
+      worker: siti,
+      amountUnits: '1000',
+      withdrawnUnits: '0',
+      refundedUnits: '0',
+      startsAt: new Date(now.getTime() - 3_600_000),
+      endsAt: new Date(now.getTime() + 3_600_000),
+      canceled: false,
+      settled: false,
+      ...over,
+    })
+
+    it('upserts streams and answers the indexer queries', async () => {
+      const store = createStreamStore(db)
+      await expect(store.maxId()).resolves.toBe(0n)
+
+      await store.upsert([
+        row(1n),
+        row(2n, { canceled: true, refundedUnits: '1000', settled: true }),
+        row(10n, { endsAt: new Date(now.getTime() - 1) }),
+      ])
+      // 10 > 2 numerically (a text id would sort "10" before "2").
+      await expect(store.maxId()).resolves.toBe(10n)
+      await expect(store.openIds()).resolves.toEqual([1n, 10n])
+      await expect(store.activeIds(boss, siti, now)).resolves.toEqual([1n])
+
+      await store.upsert([row(1n, { canceled: true, refundedUnits: '500' })])
+      await expect(store.activeIds(boss, siti, now)).resolves.toEqual([])
+      await expect(db.stream.count()).resolves.toBe(3)
     })
   })
 
