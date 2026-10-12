@@ -20,8 +20,8 @@ Aturan main:
 | 6   | Workers CRUD       | `feat/api-workers`             | CRUD + 409 kalau stream masih aktif (cek on-chain lewat interface `StreamReader`)                                    | Sab 3       | ✅     |
 | 7   | Recipients CRUD    | `feat/api-recipients`          | Dari `FamilyLink`, pemiliknya pekerja                                                                                | Min 4       | ✅     |
 | 8   | Invites lengkap    | `feat/api-invites-v1`          | `POST /invites/:code/acceptance`, `DELETE /invites/:id`, undangan dari employer dan pekerja                          | Min 4       | ✅     |
-| 9   | Bank accounts      | `feat/api-bank-accounts`       | AES-256-GCM, hanya 4 digit terakhir yang keluar dari API                                                             | Sen 5       | 🔍     |
-| 10  | Gas & kurs         | `refactor/api-gas-fx-v1`       | `/gas-drips` (rate limit per alamat + IP), `/fx-rates/usd-idr`                                                       | Sen 5       | ⬜     |
+| 9   | Bank accounts      | `feat/api-bank-accounts`       | AES-256-GCM, hanya 4 digit terakhir yang keluar dari API                                                             | Sen 5       | ✅     |
+| 10  | Gas & kurs         | `refactor/api-gas-fx-v1`       | `/gas-drips` (rate limit per alamat + IP), `/fx-rates/usd-idr`                                                       | Sen 5       | 🔍     |
 | 11  | Payouts sandbox    | `feat/api-payouts`             | Verifikasi tx → disbursement Xendit/Flip → webhook ber-signature                                                     | Sel 6       | ⬜     |
 | 12  | Judge mode         | `feat/api-demo-streams`        | `POST /demo-streams`, signer demo, rate limit                                                                        | Sel 6–Rab 7 | ✅     |
 | 13  | ERD & dokumen      | `docs/api-erd`                 | `docs/erd.md`, Postman, README API                                                                                   | Rab 7       | ⬜     |
@@ -146,6 +146,15 @@ D1 sudah terjawab: web app memakai **Privy** (embedded wallet), jadi tidak ada `
 | Data | Tabel `BankAccount` (migrasi `20261012120000_bank_accounts`): `numberEncrypted`, `numberLast4`, `numberFingerprint` unik per user, soft delete |
 | Aturan | Respons hanya berisi 4 digit terakhir. 409 `BANK_ACCOUNT_EXISTS`, 409 `BANK_ACCOUNT_LIMIT` (maks 5), 503 tanpa kunci. PATCH hanya nama dan label. Menambah ulang rekening yang dihapus akan memulihkannya |
 | Test | `test/crypto.test.ts` (round trip, IV acak, AAD, tamper, kunci lain), unit service, integrasi: DB tidak berisi nomor asli, duplikat, pulihkan, validasi 422, 403 untuk employer/pekerja/outsider/penerima lain |
+
+## Rincian Fitur 10: Gas & kurs
+
+| Bagian | Isi |
+| ------ | --- |
+| Gas | `POST /gas/drip` → `POST /gas-drips`, `GET /gas/status` → `GET /gas-drips/status` (K1). Batas baru per IP per hari (`GAS_DRIP_IP_DAILY_LIMIT`, 429 `DRIP_IP_LIMIT`), disimpan di DB. Treasury kosong dijawab 503 `DRIP_TREASURY_EMPTY` sebelum mengirim |
+| Kurs | `GET /fx/usd-idr` → `GET /fx-rates/usd-idr`, sekarang butuh login (PLAN §6.3: E, W, R) tanpa syarat peran. `cache-control: private` |
+| Path lama | Tetap jalan karena FE masih memakainya, ditandai deprecated di OpenAPI dan diberi header `Deprecation` + `Link`. Dihapus di Fitur 13 setelah FE pindah |
+| Test | Unit: batas IP, treasury kosong, saldo gagal dibaca. Integrasi: batas harian dari IP berbeda, batas IP, path lama + header, kurs 401/200 |
 
 ## Ketergantungan yang belum terjawab
 

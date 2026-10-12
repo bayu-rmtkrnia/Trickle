@@ -4,7 +4,7 @@ import type { Chain } from '../src/lib/chain.js'
 import type { GasRepository } from '../src/modules/gas/repository.js'
 import { createGasService } from '../src/modules/gas/service.js'
 
-const env = { GAS_DRIP_AMOUNT_MON: '0.05', GAS_DRIP_DAILY_LIMIT: 3 }
+const env = { GAS_DRIP_AMOUNT_MON: '0.05', GAS_DRIP_DAILY_LIMIT: 3, GAS_DRIP_IP_DAILY_LIMIT: 2 }
 const address = '0x00000000000000000000000000000000000000aa' as const
 const log = { error: vi.fn(), warn: vi.fn() }
 
@@ -36,6 +36,8 @@ function setup(repo: Partial<GasRepository>, chain: Partial<Chain> = {}) {
     repo: {
       findByAddress: unexpected,
       countActiveSince: unexpected,
+      // Most tests are not about the per-IP cap.
+      countActiveFromIpSince: async () => 0,
       claim: unexpected,
       markSent: unexpected,
       markFailed: unexpected,
@@ -67,6 +69,44 @@ describe('gas service: drip', () => {
       statusCode: 429,
       code: 'DRIP_DAILY_LIMIT',
     })
+  })
+
+  it('answers 429 once one IP has funded too many accounts', async () => {
+    const s = setup({
+      findByAddress: async () => null,
+      countActiveSince: async () => 0,
+      countActiveFromIpSince: async () => 2,
+    })
+    await expect(s.drip(address, '1.1.1.1', log)).rejects.toMatchObject({
+      statusCode: 429,
+      code: 'DRIP_IP_LIMIT',
+    })
+  })
+
+  it('answers 503 without sending when the treasury is empty', async () => {
+    const sendNative = vi.fn()
+    const s = setup(
+      { findByAddress: async () => null, countActiveSince: async () => 0 },
+      { getBalance: async () => 10n ** 16n, sendNative },
+    )
+    await expect(s.drip(address, '1.1.1.1', log)).rejects.toMatchObject({
+      statusCode: 503,
+      code: 'DRIP_TREASURY_EMPTY',
+    })
+    expect(sendNative).not.toHaveBeenCalled()
+  })
+
+  it('still tries to send when the balance cannot be read', async () => {
+    const s = setup(
+      {
+        findByAddress: async () => null,
+        countActiveSince: async () => 0,
+        claim: async () => ({ status: 'claimed', drip: row() }),
+        markSent: async (_id: string, txHash: string) => row({ status: 'SENT', txHash }),
+      },
+      { getBalance: async () => Promise.reject(new Error('rpc down')) },
+    )
+    await expect(s.drip(address, '1.1.1.1', log)).resolves.toMatchObject({ created: true })
   })
 
   it('treats a lost race as an earlier drip', async () => {

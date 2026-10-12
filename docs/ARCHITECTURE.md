@@ -4,7 +4,7 @@ Isinya keadaan aplikasi **saat ini**: apa saja yang sudah ada, di mana letaknya,
 
 > **Aturan:** setiap PR yang menambah atau mengubah fitur, endpoint, tabel, env var, atau keputusan desain **wajib memperbarui file ini** di PR yang sama. Kalau ada isi file ini yang tidak lagi sesuai dengan kode, berarti file ini yang salah, jadi perbaiki.
 
-Terakhir diperbarui: 12 Okt 2026 (Fitur 9: rekening bank).
+Terakhir diperbarui: 12 Okt 2026 (Fitur 10: gas & kurs).
 
 ---
 
@@ -79,16 +79,18 @@ Semua endpoint resource ada di bawah `/api/v1`, kecuali `/health` dan `/docs` (S
 | | `DELETE /invites/:id` | Pembuat undangan | PENDING → REVOKED; 409 kalau sudah diterima |
 | | `GET /invites/:code` | – | Publik supaya link bisa dibuka sebelum login |
 | | `POST /invites/:code/acceptance` | ✓ | Siapa pun yang login, kecuali pembuatnya |
-| gas | `POST /gas/drip`, `GET /gas/status` | ✓ / – | Kirim MON testnet sekali per alamat. Rate limit 5/menit |
+| gas | `POST /gas-drips` | ✓ (tanpa peran) | Kirim MON testnet sekali per alamat; dibatasi per IP dan per hari. Rate limit 5/menit |
+| | `GET /gas-drips/status` | – | Saldo treasury dan pemakaian harian |
 | demo-streams | `POST /demo-streams` | ✓ (tanpa peran) | Judge mode: stream testnet sungguhan dari employer demo, sekali per akun |
 | | `GET /demo-streams/status` | – | Gas employer demo dan pemakaian harian, untuk dipantau selama penjurian |
-| fx | `GET /fx/usd-idr` | – | Kurs untuk tampilan saja |
+| fx | `GET /fx-rates/usd-idr` | ✓ (tanpa peran) | Kurs untuk tampilan saja, dengan waktu kurs |
+| (lama) | `POST /gas/drip`, `GET /gas/status`, `GET /fx/usd-idr` | sama seperti sebelumnya | Deprecated, dipertahankan sampai FE pindah. Dihapus di Fitur 13 |
 
 Kolom Auth: – publik, ✓ semua user yang login, *Pemilik* hanya pemilik resource tersebut.
 
 Detail request dan response: `openapi.json` atau `http://localhost:4000/docs`.
 
-**Belum ada** (lihat roadmap): refactor gas/fx (10), payouts (11), ERD (13).
+**Belum ada** (lihat roadmap): payouts (11), ERD (13).
 
 ## 4. Arsitektur API
 
@@ -175,6 +177,14 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Id dipakai untuk membatalkan, kode untuk menerima.** Kode adalah rahasia yang dibagikan ke penerima, sedangkan pembuat mengelola undangannya lewat id seperti resource lain.
 - **`requireRole('employer', 'worker')` di route, aturan per jenis di service.** Route tidak bisa tahu jenis undangan sebelum body divalidasi, jadi service yang menolak employer membuat `RECIPIENT` tanpa jadi pekerja, dan sebaliknya.
 
+### Gas & kurs (Fitur 10)
+- **Path mengikuti K1**: `/gas-drips` dan `/fx-rates/usd-idr`. **Path lama tetap jalan sebagai alias** karena FE sudah memakainya. Alias ditandai `deprecated` di OpenAPI dan mengirim header `Deprecation: true` dan `Link: <path baru>; rel="successor-version"`, jadi FE bisa pindah kapan saja tanpa rusak. Alias dihapus di Fitur 13.
+- **Gas drip tetap dipakai walaupun login sekarang lewat Privy.** Wallet embedded Privy juga butuh MON untuk transaksi pertama (misalnya menarik gaji), dan FE sudah memakainya. Keputusan D6 (sponsor gas) tidak berubah.
+- **Gas drip dan kurs butuh login, tapi tanpa syarat peran.** Akun juri dari judge mode belum punya peran, padahal butuh gas untuk menarik saldo dan kurs untuk menampilkan rupiah. Penyalahgunaan gas dibatasi oleh: sekali per alamat, `GAS_DRIP_IP_DAILY_LIMIT` per IP per hari, `GAS_DRIP_DAILY_LIMIT` total, dan rate limit 5/menit.
+- **Batas per IP disimpan di DB** (kolom `GasDrip.ip`), sama seperti judge mode, supaya tetap berlaku setelah restart.
+- **Treasury kosong dijawab 503 `DRIP_TREASURY_EMPTY` sebelum mengirim**, bukan 502 setelah transfer gagal. FE bisa menampilkan "sponsor gas sedang berhenti" dan tim tahu harus mengisi treasury (tercatat sebagai error di log). Kalau saldo gagal dibaca, transfer tetap dicoba.
+- **Kurs di path baru memakai `cache-control: private`** karena sekarang ada di balik sesi. Path lama yang publik tetap `public`.
+
 ### Rekening bank (Fitur 9)
 - **Nomor rekening dienkripsi AES-256-GCM di API sebelum masuk Postgres** (`lib/crypto.ts`, PLAN K4). Kenapa: kalau database atau backup bocor, nomor rekening tetap tidak terbaca. GCM sekaligus mendeteksi data yang diubah.
 - **IV acak 12 byte untuk setiap nilai**, jadi nomor yang sama menghasilkan ciphertext berbeda dan tidak bisa dibandingkan.
@@ -206,7 +216,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 ### Operasional
 - **Gas drip idempoten per alamat** lewat unique constraint `GasDrip.address`. Drip yang gagal bisa dicoba ulang, dan ada batas harian (`GAS_DRIP_DAILY_LIMIT`).
 - **Kurs FX di-cache di memori.** Kalau provider mati, API memakai kurs terakhir lalu kurs fallback statis, dan respons selalu menyebut `source`-nya.
-- **Rate limit global 120/menit per IP**, dengan batas lebih ketat di sign-in, gas drip, dan demo stream.
+- **Rate limit global 120/menit per IP**, dengan batas lebih ketat di sign-in, gas drip, dan demo stream. Batas harian per IP untuk gas drip dan demo stream disimpan di DB.
 - **Semua config divalidasi saat start** (`src/env.ts`). String kosong di `.env` dianggap tidak diisi. Fitur yang config-nya kosong menjawab 503, bukan crash (contoh: Privy, gas treasury, employer demo).
 
 ## 6. Data model (Postgres via Prisma)
@@ -236,7 +246,7 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 | `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_VERIFICATION_KEY` | Login. Tanpa `PRIVY_APP_ID`, `/sessions` menjawab 503 |
 | `SESSION_TTL_DAYS` | Masa berlaku sesi (default 7) |
 | `WEB_URL`, `CORS_ORIGINS` | Link undangan dan origin web yang diizinkan |
-| `CHAIN_ID`, `RPC_URL`, `GAS_TREASURY_PRIVATE_KEY`, `GAS_DRIP_*` | Gas drip |
+| `CHAIN_ID`, `RPC_URL`, `GAS_TREASURY_PRIVATE_KEY`, `GAS_DRIP_*` | Gas drip: key treasury (testnet), jumlah per drip, batas harian total (`GAS_DRIP_DAILY_LIMIT`) dan per IP (`GAS_DRIP_IP_DAILY_LIMIT`) |
 | `PAYROLL_ADDRESS` | Kontrak `TricklePayroll`, untuk cek split saat menghapus penerima dan untuk judge mode. Kosong = cek split dilewati (dicatat di log) dan judge mode menjawab 503 |
 | `BANK_ENCRYPTION_KEY` | Kunci enkripsi nomor rekening (`openssl rand -hex 32`). Kosong = tambah rekening menjawab 503. Jangan diganti setelah ada data: nomor lama tidak bisa dibaca lagi |
 | `DEMO_EMPLOYER_PRIVATE_KEY`, `DEMO_STREAM_*` | Judge mode: key employer demo (butuh MON untuk gas), jumlah, durasi, batas harian total dan per IP |
@@ -252,7 +262,6 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 ## 9. Masalah yang diketahui / utang
 
 - `test/api.test.ts` memanggil `loadEnv` di dalam `describe.skipIf`, sehingga `pnpm test` tanpa `TEST_DATABASE_URL` gagal di file itu.
-- Gas drip mengasumsikan akun baru butuh MON (asumsi era Mera). Dengan Privy perlu ditinjau ulang di Fitur 10.
 - **Cek stream aktif saat menghapus pekerja belum terverifikasi.** `StreamReader` default selalu menjawab "tidak aktif" sampai indexer SC tersedia. Kontrak sudah ter-deploy (`0xE7292E79…652e` di Monad testnet, branch `feat/contracts-payroll`, belum di-merge).
 - **Akun juri tidak punya peran `worker` di DB.** Stream demo hanya ada di chain; tidak ada baris `Worker` atau perusahaan demo. Kalau layar pekerja di FE bergantung pada `roles` dari `/users/me`, FE perlu memakai respons `POST /demo-streams` (`streamId`), atau nanti kita tambahkan perusahaan demo.
 - **Tabel `Payout` masih punya kolom nomor rekening teks biasa** dari skema awal (belum dipakai). Fitur 11 akan menggantinya dengan referensi ke `BankAccount`.

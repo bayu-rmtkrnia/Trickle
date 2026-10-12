@@ -119,13 +119,15 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | DELETE | `/invites/:id` | Creator | Cancel a pending invite; 409 once accepted |
 | GET | `/invites/:code` | – | Public invite details |
 | POST | `/invites/:code/acceptance` | ✓ | Accept an invite |
-| POST | `/gas/drip` | ✓ | Sponsor gas for a new account, once per address |
-| GET | `/gas/status` | – | Treasury balance and daily usage |
+| POST | `/gas-drips` | ✓ | Sponsor gas for an account, once per address; capped per IP and per day |
+| GET | `/gas-drips/status` | – | Treasury balance and daily usage |
 | POST | `/demo-streams` | ✓ | Judge mode: real testnet stream from the demo employer to me, once per account |
 | GET | `/demo-streams/status` | – | Demo employer gas and daily usage |
-| GET | `/fx/usd-idr` | – | USD→IDR rate with cache and fallback |
+| GET | `/fx-rates/usd-idr` | ✓ | USD→IDR rate with cache, fallback and rate time |
 
 Planned for the next milestone: `/payouts`, `/webhooks/payout-provider`.
+
+Deprecated, kept until the web app moves over: `POST /gas/drip`, `GET /gas/status`, `GET /fx/usd-idr` (public). They answer like their successors, with `Deprecation` and `Link` headers.
 
 ## Running locally
 

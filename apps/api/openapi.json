@@ -3456,11 +3456,140 @@
         }
       }
     },
+    "/api/v1/gas-drips": {
+      "post": {
+        "summary": "Fund the signed-in account's gas, once per address",
+        "tags": ["Gas"],
+        "description": "Called by the web app before the first transaction (e.g. a withdrawal), so users never hold or see MON. Open to any signed-in account, including brand-new judge mode accounts. Idempotent: calling again returns the original drip (200). `SENT` means broadcast; wait for the receipt of `txHash` before relying on the balance.\n\nErrors: 429 `DRIP_IP_LIMIT` (per IP per day), `DRIP_DAILY_LIMIT` (all users), `RATE_LIMITED`; 503 `DRIP_UNAVAILABLE` (no treasury configured), `DRIP_TREASURY_EMPTY`; 502 `DRIP_FAILED` (safe to retry).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GasDrip"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GasDrip"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/gas-drips/status": {
+      "get": {
+        "summary": "Treasury balance and drip usage, for monitoring",
+        "tags": ["Gas"],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "treasuryAddress": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "treasuryBalanceMon": {
+                      "nullable": true,
+                      "type": "string"
+                    },
+                    "dripAmountMon": {
+                      "type": "string"
+                    },
+                    "dripsLast24h": {
+                      "type": "number"
+                    },
+                    "dailyLimit": {
+                      "type": "number"
+                    },
+                    "dripsRemainingOnBalance": {
+                      "nullable": true,
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "configured",
+                    "treasuryAddress",
+                    "treasuryBalanceMon",
+                    "dripAmountMon",
+                    "dripsLast24h",
+                    "dailyLimit",
+                    "dripsRemainingOnBalance"
+                  ],
+                  "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/gas/drip": {
       "post": {
         "summary": "Fund the signed-in account's gas, once per address",
         "tags": ["Gas"],
-        "description": "Called by the web app right after an account is created, so users never hold or see MON. Idempotent: calling again returns the original drip. Capped per day across all users.",
+        "description": "Deprecated: use `POST /gas-drips`. Kept until the web app moves over; same behaviour.",
+        "deprecated": true,
         "security": [
           {
             "bearerAuth": []
@@ -3534,6 +3663,8 @@
       "get": {
         "summary": "Treasury balance and drip usage, for monitoring",
         "tags": ["Gas"],
+        "description": "Deprecated: use `GET /gas-drips/status`. Kept until the web app moves over; same behaviour.",
+        "deprecated": true,
         "responses": {
           "200": {
             "description": "Default Response",
@@ -3712,11 +3843,46 @@
         }
       }
     },
-    "/api/v1/fx/usd-idr": {
+    "/api/v1/fx-rates/usd-idr": {
       "get": {
         "summary": "USD to IDR exchange rate (display and estimates only)",
         "tags": ["FX"],
-        "description": "Cached for 600 seconds. Falls back to the last good rate, then to a static rate, and says which one it is.",
+        "description": "Cached for 600 seconds. Falls back to the last good rate, then to a static rate, and says which one it is. Any signed-in account (PLAN §6.3: E, W, R).",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FxQuote"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/fx/usd-idr": {
+      "get": {
+        "summary": "USD to IDR exchange rate (public, deprecated)",
+        "tags": ["FX"],
+        "description": "Deprecated: use `GET /fx-rates/usd-idr` with a session. Kept public until the web app moves over. Cached for 600 seconds. Falls back to the last good rate, then to a static rate, and says which one it is.",
+        "deprecated": true,
         "responses": {
           "200": {
             "description": "Default Response",
