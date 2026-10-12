@@ -2,11 +2,11 @@
 
 Skema Postgres milik API (`apps/api`), sesuai [`apps/api/prisma/schema.prisma`](../apps/api/prisma/schema.prisma) dan migrasi di `apps/api/prisma/migrations/`. Dokumen ini memenuhi K2 (data persisten dengan skema dan relasi yang jelas). Kalau skema berubah, file ini ikut diperbarui di PR yang sama; `apps/api/test/erd.test.ts` gagal kalau ada tabel, kolom, atau migrasi yang belum tercantum di sini.
 
-Terakhir diperbarui: 12 Okt 2026 (Fitur 13).
+Terakhir diperbarui: 13 Okt 2026 (indexer stream).
 
 ## Prinsip
 
-- **Uang tidak disimpan di database.** Saldo, jumlah yang sudah mengalir, dan penarikan selalu dibaca dari kontrak `TricklePayroll` di Monad testnet (PLAN §4.2). Postgres hanya menyimpan metadata: siapa bekerja di mana, siapa penerima siapa, undangan, rekening bank, dan log operasional.
+- **Uang tidak disimpan di database.** Saldo, jumlah yang sudah mengalir, dan penarikan selalu dibaca dari kontrak `TricklePayroll` di Monad testnet (PLAN §4.2). Postgres hanya menyimpan metadata: siapa bekerja di mana, siapa penerima siapa, undangan, rekening bank, dan log operasional. Satu-satunya pengecualian adalah `Stream`, yaitu **cache** stream on-chain yang diisi indexer supaya API bisa mencari stream per employer/pekerja. Isinya selalu disalin dari kontrak, tidak pernah ditulis dari input pengguna. Pengecekan yang memblokir aksi (hapus pekerja) membaca ulang stream kandidat langsung dari chain.
 - **Peran tidak disimpan sebagai kolom.** Employer, pekerja, dan penerima diturunkan dari relasi (`Company`, `Worker`, `Recipient`), jadi peran tidak bisa berbeda dengan datanya.
 - **Data sensitif tidak pernah disimpan sebagai teks biasa.** Token sesi disimpan hash-nya, nomor rekening dienkripsi (lihat [Data sensitif](#data-sensitif)).
 - **Hapus = soft delete** (`deletedAt`) untuk data yang dikelola pengguna, supaya riwayat dan relasi tetap utuh. Menambah ulang data yang sama memulihkan baris lama.
@@ -135,6 +135,19 @@ erDiagram
         datetime createdAt
         datetime updatedAt
     }
+    Stream {
+        bigint id PK "id stream on-chain"
+        string employer "alamat lowercase"
+        string worker "alamat lowercase"
+        string amountUnits
+        string withdrawnUnits
+        string refundedUnits
+        datetime startsAt
+        datetime endsAt
+        boolean canceled
+        boolean settled "withdrawn + refunded = amount"
+        datetime syncedAt
+    }
     GasDrip {
         string id PK
         string address UK "tanpa FK, lihat catatan"
@@ -166,6 +179,8 @@ erDiagram
 | User → Payout | 1 : N | `Payout.userId` | RESTRICT | Penerima yang mencairkan |
 | User → DemoStream | 1 : 0..1 | `DemoStream.userId` (unik) | CASCADE | Judge mode: satu stream demo per akun |
 
+`Stream` sengaja tidak punya foreign key: isinya salinan kontrak, dan alamat `employer`/`worker` belum tentu punya akun Trickle. API menautkannya ke `User` lewat `User.address` saat membaca.
+
 `GasDrip` sengaja tidak punya foreign key: batasnya "sekali per alamat wallet", dan alamat itulah yang menerima MON, jadi kuncinya `address` (unik), bukan user.
 
 ## Tabel
@@ -182,6 +197,7 @@ erDiagram
 | `Payout` | Pencairan: transfer on-chain → IDR lewat provider sandbox | `sourceTxHash` unik (satu payout per transfer), `providerRef` unik; index `userId`, `bankAccountId` |
 | `DemoStream` | Stream judge mode yang dibuat employer demo | `userId` unik; index `createdAt`, `(ip, createdAt)` untuk batas harian |
 | `GasDrip` | Log sponsor gas (MON testnet) | `address` unik; index `createdAt` |
+| `Stream` | Cache stream `TricklePayroll` dari indexer (`nextStreamId` + `getStream`) | PK = id on-chain (`BIGINT`, supaya urutan numerik benar); index `(employer, worker)`, `worker`, `settled` |
 
 ### Enum
 
@@ -218,5 +234,6 @@ Status yang bisa berubah karena dua proses bersamaan (undangan diterima vs dibat
 | `20261012110000_demo_streams` | Tabel `DemoStream` |
 | `20261012120000_bank_accounts` | Tabel `BankAccount` |
 | `20261012130000_payouts` | `Payout` menunjuk ke `BankAccount`; kolom rekening teks biasa dihapus |
+| `20261013090000_streams` | Tabel `Stream` (cache indexer stream) |
 
 Rename tabel dan kolom memakai `RENAME`, bukan drop dan create, supaya data yang ada tetap utuh.

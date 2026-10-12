@@ -17,10 +17,18 @@ describe('stream reader', () => {
     )
   })
 
-  it('answers null without a payroll address, and no active streams until the indexer exists', async () => {
+  it('answers null and no active streams without a payroll contract', async () => {
     const reader = createStreamReader()
     await expect(reader.splitBpsOf('0xsiti', '0xibu')).resolves.toBeNull()
     await expect(reader.hasActiveStream('0xboss', '0xsiti')).resolves.toBe(false)
     expect(reader.verified).toBe(false)
+  })
+
+  it('asks the stream indexer whether a stream is active', async () => {
+    const hasActiveStream = vi.fn(async () => true)
+    const reader = createStreamReader({ payroll, indexer: { hasActiveStream } })
+    await expect(reader.hasActiveStream('0xboss', '0xsiti')).resolves.toBe(true)
+    expect(hasActiveStream).toHaveBeenCalledWith('0xboss', '0xsiti')
+    expect(reader.verified).toBe(true)
   })
 })

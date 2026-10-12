@@ -1,4 +1,5 @@
 import { parseAbi, type Address, type PublicClient } from 'viem'
+import type { StreamIndexer } from './stream-indexer.js'
 
 /**
  * Read-only view of the payroll contract (PLAN §4.2: money lives on the
@@ -8,7 +9,7 @@ import { parseAbi, type Address, type PublicClient } from 'viem'
 export interface StreamReader {
   /** `true` when a stream from `employer` to `worker` is neither canceled nor ended. */
   hasActiveStream(employer: Address, worker: Address): Promise<boolean>
-  /** `false` while `hasActiveStream` is a placeholder; surfaced in logs and docs. */
+  /** `false` when `hasActiveStream` cannot check (no payroll contract); surfaced in logs. */
   readonly verified: boolean
   /**
    * Share (bps, 0–10000) of each of `worker`'s withdrawals that goes to `recipient`,
@@ -25,6 +26,8 @@ interface Options {
   client?: Pick<PublicClient, 'readContract'>
   /** TricklePayroll address; without it `splitBpsOf` answers `null`. */
   payroll?: Address
+  /** Answers `hasActiveStream`. Without it, no stream counts as active. */
+  indexer?: Pick<StreamIndexer, 'hasActiveStream'>
 }
 
 /**
@@ -32,16 +35,15 @@ interface Options {
  * worker may split to several recipients (TricklePayroll v2), so it asks about
  * one recipient instead of reading the whole list.
  *
- * `hasActiveStream` is a placeholder until the stream indexer exists: the
- * contract has no "streams of a worker" view, and the public Monad RPC limits
- * `eth_getLogs` to 100 blocks, so scanning `StreamCreated` events per request
- * is not viable. It reports no active streams, so deletes are not blocked.
+ * `hasActiveStream` goes through the stream indexer, since the contract has
+ * no "streams of a worker" view. Without a payroll contract there is nothing
+ * to index: it reports no active streams and `verified` is `false`.
  */
-export function createStreamReader({ client, payroll }: Options = {}): StreamReader {
+export function createStreamReader({ client, payroll, indexer }: Options = {}): StreamReader {
   return {
-    verified: false,
-    async hasActiveStream() {
-      return false
+    verified: indexer !== undefined,
+    async hasActiveStream(employer, worker) {
+      return indexer ? indexer.hasActiveStream(employer, worker) : false
     },
     async splitBpsOf(worker, recipient) {
       if (!client || !payroll) return null
