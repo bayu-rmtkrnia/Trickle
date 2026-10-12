@@ -1,4 +1,5 @@
 import type { ApiError } from '@/lib/api/errors'
+import { ChainReadError } from '@/lib/chain/types'
 
 export const invitationCopy = {
   title: 'Undangan keluarga',
@@ -107,4 +108,87 @@ export function invitationError(error: unknown, loading = false) {
             ? 'network'
             : 'server')
   return invitationCopy.errors[key]
+}
+
+export const familyDashboardCopy = {
+  title: 'Dashboard keluarga',
+  greeting: (name: string) => `Halo, ${name}`,
+  fallbackName: 'Keluarga',
+  loading: 'Memuat dashboard',
+  loginTitle: 'Lihat dana yang kamu terima',
+  loginBody: 'Masuk dengan akun yang kamu gunakan untuk menerima undangan keluarga.',
+  login: 'Masuk',
+  loginError: 'Belum dapat membuka login',
+  loginErrorBody: 'Silakan coba masuk kembali.',
+  configuration: 'Login belum tersedia',
+  configurationBody: 'Login belum dapat digunakan saat ini. Silakan coba kembali nanti.',
+  sessionError: 'Sesi perlu diperbarui',
+  sessionErrorBody: 'Perbarui sesi untuk memuat dashboard keluarga kembali.',
+  recover: 'Perbarui sesi',
+  recovering: 'Memperbarui sesi...',
+  walletMismatch: 'Wallet tidak sesuai dengan sesi',
+  walletMismatchBody:
+    'Alamat wallet aktif berbeda dari profil akun. Perbarui sesi atau keluar lalu masuk kembali dengan wallet yang sesuai.',
+  logout: 'Keluar',
+  notRecipientTitle: 'Akun belum terhubung sebagai keluarga',
+  notRecipientBody:
+    'Buka tautan undangan keluarga dari pekerja, lalu terima undangannya untuk mengaktifkan dashboard ini.',
+  balanceLabel: 'Dana diterima',
+  idrEstimate: (value: string) => `≈ ${value}`,
+  idrUnavailable: 'Rupiah belum tersedia',
+  rateLoading: 'Memuat kurs...',
+  balanceUnavailable: 'Saldo belum tersedia',
+  demo: 'Aset demo',
+  demoHint: 'Token testnet untuk pengujian, tanpa nilai uang nyata.',
+  balanceLoading: 'Membaca saldo di jaringan...',
+  balanceReady: 'Saldo dari block terakhir',
+  balanceStale: 'Data saldo tertunda',
+  balanceEmpty: 'Belum ada dana diterima',
+  details: 'Info detail',
+  detailsTitle: 'Rincian dana',
+  tokenAmount: 'Jumlah token',
+  idrLabel: 'Estimasi rupiah',
+  rateLabel: 'Kurs USD/IDR',
+  rateSource: 'Sumber kurs',
+  rateTime: 'Waktu kurs',
+  rateTimeUnknown: 'Tidak diketahui',
+  readTime: 'Saldo dibaca',
+  block: 'Block',
+  rateSources: { live: 'Langsung', cache: 'Tersimpan', fallback: 'Cadangan' },
+  fallbackHint: 'Kurs cadangan dipakai karena penyedia kurs belum dapat dihubungi.',
+  estimateHint:
+    'Rupiah hanya perkiraan. Nilai pencairan ditentukan saat pencairan diproses (mode uji).',
+  emptyHint: 'Dana muncul di sini setelah pekerja menarik gaji yang dibagikan ke wallet kamu.',
+  staleHint:
+    'Menampilkan saldo pada block terakhir yang berhasil dibaca. Perbarui untuk membaca ulang.',
+  refresh: 'Perbarui saldo',
+  refreshing: 'Memperbarui saldo...',
+  actionsTitle: 'Pencairan',
+  actionsPending: 'Pencairan belum tersedia di versi ini.',
+  payout: 'Cairkan',
+  history: 'Riwayat',
+  errors: {
+    read: {
+      title: 'Belum dapat membaca saldo',
+      message: 'Jaringan belum dapat dihubungi. Coba perbarui saldo.',
+    },
+    configuration: {
+      title: 'Konfigurasi jaringan belum sesuai',
+      message: 'Wallet atau konfigurasi jaringan belum dapat digunakan untuk membaca saldo.',
+    },
+    consistency: {
+      title: 'Data saldo perlu dibaca ulang',
+      message: 'Data jaringan berubah saat dimuat. Perbarui saldo untuk data yang konsisten.',
+    },
+  },
+}
+
+export function familyBalanceError(error: unknown, phase?: string) {
+  const errors = familyDashboardCopy.errors
+  if (phase === 'unconfigured') return errors.configuration
+  if (error instanceof ChainReadError) {
+    if (['DEPLOYMENT_MISMATCH', 'INVALID_WALLET'].includes(error.code)) return errors.configuration
+    if (['CHAIN_CHANGED', 'SNAPSHOT_MISMATCH'].includes(error.code)) return errors.consistency
+  }
+  return errors.read
 }
