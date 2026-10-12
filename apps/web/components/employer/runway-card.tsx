@@ -17,7 +17,8 @@ export function RunwayCard({
   days,
   className = '',
 }: {
-  balanceUsd: number
+  /** `null` = saldo belum bisa dibaca. */
+  balanceUsd: number | null
   level: RunwayLevel
   days: number | null
   className?: string
@@ -41,7 +42,11 @@ export function RunwayCard({
           <h2 id="fund-label" className="text-label">
             {t.fundLabel}
           </h2>
-          <p className="mt-1 font-display text-num-hero">{formatUsd(balanceUsd)}</p>
+          {balanceUsd === null ? (
+            <p className="mt-2 text-title">{t.fundUnavailable}</p>
+          ) : (
+            <p className="mt-1 font-display text-num-hero">{formatUsd(balanceUsd)}</p>
+          )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
           <Button
@@ -66,6 +71,8 @@ export function RunwayCard({
 
 function RunwayStatus({ level, days }: { level: RunwayLevel; days: number | null }) {
   switch (level) {
+    case 'unknown':
+      return <p className="text-label">{t.fundUnavailableHint}</p>
     case 'no-workers':
       return <p className="text-label">{t.runwayNoWorkers}</p>
     case 'healthy':

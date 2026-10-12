@@ -1,8 +1,21 @@
 import type { Metadata } from 'next'
+import { AuthGate } from '@/components/auth/auth-gate'
 import { EmployerSetupForm } from '@/components/employer/setup-form'
 import { Logo } from '@/components/ui/logo'
+import { Skeleton } from '@/components/ui/skeleton'
 
 export const metadata: Metadata = { title: 'Profil perusahaan · Trickle' }
+
+function SetupSkeleton() {
+  return (
+    <div role="status" className="flex flex-col gap-4">
+      <span className="sr-only">Memuat…</span>
+      <Skeleton className="h-8 w-2/3" />
+      <Skeleton className="h-12" />
+      <Skeleton className="h-12" />
+    </div>
+  )
+}
 
 export default function EmployerSetupPage() {
   return (
@@ -11,7 +24,9 @@ export default function EmployerSetupPage() {
         <Logo priority />
       </header>
       <main className="flex flex-1 flex-col pt-6">
-        <EmployerSetupForm />
+        <AuthGate loading={<SetupSkeleton />}>
+          <EmployerSetupForm />
+        </AuthGate>
       </main>
     </div>
   )
