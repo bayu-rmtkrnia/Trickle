@@ -69,7 +69,7 @@ Trickle/
 │       │   ├── types.ts            # Fastify type augmentation
 │       │   ├── lib/                # chain (viem), fx, privy, streams, prisma, errors, pagination, roles, tokens, shared schemas
 │       │   ├── plugins/            # auth (session tokens), rbac (requireRole / requireOwnership), uniform error handling
-│       │   └── modules/            # health, sessions, users, companies, workers, recipients, bank-accounts, invites, gas, demo-streams, fx; each one has:
+│       │   └── modules/            # health, sessions, users, companies, workers, recipients, bank-accounts, payouts, invites, gas, demo-streams, fx; each one has:
 │       │       └── <resource>/     #   routes → controller → service → repository, plus schemas (Zod)
 │       ├── test/                   # Vitest unit + integration tests
 │       ├── openapi.json            # Generated API spec (import into Postman / FE codegen)
@@ -114,6 +114,10 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | GET | `/bank-accounts/:id` | Owner | Read one, last 4 digits only |
 | PATCH | `/bank-accounts/:id` | Owner | Update name and label |
 | DELETE | `/bank-accounts/:id` | Owner | Soft delete |
+| POST | `/payouts` | Recipient | Cash out an on-chain transfer to `PAYOUT_ADDRESS` into one of my bank accounts (sandbox) |
+| GET | `/payouts` | Recipient | My payouts (paged) |
+| GET | `/payouts/:id` | Owner | One payout, with its latest status |
+| POST | `/webhooks/payout-provider` | Signed | Disbursement status from the provider (HMAC signature) |
 | POST | `/invites` | Employer or worker | Worker invite (employer) or recipient invite (worker) |
 | GET | `/invites` | Employer or worker | Invites I created (paged) |
 | DELETE | `/invites/:id` | Creator | Cancel a pending invite; 409 once accepted |
@@ -124,8 +128,6 @@ Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1
 | POST | `/demo-streams` | ✓ | Judge mode: real testnet stream from the demo employer to me, once per account |
 | GET | `/demo-streams/status` | – | Demo employer gas and daily usage |
 | GET | `/fx-rates/usd-idr` | ✓ | USD→IDR rate with cache, fallback and rate time |
-
-Planned for the next milestone: `/payouts`, `/webhooks/payout-provider`.
 
 Deprecated, kept until the web app moves over: `POST /gas/drip`, `GET /gas/status`, `GET /fx/usd-idr` (public). They answer like their successors, with `Deprecation` and `Link` headers.
 

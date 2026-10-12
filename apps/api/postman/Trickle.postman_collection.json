@@ -58,6 +58,22 @@
       "value": ""
     },
     {
+      "key": "payoutTxHash",
+      "value": ""
+    },
+    {
+      "key": "payoutId",
+      "value": ""
+    },
+    {
+      "key": "payoutRef",
+      "value": ""
+    },
+    {
+      "key": "payoutWebhookSecret",
+      "value": ""
+    },
+    {
       "key": "privyAccessToken",
       "value": ""
     }
@@ -2523,6 +2539,266 @@
               "script": {
                 "type": "text/javascript",
                 "exec": ["pm.test('status 204', () => pm.response.to.have.status(204));"]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6c. Payouts",
+      "description": "Needs a real transfer first: from the recipient account, send mock AUSD to PAYOUT_ADDRESS on Monad testnet, then put the tx hash in {{payoutTxHash}} and an active bank account id in {{bankAccountId}}. The mock provider completes after MOCK_PAYOUT_SECONDS; account numbers ending in 0000 fail.",
+      "item": [
+        {
+          "name": "Cash out",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payouts"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"txHash\": \"{{payoutTxHash}}\",\n  \"bankAccountId\": \"{{bankAccountId}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "201 the first time, 200 when the same hash is sent again. 409 TX_PENDING if not mined yet, 400 TX_NOT_A_PAYOUT if it did not pay the payout address."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('created or replayed', () => pm.expect(pm.response.code).to.be.oneOf([200, 201]));",
+                  "pm.collectionVariables.set('payoutId', pm.response.json().id);",
+                  "pm.collectionVariables.set('payoutRef', pm.response.json().providerRef);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Cash out - not a recipient (403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payouts"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{employerToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"txHash\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n  \"bankAccountId\": \"x\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 403', () => pm.response.to.have.status(403));",
+                  "pm.test('error code FORBIDDEN', () => pm.expect(pm.response.json().error.code).to.eql('FORBIDDEN'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List my payouts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payouts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payouts"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get payout (refreshes status)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/payouts/{{payoutId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "payouts", "{{payoutId}}"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Provider webhook - unsigned (401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/payout-provider",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "payout-provider"]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerRef\": \"{{payoutRef}}\",\n  \"status\": \"COMPLETED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 401', () => pm.response.to.have.status(401));",
+                  "pm.test('error code UNAUTHORIZED', () => pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Provider webhook - signed",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/webhooks/payout-provider",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "webhooks", "payout-provider"]
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"providerRef\": \"{{payoutRef}}\",\n  \"status\": \"COMPLETED\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Signed in the pre-request script with {{payoutWebhookSecret}} (= PAYOUT_WEBHOOK_SECRET). A finished payout keeps its status."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const ts = Math.floor(Date.now() / 1000).toString();",
+                  "const body = pm.request.body.raw;",
+                  "const secret = pm.collectionVariables.get('payoutWebhookSecret');",
+                  "const sig = CryptoJS.HmacSHA256(ts + '.' + body, secret).toString(CryptoJS.enc.Hex);",
+                  "pm.request.headers.upsert({ key: 'x-payout-timestamp', value: ts });",
+                  "pm.request.headers.upsert({ key: 'x-payout-signature', value: 'sha256=' + sig });"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
               }
             }
           ]

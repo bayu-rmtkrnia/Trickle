@@ -3,7 +3,7 @@
   "info": {
     "title": "Trickle API",
     "version": "1.1.0",
-    "description": "Metadata API for Trickle: sessions, users, companies, workers, recipients, bank accounts, invites, gas sponsorship, judge mode and FX. Money lives on-chain; this API never stores balances.\n\nSign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
+    "description": "Metadata API for Trickle: sessions, users, companies, workers, recipients, bank accounts, payouts, invites, gas sponsorship, judge mode and FX. Money lives on-chain; this API never stores balances.\n\nSign in by exchanging a Privy access token at `POST /api/v1/sessions`, then send the returned token as `Authorization: Bearer <token>`.\n\nResource endpoints live under `/api/v1`. Errors always use `{ error: { code, message, details? } }`: 400 for unreadable requests, 422 for schema validation failures (one `details` entry per field). List endpoints take `?limit=&cursor=` and return `{ data, nextCursor }`."
   },
   "components": {
     "securitySchemes": {
@@ -296,6 +296,96 @@
           "expiresAt",
           "acceptedAt",
           "createdAt"
+        ]
+      },
+      "PayoutInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"]
+          },
+          "amountUsd": {
+            "type": "string",
+            "description": "What the transfer moved, in mock AUSD"
+          },
+          "amountIdr": {
+            "nullable": true,
+            "description": "What the bank receives",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fxRate": {
+            "nullable": true,
+            "description": "IDR per USD used for `amountIdr`",
+            "type": "number"
+          },
+          "fxSource": {
+            "nullable": true,
+            "description": "`live`, `cache` or `fallback` (see `/fx-rates`)",
+            "type": "string"
+          },
+          "sourceTxHash": {
+            "type": "string"
+          },
+          "bankAccount": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "bankCode": {
+                "type": "string"
+              },
+              "accountNumberLast4": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "bankCode", "accountNumberLast4"]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "providerRef": {
+            "nullable": true,
+            "description": "The provider's reference; webhooks identify the payout by it",
+            "type": "string"
+          },
+          "testMode": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "The bank transfer is a sandbox; label it \"Mode uji\" (PLAN §3.2)"
+          },
+          "failureReason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "amountUsd",
+          "amountIdr",
+          "fxRate",
+          "fxSource",
+          "sourceTxHash",
+          "bankAccount",
+          "provider",
+          "providerRef",
+          "testMode",
+          "failureReason",
+          "createdAt",
+          "updatedAt"
         ]
       },
       "UserInput": {
@@ -718,6 +808,98 @@
           "expiresAt",
           "acceptedAt",
           "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "Payout": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "PROCESSING", "COMPLETED", "FAILED"]
+          },
+          "amountUsd": {
+            "type": "string",
+            "description": "What the transfer moved, in mock AUSD"
+          },
+          "amountIdr": {
+            "nullable": true,
+            "description": "What the bank receives",
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "fxRate": {
+            "nullable": true,
+            "description": "IDR per USD used for `amountIdr`",
+            "type": "number"
+          },
+          "fxSource": {
+            "nullable": true,
+            "description": "`live`, `cache` or `fallback` (see `/fx-rates`)",
+            "type": "string"
+          },
+          "sourceTxHash": {
+            "type": "string"
+          },
+          "bankAccount": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "bankCode": {
+                "type": "string"
+              },
+              "accountNumberLast4": {
+                "type": "string"
+              }
+            },
+            "required": ["id", "bankCode", "accountNumberLast4"],
+            "additionalProperties": false
+          },
+          "provider": {
+            "type": "string"
+          },
+          "providerRef": {
+            "nullable": true,
+            "description": "The provider's reference; webhooks identify the payout by it",
+            "type": "string"
+          },
+          "testMode": {
+            "type": "boolean",
+            "enum": [true],
+            "description": "The bank transfer is a sandbox; label it \"Mode uji\" (PLAN §3.2)"
+          },
+          "failureReason": {
+            "nullable": true,
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "amountUsd",
+          "amountIdr",
+          "fxRate",
+          "fxSource",
+          "sourceTxHash",
+          "bankAccount",
+          "provider",
+          "providerRef",
+          "testMode",
+          "failureReason",
+          "createdAt",
+          "updatedAt"
         ],
         "additionalProperties": false
       },
@@ -3005,6 +3187,413 @@
         }
       }
     },
+    "/api/v1/payouts": {
+      "post": {
+        "summary": "Cash out a transfer to one of my bank accounts (recipient)",
+        "tags": ["Payouts"],
+        "description": "First transfer mock AUSD from your account to `PAYOUT_ADDRESS` on-chain, then send its hash here. The API checks the receipt (token, sender, recipient, amount), converts at the current USD→IDR rate, and starts a sandbox disbursement. Poll `GET /payouts/:id` until `COMPLETED` or `FAILED`.\n\nOne payout per transfer: sending the same hash again returns the first payout (200). Errors: 409 `TX_PENDING` (not mined yet, retry), `PAYOUT_EXISTS` (another account used this hash); 400 `TX_FAILED`, `TX_NOT_A_PAYOUT`; 404 `BANK_ACCOUNT_NOT_FOUND`; 503 `PAYOUTS_UNAVAILABLE`.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "txHash": {
+                    "description": "The token transfer from your account to `PAYOUT_ADDRESS`",
+                    "type": "string",
+                    "pattern": "^0x[0-9a-fA-F]{64}$"
+                  },
+                  "bankAccountId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 64,
+                    "description": "One of your `/bank-accounts`"
+                  }
+                },
+                "required": ["txHash", "bankAccountId"]
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payout"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payout"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "My payouts (recipient)",
+        "tags": ["Payouts"],
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Payout"
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "nextCursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/payouts/{id}": {
+      "get": {
+        "summary": "One of my payouts, with its latest status",
+        "tags": ["Payouts"],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Payout"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/webhooks/payout-provider": {
+      "post": {
+        "summary": "Disbursement status from the payout provider",
+        "tags": ["Payouts"],
+        "description": "Called by the provider, not the web app. Signed with `PAYOUT_WEBHOOK_SECRET`: `x-payout-timestamp` is Unix seconds (at most 5 minutes old) and `x-payout-signature` is `sha256=` + hex HMAC-SHA256 of `<timestamp>.<raw body>`. Idempotent: a payout that already finished keeps its status.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "providerRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "status": {
+                    "type": "string",
+                    "enum": ["COMPLETED", "FAILED"]
+                  },
+                  "failureReason": {
+                    "type": "string",
+                    "maxLength": 200
+                  }
+                },
+                "required": ["providerRef", "status"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "received": {
+                      "type": "boolean",
+                      "enum": [true]
+                    }
+                  },
+                  "required": ["received"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/invites": {
       "post": {
         "summary": "Create a worker invite (employer) or a recipient invite (worker)",
@@ -3919,6 +4508,9 @@
     },
     {
       "name": "Bank accounts"
+    },
+    {
+      "name": "Payouts"
     },
     {
       "name": "Invites"
