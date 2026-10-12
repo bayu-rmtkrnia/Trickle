@@ -2,9 +2,9 @@ import Image from 'next/image'
 import { Button } from '@/components/ui/button'
 import { StatusBadge, badgeIcons } from '@/components/ui/status-badge'
 import { WAVE_SRC } from '@/lib/brand'
-import { dashboardCopy as t } from '@/lib/copy/employer'
 import { formatUsd } from '@/lib/format'
 import type { RunwayLevel } from '@/lib/runway'
+import { useEmployerCopy } from './use-employer-copy'
 
 /**
  * Kartu dana payroll + runway (DESIGN.md 6.6, 7.3). Gaya hero: `brand-fill`
@@ -23,6 +23,8 @@ export function RunwayCard({
   days: number | null
   className?: string
 }) {
+  const { copy, locale } = useEmployerCopy()
+  const t = copy.dashboard
   const topUpHintId = 'topup-hint'
   return (
     <section
@@ -45,7 +47,7 @@ export function RunwayCard({
           {balanceUsd === null ? (
             <p className="mt-2 text-title">{t.fundUnavailable}</p>
           ) : (
-            <p className="mt-1 font-display text-num-hero">{formatUsd(balanceUsd)}</p>
+            <p className="mt-1 font-display text-num-hero">{formatUsd(balanceUsd, locale)}</p>
           )}
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
@@ -70,6 +72,7 @@ export function RunwayCard({
 }
 
 function RunwayStatus({ level, days }: { level: RunwayLevel; days: number | null }) {
+  const t = useEmployerCopy().copy.dashboard
   switch (level) {
     case 'unknown':
       return <p className="text-label">{t.fundUnavailableHint}</p>

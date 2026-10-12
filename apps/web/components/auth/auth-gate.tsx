@@ -4,7 +4,8 @@ import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { isMockMode } from '@/lib/api'
-import { authCopy as t } from '@/lib/copy/auth'
+import { authCopy } from '@/lib/copy/auth'
+import { useDict } from '@/lib/i18n/client'
 import { useApiSession } from '@/lib/use-api-session'
 
 /**
@@ -25,6 +26,7 @@ export function AuthGate({
   mock?: boolean
 }) {
   const { status, login } = useApiSession()
+  const t = useDict(authCopy).auth
   const [loginFailed, setLoginFailed] = useState(false)
 
   if (mock || isMockMode()) return children

@@ -1,9 +1,9 @@
 import { Avatar } from '@/components/ui/avatar'
 import { PersonCard } from '@/components/ui/person-card'
 import type { Worker } from '@/lib/api'
-import { dashboardCopy as t } from '@/lib/copy/employer'
 import { formatDateShort, formatUsd } from '@/lib/format'
 import { streamedSince } from '@/lib/runway'
+import { useEmployerCopy } from './use-employer-copy'
 
 /** List kartu di mobile, tabel di layar >= 768px (DESIGN.md 6.6). */
 /**
@@ -19,6 +19,8 @@ export function WorkerList({
   now: number
   showStreamed: boolean
 }) {
+  const { copy, locale } = useEmployerCopy()
+  const t = copy.dashboard
   if (workers.length === 0) {
     return (
       <p className="rounded-xl border-[1.5px] border-dashed border-brand-text bg-surface p-4 text-muted">
@@ -36,12 +38,17 @@ export function WorkerList({
               name={w.displayName}
               subtitle={
                 showStreamed
-                  ? t.workerSince(formatDateShort(w.joinedAt), formatUsd(streamedSince(w, now)))
-                  : t.workerSinceOnly(formatDateShort(w.joinedAt))
+                  ? t.workerSince(
+                      formatDateShort(w.joinedAt, locale),
+                      formatUsd(streamedSince(w, now), locale),
+                    )
+                  : t.workerSinceOnly(formatDateShort(w.joinedAt, locale))
               }
               trailing={
                 <span className="block">
-                  <span className="block font-bold text-ink">{formatUsd(w.monthlySalaryUsd)}</span>
+                  <span className="block font-bold text-ink">
+                    {formatUsd(w.monthlySalaryUsd, locale)}
+                  </span>
                   <span className="block text-label text-muted">{t.perMonth}</span>
                 </span>
               }
@@ -80,12 +87,12 @@ export function WorkerList({
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right font-bold tabular-nums">
-                  {formatUsd(w.monthlySalaryUsd)}
+                  {formatUsd(w.monthlySalaryUsd, locale)}
                 </td>
-                <td className="px-4 py-3 text-muted">{formatDateShort(w.joinedAt)}</td>
+                <td className="px-4 py-3 text-muted">{formatDateShort(w.joinedAt, locale)}</td>
                 {showStreamed && (
                   <td className="px-4 py-3 text-right tabular-nums">
-                    {formatUsd(streamedSince(w, now))}
+                    {formatUsd(streamedSince(w, now), locale)}
                   </td>
                 )}
               </tr>

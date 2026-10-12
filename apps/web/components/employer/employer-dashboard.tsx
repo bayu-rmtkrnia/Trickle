@@ -20,11 +20,11 @@ import {
   type Worker,
 } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/api-error-message'
-import { dashboardCopy as t } from '@/lib/copy/employer'
 import type { EmployerState } from '@/lib/dev-state'
 import { formatUsd } from '@/lib/format'
 import { computeRunway } from '@/lib/runway'
 import { InviteList } from './invite-list'
+import { useEmployerCopy } from './use-employer-copy'
 import { InviteWorkerSheet } from './invite-worker-sheet'
 import { RevokeInviteSheet } from './revoke-invite-sheet'
 import { RunwayCard } from './runway-card'
@@ -72,6 +72,8 @@ export function EmployerDashboard({ devState }: { devState?: EmployerState }) {
 }
 
 function DashboardContent({ devState }: { devState?: EmployerState }) {
+  const { copy, locale } = useEmployerCopy()
+  const t = copy.dashboard
   const router = useRouter()
   const [data, setData] = useState<Data | null>(null)
   const [loadError, setLoadError] = useState<unknown>(null)
@@ -114,7 +116,7 @@ function DashboardContent({ devState }: { devState?: EmployerState }) {
   }
 
   if (loadError) {
-    const { title, message } = apiErrorMessage(loadError)
+    const { title, message } = apiErrorMessage(loadError, locale)
     return (
       <Shell>
         <InlineError title={title} message={message} action={{ label: t.retry, onClick: retry }} />
@@ -173,7 +175,7 @@ function DashboardContent({ devState }: { devState?: EmployerState }) {
           <StatCard
             className="enter enter-3"
             label={t.monthlyPayroll}
-            value={formatUsd(runway.monthlyUsd)}
+            value={formatUsd(runway.monthlyUsd, locale)}
           />
         </section>
 
@@ -231,11 +233,12 @@ function Shell({
   headerAction?: ReactNode
   children: ReactNode
 }) {
+  const t = useEmployerCopy().copy.dashboard
   return (
     <div className="min-h-dvh pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-10">
-      <DashboardHeader name={companyName} nameLabel="Perusahaan:" action={headerAction} />
+      <DashboardHeader name={companyName} nameLabel={t.companyLabel} action={headerAction} />
       <main className="mx-auto max-w-[1120px] px-4 pt-2">
-        <h1 className="sr-only">Dashboard perusahaan</h1>
+        <h1 className="sr-only">{t.heading}</h1>
         {children}
       </main>
     </div>
@@ -274,6 +277,7 @@ function Tabs({
   workers: ReactNode
   invites: ReactNode
 }) {
+  const t = useEmployerCopy().copy.dashboard
   const refs = useRef<Record<Tab, HTMLButtonElement | null>>({ workers: null, invites: null })
   const order: Tab[] = ['workers', 'invites']
 
@@ -336,7 +340,7 @@ function Tabs({
               }`}
             >
               {pendingCount}
-              <span className="sr-only"> menunggu</span>
+              <span className="sr-only"> {t.pendingSuffix}</span>
             </span>
           )}
         </button>
@@ -362,6 +366,7 @@ function Tabs({
 }
 
 function EmptyState({ onInvite }: { onInvite: () => void }) {
+  const t = useEmployerCopy().copy.dashboard
   return (
     <section className="flex flex-col items-center gap-3 rounded-xl border-[1.5px] border-dashed border-brand-text bg-surface px-6 py-10 text-center">
       <span className="grid size-16 place-items-center rounded-full bg-brand-fill text-on-brand">
@@ -378,6 +383,7 @@ function EmptyState({ onInvite }: { onInvite: () => void }) {
 }
 
 function DashboardSkeleton() {
+  const t = useEmployerCopy().copy.dashboard
   return (
     <Shell>
       <div role="status" className="flex flex-col gap-6">

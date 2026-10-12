@@ -1,8 +1,12 @@
 import type { Metadata } from 'next'
 import { EmployerDashboard } from '@/components/employer/employer-dashboard'
+import { employerCopy } from '@/lib/copy/employer'
 import { EMPLOYER_STATES, pickDevState } from '@/lib/dev-state'
+import { getLocale } from '@/lib/i18n/server'
 
-export const metadata: Metadata = { title: 'Dashboard · Trickle' }
+export async function generateMetadata(): Promise<Metadata> {
+  return { title: employerCopy[await getLocale()].dashboard.meta }
+}
 
 export default async function EmployerPage({
   searchParams,

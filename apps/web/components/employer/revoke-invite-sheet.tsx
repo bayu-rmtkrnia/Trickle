@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { Sheet } from '@/components/ui/sheet'
 import { revokeInvite, type Invite } from '@/lib/api'
-import { revokeCopy as t } from '@/lib/copy/employer'
+import { useEmployerCopy } from './use-employer-copy'
 
 /** Konfirmasi pembatalan undangan. Destruktif = merah; "Tidak jadi" = sekunder (DESIGN.md 5.6). */
 export function RevokeInviteSheet({
@@ -17,6 +17,7 @@ export function RevokeInviteSheet({
   onClose: () => void
   onRevoked: () => void
 }) {
+  const t = useEmployerCopy().copy.revoke
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
 

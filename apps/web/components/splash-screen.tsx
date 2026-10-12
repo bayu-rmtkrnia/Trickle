@@ -3,7 +3,8 @@
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { LOGO_HEIGHT, LOGO_INTRO_SRC, LOGO_WIDTH } from '@/lib/brand'
-import { splashCopy as t } from '@/lib/copy/common'
+import { commonCopy } from '@/lib/copy/common'
+import { useDict } from '@/lib/i18n/client'
 
 const MIN_VISIBLE_MS = 2700
 const FADE_MS = 200
@@ -14,6 +15,7 @@ const FADE_MS = 200
  * mulai dimuat, lalu fade-out 200 ms. Reduced-motion: langsung hilang begitu siap.
  */
 export function SplashScreen() {
+  const t = useDict(commonCopy).splash
   const [phase, setPhase] = useState<'show' | 'leaving' | 'gone'>('show')
 
   useEffect(() => {

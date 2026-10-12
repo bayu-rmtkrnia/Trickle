@@ -8,15 +8,18 @@ import { ChevronDownIcon } from '@/components/ui/icons'
 import { InlineError } from '@/components/ui/inline-error'
 import { createEmployer, isApiError } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/api-error-message'
-import { COUNTRIES, setupCopy as t } from '@/lib/copy/employer'
+import { COUNTRY_CODES } from '@/lib/copy/employer'
+import { useEmployerCopy } from './use-employer-copy'
 
 /** Onboarding employer (DESIGN.md 6.3). */
 export function EmployerSetupForm() {
+  const { copy, locale } = useEmployerCopy()
+  const t = copy.setup
   const router = useRouter()
   const nameId = useId()
   const countryId = useId()
   const [name, setName] = useState('')
-  const [country, setCountry] = useState<string>(COUNTRIES[0].code)
+  const [country, setCountry] = useState<string>(COUNTRY_CODES[0])
   const [nameError, setNameError] = useState<string>()
   /** `conflict` = sudah punya perusahaan; selain itu error API apa pun. */
   const [submitError, setSubmitError] = useState<{ error: unknown } | 'conflict'>()
@@ -75,9 +78,9 @@ export function EmployerSetupForm() {
               onChange={(e) => setCountry(e.target.value)}
               className={`${inputClass()} appearance-none pr-11`}
             >
-              {COUNTRIES.map((c) => (
-                <option key={c.code} value={c.code}>
-                  {c.name}
+              {COUNTRY_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {copy.countries[code]}
                 </option>
               ))}
             </select>
@@ -87,7 +90,10 @@ export function EmployerSetupForm() {
       </div>
 
       {typeof submitError === 'object' && (
-        <InlineError title={t.failedTitle} message={apiErrorMessage(submitError.error).message} />
+        <InlineError
+          title={t.failedTitle}
+          message={apiErrorMessage(submitError.error, locale).message}
+        />
       )}
       {submitError === 'conflict' && (
         <InlineError title={t.conflictTitle} action={{ label: t.toDashboard, href: '/employer' }} />
