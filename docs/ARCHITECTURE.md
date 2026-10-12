@@ -4,7 +4,7 @@ Isinya keadaan aplikasi **saat ini**: apa saja yang sudah ada, di mana letaknya,
 
 > **Aturan:** setiap PR yang menambah atau mengubah fitur, endpoint, tabel, env var, atau keputusan desain **wajib memperbarui file ini** di PR yang sama. Kalau ada isi file ini yang tidak lagi sesuai dengan kode, berarti file ini yang salah, jadi perbaiki.
 
-Terakhir diperbarui: 12 Okt 2026 (Fitur 13: ERD dan dokumen).
+Terakhir diperbarui: 12 Okt 2026 (panduan integrasi FE).
 
 ---
 
@@ -27,7 +27,7 @@ apps/api/        Backend (Fastify + Prisma + Postgres). Pemilik: BE
 apps/web/        Frontend Next.js + Privy (rute /employer, /w, /f). Pemilik: FE. Belum memanggil API (masih data mock)
 contracts/       Smart contract TricklePayroll (Foundry), ter-deploy di Monad testnet. Pemilik: SC
 packages/shared/ ABI + alamat kontrak (deployments/testnet.json) untuk FE/BE
-docs/            PLAN.md (sumber kebenaran scope), ARCHITECTURE.md (file ini), erd.md (database), roadmap BE, dokumen kuliah
+docs/            PLAN.md (sumber kebenaran scope), ARCHITECTURE.md (file ini), erd.md (database), backend/api-changes-fe.md (panduan integrasi FE), roadmap BE, dokumen kuliah
 .github/         CI + template PR
 docker-compose.yml   Postgres lokal (port 5433)
 railway.json     Deploy API ke Railway
