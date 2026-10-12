@@ -7,7 +7,8 @@ import { requestGas } from '@/lib/api/gas'
 import { createPayrollWriter, WithdrawalError } from '@/lib/chain/payroll-writer'
 import { createWithdrawalPort } from '@/lib/chain/withdrawal-port'
 import { WithdrawalCoordinator, type WithdrawalState } from '@/lib/chain/withdrawal-coordinator'
-import { pendingWithdrawalStore } from '@/lib/chain/withdraw-storage'
+import { pendingWithdrawalStore, withdrawalLockName } from '@/lib/chain/withdraw-storage'
+import { createWebLock } from '@/lib/chain/web-lock'
 const idle: WithdrawalState = {
   phase: 'idle',
   streamId: null,
@@ -62,6 +63,7 @@ export function useWithdrawal(
         return abort.signal
       },
       store: pendingWithdrawalStore(wallet),
+      lock: createWebLock(withdrawalLockName(wallet)),
       isCurrent: current,
       submissionNonce: () => writer.submissionNonce(wallet),
       verifyAbandoned: (pending) =>

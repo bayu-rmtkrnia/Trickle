@@ -262,6 +262,35 @@ describe('worker family section', () => {
     expect(deps.deleteRecipient).toHaveBeenCalledOnce()
   })
 
+  it('shows a percent error on the percent field, not on the recipient', async () => {
+    show()
+    await screen.findByRole('button', { name: 'Hapus penerima Ibu Sari' })
+    fireEvent.click(screen.getByRole('button', { name: 'Atur pembagian' }))
+    const sheet = dialog()
+    const percentInput = within(sheet).getByLabelText('Persen')
+    fireEvent.change(percentInput, { target: { value: '0' } })
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Simpan pembagian' }))
+    const message = within(sheet).getByText('Masukkan persen 0,01–100.')
+    expect(percentInput.getAttribute('aria-invalid')).toBe('true')
+    expect(percentInput.getAttribute('aria-describedby')).toBe(message.closest('p')!.id)
+    const select = within(sheet).getByRole('combobox')
+    expect(select.getAttribute('aria-invalid')).toBe('false')
+  })
+
+  it('keeps the split sheet open after leaving the SPLIT_ACTIVE sheet', async () => {
+    deps.deleteRecipient.mockRejectedValue(
+      new ApiError('conflict', 'x', { status: 409, code: 'SPLIT_ACTIVE' }),
+    )
+    show()
+    fireEvent.click(await screen.findByRole('button', { name: 'Hapus penerima Ibu Sari' }))
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Hapus penerima' }))
+    await within(dialog()).findByText('Penerima masih menerima pembagian')
+    fireEvent.click(within(dialog()).getByRole('button', { name: 'Atur pembagian' }))
+    // Let the closing sheet's history.back() and its popstate settle.
+    await new Promise((resolve) => setTimeout(resolve, 150))
+    expect(screen.getByRole('dialog', { name: 'Atur pembagian' })).toBeTruthy()
+  })
+
   it('removes a recipient without an active split', async () => {
     show()
     fireEvent.click(await screen.findByRole('button', { name: 'Hapus penerima Adik' }))

@@ -83,6 +83,8 @@ export function withdrawalMessage(error: unknown): string {
     PENDING_CHANGED: 'Status penarikan berubah di tab lain. Muat ulang sebelum melanjutkan.',
     SIGNATURE_PENDING:
       'Persetujuan wallet untuk penarikan ini masih terbuka di tab lain. Selesaikan atau tutup di sana, lalu periksa lagi.',
+    LOCK_UNAVAILABLE:
+      'Browser ini belum mendukung penguncian antar-tab yang dibutuhkan untuk penarikan aman. Perbarui browser lalu coba lagi.',
   }
   if (code && messages[code]) return messages[code]!
   const value = error as {

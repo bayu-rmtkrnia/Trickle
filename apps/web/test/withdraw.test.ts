@@ -490,6 +490,22 @@ describe('manual receipt identity verification', () => {
       writer.settle(worker, b(1), hash, config.deploymentBlock + b(3)),
     ).rejects.toMatchObject({ code: 'TRANSACTION_MISMATCH' })
   })
+  it('rejects a recovery hash whose transaction used another nonce', async () => {
+    const { port, writer } = fixture()
+    const tx = await port.transaction(hash)
+    vi.mocked(port.transaction).mockResolvedValue({ ...tx, nonce: b(8) })
+    await expect(writer.settle(worker, b(1), hash, undefined, b(7))).rejects.toMatchObject({
+      code: 'TRANSACTION_MISMATCH',
+    })
+    vi.mocked(port.transaction).mockResolvedValue({ ...tx, nonce: b(7) })
+    await expect(writer.settle(worker, b(1), hash, undefined, b(7))).resolves.toMatchObject({
+      toWorker: b(900),
+    })
+    vi.mocked(port.transaction).mockResolvedValue({ ...tx, nonce: undefined })
+    await expect(writer.settle(worker, b(1), hash, undefined, b(7))).rejects.toMatchObject({
+      code: 'TRANSACTION_MISMATCH',
+    })
+  })
   it('treats an unrelated transaction as unverifiable rather than a cancellation of the original request', async () => {
     const { port, writer } = fixture()
     vi.mocked(port.transaction).mockResolvedValue({

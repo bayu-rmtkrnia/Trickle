@@ -38,7 +38,13 @@ export interface WithdrawalPort extends ChainPort {
   simulate(worker: Address, id: bigint): Promise<void>
   fundGas(worker: Address, signal?: AbortSignal): Promise<void>
   receipt(hash: Hex): Promise<WithdrawalReceipt>
-  transaction(hash: Hex): Promise<{ from: Address; to: Address | null; input: Hex; value: bigint }>
+  transaction(hash: Hex): Promise<{
+    from: Address
+    to: Address | null
+    input: Hex
+    value: bigint
+    nonce?: bigint
+  }>
 }
 export class WithdrawalError extends Error {
   constructor(public readonly code: string) {
@@ -154,6 +160,7 @@ export function createPayrollWriter(port: WithdrawalPort) {
       id: bigint,
       hash: Hex,
       afterBlock?: bigint,
+      nonce?: bigint,
     ): Promise<WithdrawalResult> {
       await verified()
       const receipt = await port.receipt(hash)
@@ -168,6 +175,9 @@ export function createPayrollWriter(port: WithdrawalPort) {
         tx.value !== BigInt(0)
       )
         throw new WithdrawalError(receipt.replacement ? 'REPLACED' : 'TRANSACTION_MISMATCH')
+      // A same-shaped withdraw from another attempt is not this attempt.
+      if (nonce !== undefined && tx.nonce !== nonce)
+        throw new WithdrawalError('TRANSACTION_MISMATCH')
       if (receipt.status === 'reverted') throw new WithdrawalError('REVERTED')
       const withdrawn: { toWorker: bigint; toRecipients: bigint }[] = []
       const paid: SplitPayment[] = []

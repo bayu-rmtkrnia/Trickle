@@ -42,10 +42,17 @@ export function SplitSheet({
   const editing = ['idle', 'failed'].includes(state.phase)
   const busy = ['preparing', 'signing', 'pending'].includes(state.phase)
   const draft = buildSplitDraft(rows, worker ?? undefined)
-  const errorFor = (index: number) => {
-    if (!submitted || draft.ok) return undefined
-    const code = draft.rows[index]
-    return code ? (t.errors[code] ?? t.errors.percent) : undefined
+  const PERCENT_CODES = ['percent', 'INVALID_BPS']
+  const codeFor = (index: number) => (submitted && !draft.ok ? (draft.rows[index] ?? null) : null)
+  const recipientErrorFor = (index: number) => {
+    const code = codeFor(index)
+    return code && !PERCENT_CODES.includes(code)
+      ? (t.errors[code] ?? t.errors.recipient)
+      : undefined
+  }
+  const percentErrorFor = (index: number) => {
+    const code = codeFor(index)
+    return code && PERCENT_CODES.includes(code) ? (t.errors[code] ?? t.errors.percent) : undefined
   }
   const general = submitted && !draft.ok && draft.general ? t.errors[draft.general] : undefined
   const workerBps = Math.max(0, 10_000 - draft.totalBps)
@@ -120,7 +127,8 @@ export function SplitSheet({
         >
           {recipients.length === 0 && <p className="text-muted">{t.noRecipients}</p>}
           {rows.map((row, index) => {
-            const error = errorFor(index)
+            const error = recipientErrorFor(index)
+            const percentError = percentErrorFor(index)
             const selectId = `${baseId}-recipient-${index}`
             const percentId = `${baseId}-percent-${index}`
             return (
@@ -157,15 +165,16 @@ export function SplitSheet({
                       )}
                   </select>
                 </Field>
-                <Field id={percentId} label={t.percent} hint={t.percentHint}>
+                <Field id={percentId} label={t.percent} hint={t.percentHint} error={percentError}>
                   <input
                     id={percentId}
                     inputMode="decimal"
                     autoComplete="off"
                     value={row.percent}
                     onChange={(e) => update(index, { percent: e.target.value })}
-                    aria-describedby={describedBy(percentId, undefined, true)}
-                    className={`${inputClass()} tabular-nums`}
+                    aria-invalid={Boolean(percentError)}
+                    aria-describedby={describedBy(percentId, percentError, true)}
+                    className={`${inputClass(Boolean(percentError))} tabular-nums`}
                   />
                 </Field>
                 <Button

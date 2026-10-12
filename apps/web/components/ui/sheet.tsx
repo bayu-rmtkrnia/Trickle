@@ -17,6 +17,27 @@ type SheetProps = {
 const HISTORY_KEY = 'trickleSheet'
 
 /**
+ * Runs `next` once a sheet that is closing has finished its `history.back()`.
+ * Opening another sheet before that popstate lands would let it close the new one.
+ */
+export function afterSheetHistory(next: () => void, timeoutMs = 500) {
+  if (typeof window === 'undefined' || !window.history.state?.[HISTORY_KEY]) {
+    queueMicrotask(next)
+    return
+  }
+  let done = false
+  const run = () => {
+    if (done) return
+    done = true
+    clearTimeout(timer)
+    window.removeEventListener('popstate', run)
+    next()
+  }
+  window.addEventListener('popstate', run)
+  const timer = setTimeout(run, timeoutMs)
+}
+
+/**
  * Bottom sheet di mobile, drawer kanan di layar >= 768px (DESIGN.md 5.8, 6.7).
  * Pakai <dialog> modal: fokus masuk dan terkunci di dalam, Esc menutup, dan
  * fokus kembali ke pemicu. Tombol Back Android menutup sheet lewat history (11.4).

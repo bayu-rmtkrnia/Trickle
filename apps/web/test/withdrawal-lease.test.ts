@@ -4,6 +4,7 @@ import type { Hex } from 'viem'
 import type { createPayrollWriter, WithdrawalResult } from '@/lib/chain/payroll-writer'
 import {
   WithdrawalCoordinator,
+  createMemoryLock,
   type PendingWithdrawal,
   type WithdrawalDependencies,
 } from '@/lib/chain/withdrawal-coordinator'
@@ -236,5 +237,97 @@ describe('withdrawal record storage', () => {
     )
     expect(() => store.read()).toThrow()
     store.write(null)
+  })
+})
+
+describe('withdrawal attempt ownership across tabs', () => {
+  it('lets only one tab enter the signing step even when storage reads are stale', async () => {
+    // Each tab sees the other's write only later, like separate browser processes.
+    const shared = { value: null as PendingWithdrawal | null }
+    const store = {
+      read: () => shared.value,
+      write: (value: PendingWithdrawal | null) => {
+        setTimeout(() => {
+          shared.value = value
+        }, 0)
+      },
+    }
+    const lock = createMemoryLock()
+    const signature = deferred<{ hash: Hex }>()
+    const send = vi.fn(() => signature.promise)
+    const deps = {
+      worker,
+      writer: writer(),
+      store,
+      send,
+      isCurrent: () => true,
+      onSuccess: vi.fn(),
+      lock,
+    }
+    const one = new WithdrawalCoordinator(deps)
+    const two = new WithdrawalCoordinator(deps)
+    one.select(b(1))
+    two.select(b(1))
+    const runs = Promise.all([one.submit(), two.submit()])
+    await vi.waitFor(() => expect(two.getSnapshot().phase).toBe('failed'))
+    expect(send).toHaveBeenCalledOnce()
+    expect(two.getSnapshot().error).toMatchObject({ code: 'SIGNATURE_PENDING' })
+    signature.resolve({ hash })
+    await runs
+  })
+
+  it('refuses abandon while another tab holds the signing lock', async () => {
+    const lock = createMemoryLock()
+    const { first, send, store, verifyAbandoned, open } = tabs({ lock, now: () => 1e15 })
+    void startSigning(first, send)
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    // Even with an expired lease, the lock proves the prompt is still open.
+    store.set({ ...store.raw()!, leaseUntil: '1' })
+    const second = open()
+    await second.abandon()
+    expect(second.getSnapshot().error).toMatchObject({ code: 'SIGNATURE_PENDING' })
+    expect(verifyAbandoned).not.toHaveBeenCalled()
+  })
+
+  it('keeps a signed hash across reload when another attempt replaced the record', async () => {
+    window.localStorage.clear()
+    const store = pendingWithdrawalStore(worker)
+    const signature = deferred<{ hash: Hex }>()
+    const send = vi.fn(() => signature.promise)
+    const w = writer()
+    // Settlement cannot be confirmed yet, so the hash must survive a reload.
+    w.settle.mockRejectedValueOnce(new Error('rpc timeout'))
+    const deps: WithdrawalDependencies = {
+      worker,
+      writer: w,
+      store,
+      send,
+      isCurrent: () => true,
+      onSuccess: vi.fn(),
+      submissionNonce: async () => b(7),
+    }
+    const first = new WithdrawalCoordinator(deps)
+    first.select(b(1))
+    const run = first.submit()
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce())
+    store.write({ streamId: '1', hash: null, attemptId: 'someone-else', afterBlock: '20' })
+    signature.resolve({ hash })
+    await run
+    expect(first.getSnapshot()).toMatchObject({ phase: 'unknown', hash })
+    const reloaded = new WithdrawalCoordinator(deps)
+    expect(reloaded.getSnapshot()).toMatchObject({ phase: 'unknown', hash })
+    await reloaded.resume()
+    expect(reloaded.getSnapshot().phase).toBe('success')
+    expect(send).toHaveBeenCalledOnce()
+    window.localStorage.clear()
+  })
+
+  it('checks a manually entered hash against the stored nonce', async () => {
+    const { store, writer: w, open } = tabs()
+    store.set({ streamId: '1', hash: null, afterBlock: '20', nonce: '7', attemptId: 'a' })
+    const recovered = open()
+    const manual = `0x${'b'.repeat(64)}` as Hex
+    await recovered.resume(manual)
+    expect(w.settle).toHaveBeenCalledWith(worker, b(1), manual, b(20), b(7))
   })
 })

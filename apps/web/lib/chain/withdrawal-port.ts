@@ -71,7 +71,13 @@ export function createWithdrawalPort(
     },
     transaction: async (hash) => {
       const tx = await client.getTransaction({ hash })
-      return { from: tx.from, to: tx.to, input: tx.input, value: tx.value }
+      return {
+        from: tx.from,
+        to: tx.to,
+        input: tx.input,
+        value: tx.value,
+        nonce: BigInt(tx.nonce),
+      }
     },
   }
 }

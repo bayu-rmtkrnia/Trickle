@@ -29,6 +29,30 @@ export interface WithdrawalState {
 export interface PendingStore {
   read(): PendingWithdrawal | null
   write(p: PendingWithdrawal | null): void
+  /** Keeps a second record (e.g. a signed hash whose slot was taken) across reloads. */
+  stash?(p: PendingWithdrawal): void
+  /** Removes and returns the oldest stashed record. */
+  takeStashed?(): PendingWithdrawal | null
+}
+/**
+ * Runs `run` only if no other tab holds the same lock, atomically. Returns
+ * `{ acquired: false }` without running when it is held elsewhere.
+ */
+export type WithdrawalLock = <T>(
+  run: () => Promise<T>,
+) => Promise<{ acquired: true; value: T } | { acquired: false }>
+/** Same-context lock for tests and environments without Web Locks. */
+export function createMemoryLock(): WithdrawalLock {
+  let held = false
+  return async (run) => {
+    if (held) return { acquired: false }
+    held = true
+    try {
+      return { acquired: true, value: await run() }
+    } finally {
+      held = false
+    }
+  }
 }
 export interface WithdrawalDependencies {
   worker: Address
@@ -43,6 +67,8 @@ export interface WithdrawalDependencies {
   now?(): number
   /** How long a signature lease lasts without renewal (default 30 s). */
   leaseMs?: number
+  /** Cross-tab lock around the signing step; see `createWebLock`. */
+  lock?: WithdrawalLock
 }
 const LEASE_MS = 30_000
 const HASH = /^0x[0-9a-f]{64}$/i
@@ -62,9 +88,11 @@ export class WithdrawalCoordinator {
   private listeners = new Set<() => void>()
   private busy = false
   private marker: PendingWithdrawal | null = null
+  private readonly lock: WithdrawalLock
   constructor(private deps: WithdrawalDependencies) {
+    this.lock = deps.lock ?? createMemoryLock()
     try {
-      const pending = deps.store.read()
+      const pending = deps.store.read() ?? this.promoteStashed()
       if (pending) {
         this.marker = pending
         this.state = {
@@ -77,6 +105,12 @@ export class WithdrawalCoordinator {
     } catch (error) {
       this.state = { ...this.state, phase: 'failed', error }
     }
+  }
+  /** Moves a stashed record into the main slot when that slot is free. */
+  private promoteStashed() {
+    const next = this.deps.store.takeStashed?.() ?? null
+    if (next) this.deps.store.write(next)
+    return next
   }
   getSnapshot = () => this.state
   subscribe = (listener: () => void) => {
@@ -136,20 +170,29 @@ export class WithdrawalCoordinator {
   }
   /**
    * Records a hash the wallet returned. A real transaction must never lose its
-   * record: if this tab's marker vanished it is written back; if another attempt
-   * replaced it, the hash is still shown and recovery is required.
+   * record: if this tab's marker vanished it is written back. If another
+   * attempt took the slot, the signed record wins the slot when the other has
+   * no hash; otherwise it is stashed. Either way it survives a reload.
    */
   private keepHash(hash: Hex) {
     const stored = this.deps.store.read()
+    const mine = { ...this.marker!, hash, leaseUntil: null }
     if (this.marker && stored && sameAttempt(this.marker, stored)) {
       this.save({ hash, leaseUntil: null })
       return
     }
     if (this.marker && !stored) {
-      this.marker = { ...this.marker, hash, leaseUntil: null }
+      this.marker = mine
       this.deps.store.write(this.marker)
       return
     }
+    if (stored && !stored.hash && this.deps.store.stash) {
+      this.deps.store.stash(stored)
+      this.marker = mine
+      this.deps.store.write(mine)
+      return
+    }
+    this.deps.store.stash?.(mine)
     this.update({ hash })
     throw new WithdrawalError('PENDING_CHANGED')
   }
@@ -178,38 +221,57 @@ export class WithdrawalCoordinator {
       const afterBlock = (await this.deps.writer.submissionBlock()).toString()
       const nonce = await this.deps.submissionNonce?.()
       if (!this.deps.isCurrent()) return
-      const existing = this.deps.store.read()
-      if (existing) {
-        this.marker = existing
-        this.update({ phase: 'unknown', hash: existing.hash, streamId: BigInt(existing.streamId) })
+      // The whole check-then-claim-then-sign step runs under one cross-tab
+      // lock, so two tabs can never both see an empty slot and both sign.
+      const outcome = await this.lock(async (): Promise<Hex | null> => {
+        const existing = this.deps.store.read() ?? this.promoteStashed()
+        if (existing) {
+          this.marker = existing
+          this.update({
+            phase: 'unknown',
+            hash: existing.hash,
+            streamId: BigInt(existing.streamId),
+          })
+          return null
+        }
+        const marker: PendingWithdrawal = {
+          streamId: id.toString(),
+          hash: null,
+          afterBlock,
+          ...(nonce === undefined ? {} : { nonce: nonce.toString() }),
+          attemptId: crypto.randomUUID(),
+          leaseUntil: String(this.now() + this.leaseMs),
+        }
+        // Saved before the signature so a lost response still blocks another withdrawal.
+        this.deps.store.write(marker)
+        this.marker = marker
+        sending = true
+        this.update({ phase: 'signing', checking: false })
+        // The lease covers tabs reloaded mid-prompt; the pinned nonce means two
+        // signatures of one attempt cannot both be mined.
+        const renew = setInterval(() => this.renewLease(), this.leaseMs / 3)
+        let signed: Hex
+        try {
+          ;({ hash: signed } = await this.deps.send(
+            nonce === undefined ? request : { ...request, nonce },
+          ))
+        } finally {
+          clearInterval(renew)
+        }
+        if (!HASH.test(signed)) throw new WithdrawalError('INVALID_HASH')
+        this.update({ phase: 'pending', hash: signed })
+        this.keepHash(signed)
+        return signed
+      })
+      if (!outcome.acquired) {
+        this.update({
+          phase: 'failed',
+          error: new WithdrawalError('SIGNATURE_PENDING'),
+          checking: false,
+        })
         return
       }
-      const marker: PendingWithdrawal = {
-        streamId: id.toString(),
-        hash: null,
-        afterBlock,
-        ...(nonce === undefined ? {} : { nonce: nonce.toString() }),
-        attemptId: crypto.randomUUID(),
-        leaseUntil: String(this.now() + this.leaseMs),
-      }
-      // Saved before the signature so a lost response still blocks another withdrawal.
-      this.deps.store.write(marker)
-      this.marker = marker
-      sending = true
-      this.update({ phase: 'signing', checking: false })
-      // The lease tells other tabs this signature is still open; the pinned
-      // nonce means two signatures of one attempt cannot both be mined.
-      const renew = setInterval(() => this.renewLease(), this.leaseMs / 3)
-      let hash: Hex
-      try {
-        ;({ hash } = await this.deps.send(nonce === undefined ? request : { ...request, nonce }))
-      } finally {
-        clearInterval(renew)
-      }
-      if (!HASH.test(hash)) throw new WithdrawalError('INVALID_HASH')
-      this.update({ phase: 'pending', hash })
-      this.keepHash(hash)
-      await this.wait(id, hash)
+      if (outcome.value) await this.wait(id, outcome.value)
     } catch (error) {
       const beforeSubmission =
         error instanceof WithdrawalError &&
@@ -233,11 +295,14 @@ export class WithdrawalCoordinator {
   private async wait(id: bigint, hash: Hex) {
     try {
       const afterBlock = this.marker?.afterBlock
+      const nonce = this.marker?.nonce
+      // The stored nonce ties any hash, including a manual one, to this attempt.
       const result = await this.deps.writer.settle(
         this.deps.worker,
         id,
         hash,
         afterBlock ? BigInt(afterBlock) : undefined,
+        nonce ? BigInt(nonce) : undefined,
       )
       this.clearOwnMarker()
       if (!this.deps.isCurrent()) return
@@ -308,27 +373,32 @@ export class WithdrawalCoordinator {
     this.busy = true
     this.update({ checking: true, error: null })
     try {
-      const stored = this.refreshMarker()
-      if (!stored || !sameAttempt(this.marker, stored)) throw new WithdrawalError('PENDING_CHANGED')
-      if (stored.hash) {
-        // Another tab recorded the hash meanwhile: follow it instead of abandoning.
-        this.update({ hash: stored.hash, streamId: BigInt(stored.streamId) })
-        return
-      }
-      if (this.leaseActive(stored)) throw new WithdrawalError('SIGNATURE_PENDING')
-      if (
-        !stored.nonce ||
-        !stored.afterBlock ||
-        !this.deps.verifyAbandoned ||
-        !(await this.deps.verifyAbandoned(stored)) ||
-        !this.deps.isCurrent()
-      )
-        throw new WithdrawalError('RECOVERY_UNVERIFIED')
-      const after = this.refreshMarker()
-      if (!after || !sameAttempt(stored, after) || after.hash || this.leaseActive(after))
-        throw new WithdrawalError('PENDING_CHANGED')
-      if (!this.clearOwnMarker()) throw new WithdrawalError('PENDING_CHANGED')
-      this.update({ phase: 'idle', streamId: null, hash: null, error: null })
+      // Under the signing lock: a tab still showing its wallet prompt holds it.
+      const outcome = await this.lock(async () => {
+        const stored = this.refreshMarker()
+        if (!stored || !sameAttempt(this.marker!, stored))
+          throw new WithdrawalError('PENDING_CHANGED')
+        if (stored.hash) {
+          // Another tab recorded the hash meanwhile: follow it instead of abandoning.
+          this.update({ hash: stored.hash, streamId: BigInt(stored.streamId) })
+          return
+        }
+        if (this.leaseActive(stored)) throw new WithdrawalError('SIGNATURE_PENDING')
+        if (
+          !stored.nonce ||
+          !stored.afterBlock ||
+          !this.deps.verifyAbandoned ||
+          !(await this.deps.verifyAbandoned(stored)) ||
+          !this.deps.isCurrent()
+        )
+          throw new WithdrawalError('RECOVERY_UNVERIFIED')
+        const after = this.refreshMarker()
+        if (!after || !sameAttempt(stored, after) || after.hash || this.leaseActive(after))
+          throw new WithdrawalError('PENDING_CHANGED')
+        if (!this.clearOwnMarker()) throw new WithdrawalError('PENDING_CHANGED')
+        this.update({ phase: 'idle', streamId: null, hash: null, error: null })
+      })
+      if (!outcome.acquired) throw new WithdrawalError('SIGNATURE_PENDING')
     } catch (error) {
       this.update({ phase: 'unknown', error })
     } finally {

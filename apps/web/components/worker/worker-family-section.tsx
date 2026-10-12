@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { PersonCard } from '@/components/ui/person-card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { afterSheetHistory } from '@/components/ui/sheet'
 import { StatusBadge } from '@/components/ui/status-badge'
 import type { WorkerStreamState } from '@/hooks/use-worker-streams'
 import { useSplitSettings } from '@/hooks/use-split-settings'
@@ -247,7 +248,11 @@ export function WorkerFamilySection({
         recipient={removing}
         onClose={() => setRemoving(null)}
         onRemove={family.remove}
-        onEditSplit={openSplit}
+        onEditSplit={() => {
+          // Close this sheet first; open the split sheet after its history settles.
+          setRemoving(null)
+          afterSheetHistory(openSplit)
+        }}
       />
     </section>
   )
