@@ -19,6 +19,7 @@ describe.skipIf(!url)('api (integration)', () => {
     NODE_ENV: 'test',
     DATABASE_URL: url,
     GAS_DRIP_DAILY_LIMIT: '3',
+    GAS_DRIP_IP_DAILY_LIMIT: '2',
     DEMO_STREAM_IP_DAILY_LIMIT: '2',
     BANK_ENCRYPTION_KEY: 'ab'.repeat(32),
   })
@@ -1160,7 +1161,7 @@ describe.skipIf(!url)('api (integration)', () => {
 
       const first = await app.inject({
         method: 'POST',
-        url: '/api/v1/gas/drip',
+        url: '/api/v1/gas-drips',
         headers: as(user.token),
       })
       expect(first.statusCode).toBe(201)
@@ -1168,7 +1169,7 @@ describe.skipIf(!url)('api (integration)', () => {
 
       const second = await app.inject({
         method: 'POST',
-        url: '/api/v1/gas/drip',
+        url: '/api/v1/gas-drips',
         headers: as(user.token),
       })
       expect(second.statusCode).toBe(200)
@@ -1182,7 +1183,7 @@ describe.skipIf(!url)('api (integration)', () => {
       sendNative.mockRejectedValueOnce(new Error('rpc down'))
       const failed = await app.inject({
         method: 'POST',
-        url: '/api/v1/gas/drip',
+        url: '/api/v1/gas-drips',
         headers: as(user.token),
       })
       expect(failed.statusCode).toBe(502)
@@ -1191,7 +1192,7 @@ describe.skipIf(!url)('api (integration)', () => {
       sendNative.mockResolvedValueOnce(`0x${'cd'.repeat(32)}`)
       const retry = await app.inject({
         method: 'POST',
-        url: '/api/v1/gas/drip',
+        url: '/api/v1/gas-drips',
         headers: as(user.token),
       })
       expect(retry.statusCode).toBe(201)
@@ -1199,23 +1200,99 @@ describe.skipIf(!url)('api (integration)', () => {
 
     it('enforces the daily limit', async () => {
       sendNative.mockResolvedValue(`0x${'ef'.repeat(32)}`)
-      for (const name of ['a', 'b', 'c']) {
+      // Different IPs, so only the overall cap applies.
+      const dripFrom = async (name: string, ip: string) =>
+        app.inject({
+          method: 'POST',
+          url: '/api/v1/gas-drips',
+          headers: as((await signIn(name)).token),
+          remoteAddress: ip,
+        })
+      for (const [i, name] of ['a', 'b', 'c'].entries()) {
+        expect((await dripFrom(name, `10.0.0.${i + 1}`)).statusCode).toBe(201)
+      }
+      const res = await dripFrom('d', '10.0.0.9')
+      expect(res.statusCode).toBe(429)
+      expect(res.json().error.code).toBe('DRIP_DAILY_LIMIT')
+    })
+
+    it('caps drips per IP', async () => {
+      sendNative.mockResolvedValue(`0x${'ef'.repeat(32)}`)
+      for (const name of ['a', 'b']) {
         const u = await signIn(name)
         const r = await app.inject({
           method: 'POST',
-          url: '/api/v1/gas/drip',
+          url: '/api/v1/gas-drips',
           headers: as(u.token),
         })
         expect(r.statusCode).toBe(201)
       }
-      const late = await signIn('d')
+      const third = await signIn('c')
+      const res = await app.inject({
+        method: 'POST',
+        url: '/api/v1/gas-drips',
+        headers: as(third.token),
+      })
+      expect(res.statusCode).toBe(429)
+      expect(res.json().error.code).toBe('DRIP_IP_LIMIT')
+      expect(sendNative).toHaveBeenCalledTimes(2)
+    })
+
+    it('keeps the old paths working, marked deprecated', async () => {
+      const user = await signIn('newbie')
+      sendNative.mockResolvedValue(`0x${'ab'.repeat(32)}`)
       const res = await app.inject({
         method: 'POST',
         url: '/api/v1/gas/drip',
-        headers: as(late.token),
+        headers: as(user.token),
       })
-      expect(res.statusCode).toBe(429)
-      expect(res.json().error.code).toBe('DRIP_DAILY_LIMIT')
+      expect(res.statusCode).toBe(201)
+      expect(res.headers.deprecation).toBe('true')
+      expect(res.headers.link).toBe('</api/v1/gas-drips>; rel="successor-version"')
+
+      const status = await app.inject({ method: 'GET', url: '/api/v1/gas/status' })
+      expect(status.statusCode).toBe(200)
+      expect(status.headers.deprecation).toBe('true')
+      const current = await app.inject({ method: 'GET', url: '/api/v1/gas-drips/status' })
+      expect(current.json()).toMatchObject({ configured: true, dripsLast24h: 1 })
+      expect(current.headers.deprecation).toBeUndefined()
+    })
+  })
+
+  describe('fx rates', () => {
+    const rate = {
+      base: 'USD',
+      quote: 'IDR',
+      rate: 16400,
+      source: 'live',
+      rateTime: '2026-10-12T00:00:00.000Z',
+      fetchedAt: '2026-10-12T00:01:00.000Z',
+    } as const
+
+    it('needs a session on the new path, with any role', async () => {
+      fx.usdIdr.mockResolvedValue(rate)
+      const anon = await app.inject({ method: 'GET', url: '/api/v1/fx-rates/usd-idr' })
+      expect(anon.statusCode).toBe(401)
+
+      // A brand-new account (no role yet, e.g. judge mode) may read it.
+      const user = await signIn('newbie')
+      const res = await app.inject({
+        method: 'GET',
+        url: '/api/v1/fx-rates/usd-idr',
+        headers: as(user.token),
+      })
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual(rate)
+      expect(res.headers['cache-control']).toBe('private, max-age=60')
+    })
+
+    it('keeps the old public path, marked deprecated', async () => {
+      fx.usdIdr.mockResolvedValue(rate)
+      const res = await app.inject({ method: 'GET', url: '/api/v1/fx/usd-idr' })
+      expect(res.statusCode).toBe(200)
+      expect(res.json()).toEqual(rate)
+      expect(res.headers.deprecation).toBe('true')
+      expect(res.headers.link).toBe('</api/v1/fx-rates/usd-idr>; rel="successor-version"')
     })
   })
 

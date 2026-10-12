@@ -50,6 +50,8 @@ const EnvSchema = z.object({
   GAS_TREASURY_PRIVATE_KEY: hexKey.optional().or(z.literal('').transform(() => undefined)),
   GAS_DRIP_AMOUNT_MON: z.string().default('0.05'),
   GAS_DRIP_DAILY_LIMIT: z.coerce.number().int().positive().default(200),
+  /** Drips one IP may trigger per day, so one person cannot farm MON with many accounts. */
+  GAS_DRIP_IP_DAILY_LIMIT: z.coerce.number().int().positive().default(5),
 
   /**
    * 32 random bytes as hex (`openssl rand -hex 32`). Encrypts bank account

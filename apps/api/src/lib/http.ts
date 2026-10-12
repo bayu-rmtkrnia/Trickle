@@ -1,5 +1,6 @@
 import type {
   ContextConfigDefault,
+  FastifyReply,
   FastifyRequest,
   FastifySchema,
   RawReplyDefaultExpression,
@@ -30,3 +31,16 @@ export type Handler<S extends FastifySchema> = RouteHandlerMethod<
  * per route. Use them in `preHandler`, where Zod has already validated params.
  */
 export const idParam = (req: FastifyRequest) => (req.params as { id: string }).id
+
+/**
+ * Route options for an old path kept while the web app moves to `successor`.
+ * Responses carry `Deprecation` and a `Link` to the new path (RFC 9745), and
+ * the OpenAPI entry is marked deprecated by the caller's schema.
+ */
+export const deprecatedAlias = (successor: string) => ({
+  onSend: async (_req: FastifyRequest, reply: FastifyReply, payload: unknown) => {
+    reply.header('deprecation', 'true')
+    reply.header('link', `<${successor}>; rel="successor-version"`)
+    return payload
+  },
+})

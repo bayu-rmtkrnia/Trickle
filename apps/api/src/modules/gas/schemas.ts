@@ -29,7 +29,11 @@ export const dripSchema = {
   tags: ['Gas'],
   summary: "Fund the signed-in account's gas, once per address",
   description:
-    'Called by the web app right after an account is created, so users never hold or see MON. Idempotent: calling again returns the original drip. Capped per day across all users.',
+    'Called by the web app before the first transaction (e.g. a withdrawal), so users never hold or see MON. ' +
+    'Open to any signed-in account, including brand-new judge mode accounts. ' +
+    'Idempotent: calling again returns the original drip (200). `SENT` means broadcast; wait for the receipt of `txHash` before relying on the balance.\n\n' +
+    'Errors: 429 `DRIP_IP_LIMIT` (per IP per day), `DRIP_DAILY_LIMIT` (all users), `RATE_LIMITED`; ' +
+    '503 `DRIP_UNAVAILABLE` (no treasury configured), `DRIP_TREASURY_EMPTY`; 502 `DRIP_FAILED` (safe to retry).',
   security: [{ bearerAuth: [] }],
   response: { 200: DripDto, 201: DripDto, ...errors(401, 429, 502, 503) },
 } satisfies FastifySchema
@@ -39,3 +43,14 @@ export const gasStatusSchema = {
   summary: 'Treasury balance and drip usage, for monitoring',
   response: { 200: GasStatus },
 } satisfies FastifySchema
+
+const deprecated = (successor: string) => ({
+  deprecated: true,
+  description: `Deprecated: use \`${successor}\`. Kept until the web app moves over; same behaviour.`,
+})
+
+export const legacyDripSchema = { ...dripSchema, ...deprecated('POST /gas-drips') }
+export const legacyGasStatusSchema = {
+  ...gasStatusSchema,
+  ...deprecated('GET /gas-drips/status'),
+}
