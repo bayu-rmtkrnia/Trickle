@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { DashboardHeader } from '@/components/ui/dashboard-header'
 import { PlusIcon, UsersIcon } from '@/components/ui/icons'
 import { AuthGate } from '@/components/auth/auth-gate'
+import { SignOutButton } from '@/components/auth/sign-out-button'
 import { InlineError } from '@/components/ui/inline-error'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
@@ -236,7 +237,18 @@ function Shell({
   const t = useEmployerCopy().copy.dashboard
   return (
     <div className="min-h-dvh pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-10">
-      <DashboardHeader name={companyName} nameLabel={t.companyLabel} action={headerAction} />
+      <DashboardHeader
+        name={companyName}
+        nameLabel={t.companyLabel}
+        action={
+          companyName && (
+            <>
+              {headerAction}
+              <SignOutButton />
+            </>
+          )
+        }
+      />
       <main className="mx-auto max-w-[1120px] px-4 pt-2">
         <h1 className="sr-only">{t.heading}</h1>
         {children}

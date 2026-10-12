@@ -139,3 +139,9 @@ export const BuildingIcon = (p: IconProps) => (
     <path d="M9 7h1M14 7h1M9 11h1M14 11h1M9 15h1M14 15h1M10 21v-3h4v3" />
   </Icon>
 )
+
+export const LogOutIcon = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3M10 17l5-5-5-5M15 12H3" />
+  </Icon>
+)
