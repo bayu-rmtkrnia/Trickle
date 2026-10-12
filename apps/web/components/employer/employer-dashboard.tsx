@@ -2,12 +2,11 @@
 
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { Avatar } from '@/components/ui/avatar'
 import { Button } from '@/components/ui/button'
+import { DashboardHeader } from '@/components/ui/dashboard-header'
 import { PlusIcon, UsersIcon } from '@/components/ui/icons'
 import { AuthGate } from '@/components/auth/auth-gate'
 import { InlineError } from '@/components/ui/inline-error'
-import { Logo } from '@/components/ui/logo'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   applyMockScenario,
@@ -234,21 +233,7 @@ function Shell({
 }) {
   return (
     <div className="min-h-dvh pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-10">
-      <header className="sticky top-0 z-10 bg-bg pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto flex min-h-16 max-w-[1120px] items-center gap-3 px-4">
-          <Logo height={24} priority />
-          {companyName && (
-            <p className="min-w-0 flex-1 truncate text-label text-muted">
-              <span className="sr-only">Perusahaan: </span>
-              {companyName}
-            </p>
-          )}
-          <div className="ml-auto flex items-center gap-3">
-            {headerAction}
-            {companyName && <Avatar name={companyName} />}
-          </div>
-        </div>
-      </header>
+      <DashboardHeader name={companyName} nameLabel="Perusahaan:" action={headerAction} />
       <main className="mx-auto max-w-[1120px] px-4 pt-2">
         <h1 className="sr-only">Dashboard perusahaan</h1>
         {children}

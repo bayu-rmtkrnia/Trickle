@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { SplashScreen } from '@/components/splash-screen'
 import { splashScript } from '@/lib/splash'
 import { TricklePrivyProvider } from '@/providers/privy-provider'
+import { TrickleSessionProvider } from '@/providers/session-provider'
 import './globals.css'
 
 const anton = Anton({ weight: '400', subsets: ['latin'], variable: '--font-anton' })
@@ -34,7 +35,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body className="min-h-dvh bg-bg font-sans text-ink antialiased">
         <SplashScreen />
-        <TricklePrivyProvider>{children}</TricklePrivyProvider>
+        <TricklePrivyProvider>
+          <TrickleSessionProvider>{children}</TrickleSessionProvider>
+        </TricklePrivyProvider>
       </body>
     </html>
   )

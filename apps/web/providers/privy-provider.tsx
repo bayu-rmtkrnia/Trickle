@@ -5,9 +5,12 @@ import {
   getEmbeddedConnectedWallet,
   usePrivy,
   useWallets,
+  useSendTransaction,
 } from '@privy-io/react-auth'
-import type { ReactNode } from 'react'
+import { useEffect, useRef, type ReactNode } from 'react'
 import { AccountContext, type Account } from '@/lib/account'
+import { payrollChain } from '@/lib/chain/config'
+import { sendEmbeddedTransaction } from '@/lib/chain/embedded-wallet'
 
 const unconfiguredAccount: Account = {
   configured: false,
@@ -20,13 +23,24 @@ const unconfiguredAccount: Account = {
   },
   logout: async () => {},
   getAccessToken: async () => null,
+  sendTransaction: async () => {
+    throw new Error('Privy not configured')
+  },
 }
 
 function PrivyAccountAdapter({ children }: { children: ReactNode }) {
   const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy()
   const { ready: walletsReady, wallets } = useWallets()
+  const { sendTransaction } = useSendTransaction()
   const accountReady = ready && (!authenticated || walletsReady)
   const embeddedWallet = getEmbeddedConnectedWallet(wallets)
+  const currentWallet = useRef<typeof embeddedWallet>(undefined)
+  useEffect(() => {
+    currentWallet.current = accountReady && authenticated ? embeddedWallet : undefined
+    return () => {
+      currentWallet.current = undefined
+    }
+  }, [accountReady, authenticated, embeddedWallet])
 
   const account: Account = {
     configured: true,
@@ -48,6 +62,8 @@ function PrivyAccountAdapter({ children }: { children: ReactNode }) {
       if (!accountReady || !authenticated) return null
       return getAccessToken()
     },
+    sendTransaction: (request) =>
+      sendEmbeddedTransaction(request, () => currentWallet.current ?? null, sendTransaction),
   }
 
   return <AccountContext.Provider value={account}>{children}</AccountContext.Provider>
@@ -64,6 +80,8 @@ export function TricklePrivyProvider({ children }: { children: ReactNode }) {
     <PrivyProvider
       appId={appId}
       config={{
+        supportedChains: [payrollChain],
+        defaultChain: payrollChain,
         loginMethods: ['email', 'google'],
         embeddedWallets: {
           ethereum: { createOnLogin: 'all-users' },

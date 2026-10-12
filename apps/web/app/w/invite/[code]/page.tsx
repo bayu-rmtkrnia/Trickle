@@ -1,4 +1,8 @@
-import { PagePlaceholder } from '@/components/page-placeholder'
+import type { Metadata } from 'next'
+import { Logo } from '@/components/ui/logo'
+import { WorkerInvitation } from '@/components/worker/worker-invitation'
+
+export const metadata: Metadata = { title: 'Undangan worker · Trickle' }
 
 export default async function WorkerInvitationPage({
   params,
@@ -8,8 +12,13 @@ export default async function WorkerInvitationPage({
   const { code } = await params
 
   return (
-    <PagePlaceholder title="Worker Invitation">
-      <p className="mt-4 break-all text-sm text-slate-600">Invitation code: {code}</p>
-    </PagePlaceholder>
+    <div className="mx-auto flex min-h-dvh w-full max-w-[480px] flex-col px-4 pt-[calc(16px+env(safe-area-inset-top))] pb-[calc(16px+env(safe-area-inset-bottom))]">
+      <header className="py-2">
+        <Logo priority />
+      </header>
+      <main className="flex flex-1 flex-col pt-6">
+        <WorkerInvitation key={code} code={code} />
+      </main>
+    </div>
   )
 }

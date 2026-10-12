@@ -32,6 +32,7 @@ export function Sheet({
 }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const onCloseRef = useRef(onClose)
+  const closingHistory = useRef(false)
   const titleId = useId()
   const descId = useId()
 
@@ -50,9 +51,13 @@ export function Sheet({
     const marked = Boolean(window.history.state?.[HISTORY_KEY])
     if (!open) {
       // Ditutup oleh kode (bukan Back): buang entri history milik sheet.
-      if (marked) window.history.back()
+      if (marked && !closingHistory.current) {
+        closingHistory.current = true
+        window.history.back()
+      }
       return
     }
+    closingHistory.current = false
     if (!marked) window.history.pushState({ [HISTORY_KEY]: true }, '')
     const onPop = () => onCloseRef.current()
     window.addEventListener('popstate', onPop)

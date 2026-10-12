@@ -1,7 +1,6 @@
 /**
- * Error API yang sudah dipetakan ke *kondisi* (DESIGN.md 7.4). UI membaca
- * `kind`; `code` dan `status` asli dari backend disimpan untuk kasus khusus,
- * tapi tidak pernah ditampilkan ke pengguna.
+ * Error API yang sudah dipetakan ke *kondisi* (DESIGN.md 7.4), bukan `code`
+ * mentah dari backend. UI hanya membaca `kind`.
  */
 export type ApiErrorKind =
   | 'not-found'
@@ -13,51 +12,73 @@ export type ApiErrorKind =
   | 'unauthorized'
   | 'forbidden'
   | 'conflict'
-  | 'validation'
+  | 'network'
+  | 'wallet-not-ready'
   | 'rate-limited'
+  | 'validation'
+  | 'configuration'
   | 'unavailable'
   | 'server'
-  | 'network'
 
-/** Kode backend yang punya kondisi sendiri; sisanya dipetakan dari status HTTP. */
-const KIND_BY_CODE: Record<string, ApiErrorKind> = {
-  INVITE_NOT_FOUND: 'not-found',
-  INVITE_ALREADY_ACCEPTED: 'used',
-  INVITE_REVOKED: 'revoked',
-  INVITE_EXPIRED: 'expired',
-  CANNOT_ACCEPT_OWN_INVITE: 'self',
-  WORKER_EXISTS: 'already-linked',
-  RECIPIENT_EXISTS: 'already-linked',
-}
-
-function kindFromStatus(status: number): ApiErrorKind {
-  if (status === 401) return 'unauthorized'
-  if (status === 403) return 'forbidden'
-  if (status === 404) return 'not-found'
-  if (status === 409) return 'conflict'
-  if (status === 410) return 'expired'
-  if (status === 400 || status === 422) return 'validation'
-  if (status === 429) return 'rate-limited'
-  if (status === 503) return 'unavailable'
-  return 'server'
+export interface ApiErrorOptions {
+  status?: number
+  code?: string
+  details?: unknown
+  retryAfterMs?: number
 }
 
 export class ApiError extends Error {
+  readonly status: number | null
+  readonly code: string | null
+  readonly details?: unknown
+  readonly retryAfterMs?: number
+
+  /** Accepts both the options object used by the worker client and the
+   * positional arguments used by the employer API that was merged from main. */
   constructor(
     public readonly kind: ApiErrorKind,
     message: string = kind,
-    public readonly status: number | null = null,
-    public readonly code: string | null = null,
-    public readonly details?: unknown,
+    options: ApiErrorOptions | number = {},
+    code: string | null = null,
+    details?: unknown,
   ) {
     super(message)
     this.name = 'ApiError'
+    const resolved =
+      typeof options === 'number' ? { status: options, code: code ?? undefined, details } : options
+    this.status = resolved.status ?? null
+    this.code = resolved.code ?? null
+    this.details = resolved.details
+    this.retryAfterMs = resolved.retryAfterMs
   }
 
-  /** Dari envelope backend `{ error: { code, message, details? } }`. */
+  /** Keep main's backend error-envelope mapping for employer API callers. */
   static fromResponse(status: number, code?: string, message?: string, details?: unknown) {
-    const kind = (code && KIND_BY_CODE[code]) || kindFromStatus(status)
-    return new ApiError(kind, message ?? kind, status, code ?? null, details)
+    const codeKinds: Record<string, ApiErrorKind> = {
+      INVITE_NOT_FOUND: 'not-found',
+      INVITE_ALREADY_ACCEPTED: 'used',
+      INVITE_REVOKED: 'revoked',
+      INVITE_EXPIRED: 'expired',
+      CANNOT_ACCEPT_OWN_INVITE: 'self',
+      WORKER_EXISTS: 'already-linked',
+      RECIPIENT_EXISTS: 'already-linked',
+      ALREADY_LINKED: 'already-linked',
+      WALLET_NOT_READY: 'wallet-not-ready',
+    }
+    const statusKinds: Record<number, ApiErrorKind> = {
+      400: 'validation',
+      401: 'unauthorized',
+      403: 'forbidden',
+      404: 'not-found',
+      409: 'conflict',
+      410: 'expired',
+      422: 'validation',
+      429: 'rate-limited',
+      503: 'unavailable',
+    }
+    const codeKind = code ? codeKinds[code] : undefined
+    const kind = codeKind ?? statusKinds[status] ?? 'server'
+    return new ApiError(kind, message ?? kind, { status, code, details })
   }
 }
 
