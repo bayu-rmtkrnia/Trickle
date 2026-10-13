@@ -7,6 +7,7 @@ import { Field, describedBy, inputClass } from '@/components/ui/field'
 import { ChevronDownIcon } from '@/components/ui/icons'
 import { InlineError } from '@/components/ui/inline-error'
 import { createEmployer, isApiError } from '@/lib/api'
+import { useSession } from '@/providers/session-provider'
 import { apiErrorMessage } from '@/lib/api-error-message'
 import { COUNTRY_CODES } from '@/lib/copy/employer'
 import { useEmployerCopy } from './use-employer-copy'
@@ -16,6 +17,7 @@ export function EmployerSetupForm() {
   const { copy, locale } = useEmployerCopy()
   const t = copy.setup
   const router = useRouter()
+  const session = useSession()
   const nameId = useId()
   const countryId = useId()
   const [name, setName] = useState('')
@@ -38,6 +40,8 @@ export function EmployerSetupForm() {
     setSubmitting(true)
     try {
       await createEmployer({ name: trimmed, country })
+      // Peran "perusahaan" baru ada setelah perusahaan dibuat; segarkan data user di sesi.
+      await session.refreshMe().catch(() => undefined)
       router.push('/employer')
     } catch (err) {
       setSubmitError(isApiError(err) && err.kind === 'conflict' ? 'conflict' : { error: err })

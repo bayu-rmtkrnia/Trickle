@@ -4,17 +4,17 @@
 import { isMockMode, mockApi } from './mock'
 import { realApi } from './real'
 import type {
+  CompanyStream,
   CreateEmployerInput,
   CreateWorkerInviteInput,
   Employer,
   Invite,
-  PayrollFund,
   Worker,
 } from './types'
 
 export type * from './types'
 export { ApiError, isApiError, type ApiErrorKind } from './errors'
-export { applyMockScenario, isMockMode, INVITE_TTL_DAYS } from './mock'
+export { applyMockScenario, isMockMode, INVITE_TTL_DAYS, mockFunding } from './mock'
 
 const impl = () => (isMockMode() ? mockApi : realApi)
 
@@ -26,8 +26,8 @@ export const createEmployer = (input: CreateEmployerInput): Promise<Employer> =>
 
 export const listWorkers = (): Promise<Worker[]> => impl().listWorkers()
 
-/** `null` = saldo belum bisa dibaca (kontrak belum tersambung). */
-export const getPayrollFund = (): Promise<PayrollFund | null> => impl().getPayrollFund()
+/** Aliran gaji (stream) perusahaan, dari indexer backend. */
+export const listStreams = (): Promise<CompanyStream[]> => impl().listStreams()
 
 /** Undangan pekerja yang dibuat user ini. */
 export const listInvites = (): Promise<Invite[]> => impl().listInvites()

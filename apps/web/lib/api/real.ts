@@ -5,12 +5,12 @@ import { fetchAllPages } from './http'
 import { authed, sessionCache } from './session'
 import type {
   CreateEmployerInput,
+  CompanyStream,
   CreateWorkerInviteInput,
   Employer,
   Invite,
   Me,
   Page,
-  PayrollFund,
   Worker,
 } from './types'
 
@@ -35,8 +35,9 @@ const toEmployer = ({ id, name, country, createdAt }: CompanyDto): Employer => (
   createdAt,
 })
 
-const toWorker = ({ id, displayName, monthlySalaryUsd, joinedAt }: WorkerDto): Worker => ({
+const toWorker = ({ id, address, displayName, monthlySalaryUsd, joinedAt }: WorkerDto): Worker => ({
   id,
+  address,
   displayName,
   monthlySalaryUsd,
   joinedAt,
@@ -80,12 +81,14 @@ export const realApi = {
     return rows.map(toWorker)
   },
 
-  /**
-   * Saldo dana payroll dibaca dari kontrak, belum tersambung di sini. `null` =
-   * belum tersedia; UI tidak menampilkan angka karangan.
-   */
-  async getPayrollFund(): Promise<PayrollFund | null> {
-    return null
+  /** Aliran gaji perusahaan dari indexer backend (cache kontrak), terbaru dulu. */
+  async listStreams(): Promise<CompanyStream[]> {
+    const id = await requireCompanyId()
+    return fetchAllPages((cursor) =>
+      authed<Page<CompanyStream>>(`companies/${id}/streams`, {
+        query: { limit: PAGE_SIZE, cursor },
+      }),
+    )
   },
 
   listInvites(): Promise<Invite[]> {

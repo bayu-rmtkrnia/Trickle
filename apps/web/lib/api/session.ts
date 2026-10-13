@@ -379,107 +379,61 @@ export const defaultSessionApi: SessionApi = {
   sleep: wait,
 }
 
-// Compatibility surface for the employer API currently on main. The worker
-// dashboard uses SessionCoordinator above; employer callers still configure
-// a token getter and use authed/sessionCache until that API is migrated.
-interface LegacyStoredSession {
+// Jembatan untuk API area perusahaan (lib/api/real.ts). Tidak membuat sesi sendiri:
+// token diambil dari SessionCoordinator di atas (lewat TrickleSessionProvider), jadi
+// seluruh aplikasi memakai satu sesi yang sama, termasuk retry WALLET_NOT_READY,
+// batas permintaan, dan logout.
+
+export interface SessionSource {
+  /** Id user Trickle pemilik sesi; ganti user = cache dibuang. */
   key: string
-  token: string
-  expiresAt: number
+  /** Token sesi yang masih berlaku (coordinator membuat atau memperbaruinya bila perlu). */
+  getToken(): Promise<string | null>
+  /** Dipanggil saat server menolak token (401): minta coordinator memulihkan sesi. */
+  recover(): Promise<unknown>
 }
 
-const LEGACY_STORAGE_KEY = 'trickle:session'
-const LEGACY_EXPIRY_MARGIN_MS = 60_000
-let legacyGetter: (() => Promise<string | null>) | null = null
-let legacyAccount: string | null = null
-let legacySession: LegacyStoredSession | null = null
-let legacyPending: Promise<string> | null = null
-let legacyCache = new Map<string, unknown>()
-const legacyListeners = new Set<() => void>()
+let source: SessionSource | null = null
+let sourceCache = new Map<string, unknown>()
+const sourceListeners = new Set<() => void>()
 
-function readLegacySession(key: string): LegacyStoredSession | null {
-  try {
-    const stored = JSON.parse(
-      sessionStorage.getItem(LEGACY_STORAGE_KEY) ?? 'null',
-    ) as LegacyStoredSession | null
-    return stored?.key === key ? stored : null
-  } catch {
-    return null
-  }
+/** Dipasang oleh `useApiSession` saat sesi siap; `null` saat logout atau ganti akun. */
+export function connectSessionSource(next: SessionSource | null) {
+  const changed = next?.key !== source?.key
+  source = next
+  if (!changed) return
+  sourceCache = new Map()
+  sourceListeners.forEach((listener) => listener())
 }
 
-function writeLegacySession(value: LegacyStoredSession | null) {
-  try {
-    if (value) sessionStorage.setItem(LEGACY_STORAGE_KEY, JSON.stringify(value))
-    else sessionStorage.removeItem(LEGACY_STORAGE_KEY)
-  } catch {
-    // The in-memory session still works when browser storage is unavailable.
-  }
+export function subscribeSessionSource(listener: () => void) {
+  sourceListeners.add(listener)
+  return () => sourceListeners.delete(listener)
 }
 
-export function configureSession(
-  getter: (() => Promise<string | null>) | null,
-  key: string | null,
-) {
-  legacyGetter = getter
-  if (key === legacyAccount) return
-  legacyAccount = key
-  legacySession = key ? readLegacySession(key) : null
-  if (!key) writeLegacySession(null)
-  legacyPending = null
-  legacyCache = new Map()
-  legacyListeners.forEach((listener) => listener())
+/** Id user yang sumber sesinya sedang terpasang, atau `null`. */
+export const connectedSessionKey = () => source?.key ?? null
+
+async function sourceToken(): Promise<string> {
+  const token = await source?.getToken()
+  if (!token) throw new ApiError('unauthorized', 'Sign in required', { status: 401 })
+  return token
 }
 
-export function subscribeSession(listener: () => void) {
-  legacyListeners.add(listener)
-  return () => legacyListeners.delete(listener)
-}
-
-export const configuredAccount = () => legacyAccount
-
-async function legacySessionToken(): Promise<string> {
-  const key = legacyAccount
-  if (!key) throw new ApiError('unauthorized')
-  if (legacySession && legacySession.expiresAt - LEGACY_EXPIRY_MARGIN_MS > Date.now()) {
-    return legacySession.token
-  }
-  legacyPending ??= (async () => {
-    const accessToken = await legacyGetter?.()
-    if (!accessToken) throw new ApiError('unauthorized')
-    const result = await apiRequest<SessionResponse>('sessions', {
-      method: 'POST',
-      body: { accessToken },
-    })
-    const next = { key, token: result.token, expiresAt: Date.parse(result.expiresAt) }
-    if (legacyAccount === key) {
-      legacySession = next
-      writeLegacySession(next)
-    }
-    return result.token
-  })().finally(() => {
-    legacyPending = null
-  })
-  return legacyPending
-}
-
-function dropLegacySession() {
-  legacySession = null
-  writeLegacySession(null)
-}
-
+/** Request dengan token sesi. Kalau ditolak (401), sesi dipulihkan sekali lalu dicoba lagi. */
 export async function authed<T>(path: string, options: Omit<ApiRequestOptions, 'token'> = {}) {
   try {
-    return await apiRequest<T>(path, { ...options, token: await legacySessionToken() })
+    return await apiRequest<T>(path, { ...options, token: await sourceToken() })
   } catch (error) {
-    if (!isApiError(error) || error.status !== 401 || !legacySession) throw error
-    dropLegacySession()
-    return apiRequest<T>(path, { ...options, token: await legacySessionToken() })
+    if (!isApiError(error) || error.status !== 401 || !source) throw error
+    await source.recover()
+    return apiRequest<T>(path, { ...options, token: await sourceToken() })
   }
 }
 
+/** Cache kecil per user (mis. `companyId`). Dibuang saat ganti akun atau logout. */
 export const sessionCache = {
-  get: <T>(name: string) => legacyCache.get(name) as T | undefined,
-  set: (name: string, value: unknown) => void legacyCache.set(name, value),
-  clear: (name: string) => void legacyCache.delete(name),
+  get: <T>(name: string) => sourceCache.get(name) as T | undefined,
+  set: (name: string, value: unknown) => void sourceCache.set(name, value),
+  clear: (name: string) => void sourceCache.delete(name),
 }

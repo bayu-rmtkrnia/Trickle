@@ -4,8 +4,9 @@ import { useState, type ReactNode } from 'react'
 import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { isMockMode } from '@/lib/api'
+import { apiErrorMessage } from '@/lib/api-error-message'
 import { authCopy } from '@/lib/copy/auth'
-import { useDict } from '@/lib/i18n/client'
+import { useDict, useLocale } from '@/lib/i18n/client'
 import { useApiSession } from '@/lib/use-api-session'
 
 /**
@@ -25,7 +26,8 @@ export function AuthGate({
   frame?: (node: ReactNode) => ReactNode
   mock?: boolean
 }) {
-  const { status, login } = useApiSession()
+  const { status, error, login, retry, logout } = useApiSession()
+  const { locale } = useLocale()
   const t = useDict(authCopy).auth
   const [loginFailed, setLoginFailed] = useState(false)
 
@@ -36,6 +38,22 @@ export function AuthGate({
       return children
     case 'loading':
       return loading
+    case 'error': {
+      // Sesi gagal dibuat (mis. akun baru yang belum siap, atau server belum siap login).
+      const { title, message } = apiErrorMessage(error, locale)
+      return frame(
+        <div className="flex flex-col gap-3">
+          <InlineError
+            title={title}
+            message={message}
+            action={{ label: t.retry, onClick: retry }}
+          />
+          <Button variant="text" onClick={() => void logout().catch(() => undefined)}>
+            {t.signOut}
+          </Button>
+        </div>,
+      )
+    }
     case 'unconfigured':
       return frame(
         <InlineError

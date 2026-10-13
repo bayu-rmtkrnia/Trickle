@@ -35,14 +35,31 @@ export interface Employer {
 
 export interface Worker {
   id: string
+  /** Alamat akun pekerja (lowercase); tujuan `createStream`. Tidak ditampilkan ke pengguna. */
+  address: string
   displayName: string
   monthlySalaryUsd: number
   joinedAt: string
 }
 
-/** Saldo dana payroll employer. Dibaca dari kontrak, bukan dari API. */
-export interface PayrollFund {
-  balanceUsd: number
+export type StreamStatus = 'SCHEDULED' | 'ACTIVE' | 'ENDED' | 'CANCELED'
+
+/**
+ * Aliran gaji perusahaan dari indexer backend (`GET /companies/{id}/streams`), cache
+ * dari kontrak TricklePayroll. Jumlah dalam unit token (6 desimal) sebagai string.
+ */
+export interface CompanyStream {
+  /** Id stream on-chain (desimal), dipakai untuk `cancel(id)`. */
+  id: string
+  workerAddress: string
+  amountUnits: string
+  withdrawnUnits: string
+  refundedUnits: string
+  startsAt: string
+  endsAt: string
+  status: StreamStatus
+  /** Baris pekerja di perusahaan ini, atau `null` kalau alamatnya bukan pekerja terdaftar. */
+  worker: { id: string; displayName: string } | null
 }
 
 export interface Me {
