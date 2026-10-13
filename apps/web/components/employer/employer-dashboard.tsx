@@ -9,51 +9,71 @@ import { AuthGate } from '@/components/auth/auth-gate'
 import { SignOutButton } from '@/components/auth/sign-out-button'
 import { InlineError } from '@/components/ui/inline-error'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useStreamFunding } from '@/hooks/use-stream-funding'
 import {
   applyMockScenario,
   getEmployer,
-  getPayrollFund,
+  isMockMode,
   listInvites,
+  listStreams,
   listWorkers,
+  mockFunding,
+  type CompanyStream,
   type Employer,
   type Invite,
-  type PayrollFund,
   type Worker,
 } from '@/lib/api'
 import { apiErrorMessage } from '@/lib/api-error-message'
 import type { EmployerState } from '@/lib/dev-state'
 import { formatUsd } from '@/lib/format'
-import { computeRunway } from '@/lib/runway'
+import { summarizeFunds } from '@/lib/company-streams'
+import { createFundingPort } from '@/lib/chain/stream-funder'
+import type { Address } from 'viem'
 import { InviteList } from './invite-list'
 import { useEmployerCopy } from './use-employer-copy'
 import { InviteWorkerSheet } from './invite-worker-sheet'
 import { RevokeInviteSheet } from './revoke-invite-sheet'
-import { RunwayCard } from './runway-card'
+import { FundSheet } from './fund-sheet'
+import { FundsCard } from './funds-card'
+import { StopStreamSheet } from './stop-stream-sheet'
 import { WorkerList } from './worker-list'
 
 type Data = {
   employer: Employer
   workers: Worker[]
   invites: Invite[]
-  /** `null` = saldo belum bisa dibaca (kontrak belum tersambung). */
-  fund: PayrollFund | null
+  /** Aliran gaji dari indexer backend. */
+  streams: CompanyStream[]
   loadedAt: number
 }
 type Tab = 'workers' | 'invites'
 
 type LoadResult = Data | null | { error: unknown }
 
+/** Saldo mAUSD di akun perusahaan. `null` kalau belum bisa dibaca (kartu cukup menyembunyikannya). */
+async function loadWalletUnits(address: Address | null): Promise<bigint | null> {
+  try {
+    if (isMockMode()) return await mockFunding.walletUnits()
+    if (!address) return null
+    return await createFundingPort(async () => {
+      throw new Error('Gas tidak dibutuhkan untuk membaca saldo')
+    }).tokenBalance(address)
+  } catch {
+    return null
+  }
+}
+
 /** `null` = belum punya profil perusahaan. */
 async function loadDashboard(): Promise<LoadResult> {
   try {
     const employer = await getEmployer()
     if (!employer) return null
-    const [workers, invites, fund] = await Promise.all([
+    const [workers, invites, streams] = await Promise.all([
       listWorkers(),
       listInvites(),
-      getPayrollFund(),
+      listStreams(),
     ])
-    return { employer, workers, invites, fund, loadedAt: Date.now() }
+    return { employer, workers, invites, streams, loadedAt: Date.now() }
   } catch (error) {
     return { error }
   }
@@ -81,6 +101,10 @@ function DashboardContent({ devState }: { devState?: EmployerState }) {
   const [tab, setTab] = useState<Tab>(devState === 'ada-undangan' ? 'invites' : 'workers')
   const [inviteOpen, setInviteOpen] = useState(false)
   const [revokeTarget, setRevokeTarget] = useState<Invite | null>(null)
+  const [fundOpen, setFundOpen] = useState(false)
+  const [fundWorkerId, setFundWorkerId] = useState<string | null>(null)
+  const [stopTarget, setStopTarget] = useState<{ streamId: string; name: string } | null>(null)
+  const [walletUnits, setWalletUnits] = useState<bigint | null>(null)
 
   const apply = useCallback(
     (result: LoadResult) => {
@@ -107,6 +131,30 @@ function DashboardContent({ devState }: { devState?: EmployerState }) {
     apply(await loadDashboard())
   }
 
+  /** Setelah transaksi: muat ulang aliran gaji. Saldo ikut dimuat ulang lewat effect di bawah. */
+  async function refreshFunding() {
+    try {
+      const streams = await listStreams()
+      setData((d) => (d ? { ...d, streams, loadedAt: Date.now() } : d))
+    } catch {
+      // Daftar lama tetap tampil; status akan terbarui saat dashboard dimuat ulang.
+    }
+  }
+
+  const funding = useStreamFunding(() => void refreshFunding())
+  const walletAddress = funding.walletAddress
+  // Saldo uji di akun: dimuat setiap data dashboard berubah (termasuk setelah transaksi).
+  useEffect(() => {
+    if (!data) return
+    let alive = true
+    loadWalletUnits(walletAddress).then((units) => {
+      if (alive) setWalletUnits(units)
+    })
+    return () => {
+      alive = false
+    }
+  }, [data, walletAddress])
+
   async function refreshInvites() {
     try {
       const invites = await listInvites()
@@ -127,8 +175,14 @@ function DashboardContent({ devState }: { devState?: EmployerState }) {
 
   if (!data) return <DashboardSkeleton />
 
-  const { employer, workers, invites, fund, loadedAt } = data
-  const runway = computeRunway(fund?.balanceUsd ?? null, workers)
+  const { employer, workers, invites, streams, loadedAt } = data
+  const nowSeconds = Math.floor(loadedAt / 1000)
+  const funds = summarizeFunds(workers, streams, nowSeconds)
+  const monthlyUsd = workers.reduce((sum, w) => sum + w.monthlySalaryUsd, 0)
+  const openFund = (workerId: string | null) => {
+    setFundWorkerId(workerId)
+    setFundOpen(true)
+  }
   const pendingCount = invites.filter((i) => i.status === 'PENDING').length
   const isEmpty = workers.length === 0 && invites.length === 0
   const openInvite = () => setInviteOpen(true)
@@ -150,22 +204,32 @@ function DashboardContent({ devState }: { devState?: EmployerState }) {
       }
     >
       <div className="flex flex-col gap-6">
-        {runway.level === 'critical' && (
+        {funds.level === 'critical' && (
           <div className="enter enter-4">
-            <InlineError title={t.criticalTitle(runway.days ?? 0)} message={t.criticalMessage} />
+            <InlineError
+              title={t.criticalTitle(funds.days ?? 0)}
+              message={t.criticalMessage}
+              action={{ label: t.fundAction, onClick: () => openFund(null) }}
+            />
           </div>
         )}
-        {runway.level === 'empty' && (
+        {funds.level === 'ended' && (
           <div className="enter enter-1">
-            <InlineError title={t.fundEmptyTitle} message={t.fundEmptyMessage(workers.length)} />
+            <InlineError
+              title={t.endedTitle}
+              message={t.endedMessage(funds.unfundedWorkers)}
+              action={{ label: t.fundAction, onClick: () => openFund(null) }}
+            />
           </div>
         )}
 
         <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <RunwayCard
-            balanceUsd={fund?.balanceUsd ?? null}
-            level={runway.level}
-            days={runway.days}
+          <FundsCard
+            lockedUnits={funds.lockedUnits}
+            level={funds.level}
+            days={funds.days}
+            walletUnits={walletUnits}
+            onFund={() => openFund(null)}
             className="enter enter-2 col-span-2 md:col-span-1"
           />
           <StatCard
@@ -176,7 +240,7 @@ function DashboardContent({ devState }: { devState?: EmployerState }) {
           <StatCard
             className="enter enter-3"
             label={t.monthlyPayroll}
-            value={formatUsd(runway.monthlyUsd, locale)}
+            value={formatUsd(monthlyUsd, locale)}
           />
         </section>
 
@@ -188,7 +252,15 @@ function DashboardContent({ devState }: { devState?: EmployerState }) {
               tab={tab}
               onChange={setTab}
               pendingCount={pendingCount}
-              workers={<WorkerList workers={workers} now={loadedAt} showStreamed={fund !== null} />}
+              workers={
+                <WorkerList
+                  workers={workers}
+                  streams={streams}
+                  nowSeconds={nowSeconds}
+                  onFund={openFund}
+                  onStop={setStopTarget}
+                />
+              }
               invites={<InviteList invites={invites} now={loadedAt} onRevoke={setRevokeTarget} />}
             />
           )}
@@ -204,6 +276,17 @@ function DashboardContent({ devState }: { devState?: EmployerState }) {
         </div>
       )}
 
+      <FundSheet
+        key={fundWorkerId ?? 'any'}
+        open={fundOpen}
+        onClose={() => setFundOpen(false)}
+        workers={workers}
+        streams={streams}
+        initialWorkerId={fundWorkerId}
+        nowSeconds={nowSeconds}
+        funding={funding}
+      />
+      <StopStreamSheet target={stopTarget} onClose={() => setStopTarget(null)} funding={funding} />
       <InviteWorkerSheet
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}

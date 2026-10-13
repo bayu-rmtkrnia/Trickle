@@ -43,22 +43,32 @@ const id = {
     loading: 'Memuat dashboard…',
     retry: 'Coba lagi',
 
-    fundLabel: 'Dana payroll',
-    fundUnavailable: 'Belum tersedia',
-    fundUnavailableHint: 'Saldo dana dan sisa hari akan tampil setelah terhubung ke payroll.',
-    runwayDays: (n: number) => `Cukup ±${n} hari`,
-    runwayLowBadge: (n: number) => `Dana cukup ±${n} hari`,
-    runwayCriticalBadge: (n: number) => `Dana tinggal ±${n} hari`,
-    fundEmptyBadge: 'Dana habis',
+    fundLabel: 'Gaji yang sudah didanai',
+    fundHint: 'Terkunci dan belum mengalir ke pekerja.',
+    runwayDays: (n: number) => `Aliran terdekat berakhir ±${n} hari lagi`,
+    runwayLowBadge: (n: number) => `Berakhir ±${n} hari lagi`,
+    runwayCriticalBadge: (n: number) => `Berakhir ±${n} hari lagi`,
+    endedBadge: 'Aliran gaji berakhir',
+    unfundedHint: 'Belum ada gaji yang didanai.',
     runwayNoWorkers: 'Belum ada gaji yang mengalir',
-    topUp: 'Top up',
-    comingSoon: 'Segera hadir',
+    walletLabel: 'Saldo di akunmu',
+    testMode: 'Mode uji',
+    fundAction: 'Danai gaji',
 
-    criticalTitle: (n: number) => `Dana tinggal ±${n} hari`,
-    criticalMessage: 'Kalau dana habis, gaji pekerjamu berhenti mengalir. Top up sebelum habis.',
-    fundEmptyTitle: 'Aliran gaji dijeda',
-    fundEmptyMessage: (workers: number) =>
-      `Dana payroll habis. ${workers} pekerja berhenti menerima gaji sampai dana diisi lagi.`,
+    criticalTitle: (n: number) => `Aliran gaji berakhir ±${n} hari lagi`,
+    criticalMessage: 'Danai periode berikutnya supaya gaji pekerjamu tetap mengalir tanpa jeda.',
+    endedTitle: 'Gaji pekerjamu sedang tidak mengalir',
+    endedMessage: (workers: number) =>
+      `${workers} pekerja tidak menerima gaji sampai kamu mendanai periode berikutnya.`,
+
+    payActive: (date: string) => `Mengalir sampai ${date}`,
+    payScheduled: (date: string) => `Mulai mengalir ${date}`,
+    payEnded: (date: string) => `Berakhir ${date}`,
+    payUnfunded: 'Belum didanai',
+    fundWorker: 'Danai',
+    stopWorker: 'Hentikan',
+    colStatus: 'Status gaji',
+    colActions: 'Aksi',
 
     activeWorkers: 'Pekerja aktif',
     monthlyPayroll: 'Gaji per bulan',
@@ -127,6 +137,58 @@ const id = {
       `Buka link ini untuk menerima undangan:\n${url}`,
   },
 
+  fundSheet: {
+    title: 'Danai gaji',
+    description: 'Gaji dikunci dan mengalir ke pekerja tiap detik selama periode yang dipilih.',
+    workerLabel: 'Pekerja',
+    periodLabel: 'Periode',
+    period: (days: number): string =>
+      days === 7 ? '1 minggu' : days === 14 ? '2 minggu' : '1 bulan',
+    amountLabel: 'Jumlah',
+    perDay: (usd: string) => `= ${usd}/hari`,
+    startNow: (end: string) => `Mulai sekarang, berakhir ${end}`,
+    startAfter: (start: string, end: string) =>
+      `Mulai ${start} setelah aliran sekarang berakhir, sampai ${end}`,
+    testNote: 'Mode uji: kalau saldomu kurang, dana uji dibuat otomatis. Belum ada uang sungguhan.',
+    submit: (amount: string) => `Danai gaji ${amount}`,
+    steps: {
+      preparing: 'Menyiapkan akun…',
+      minting: 'Menyiapkan dana uji…',
+      approving: 'Memberi izin pembayaran…',
+      creating: 'Membuat aliran gaji…',
+      cancelling: 'Menghentikan aliran…',
+    },
+    stepsNote: 'Jangan tutup halaman ini sampai selesai.',
+    successTitle: 'Gaji sudah didanai',
+    successBody: (name: string, end: string) => `Gaji ${name} mengalir tiap detik sampai ${end}.`,
+    done: 'Selesai',
+    failedTitle: 'Gaji belum berhasil didanai',
+    unknownTitle: 'Belum terkonfirmasi',
+    unknownBody:
+      'Transaksi sudah dikirim tapi hasilnya belum pasti. Cek status gaji di daftar pekerja sebelum mencoba lagi, supaya tidak terdanai dua kali.',
+    retry: 'Coba lagi',
+  },
+
+  stopSheet: {
+    title: 'Hentikan aliran gaji?',
+    body: (name: string) =>
+      `Gaji ${name} berhenti mengalir sekarang. Bagian yang sudah mengalir tetap milik ${name}, sisanya kembali ke saldomu.`,
+    confirm: 'Ya, hentikan aliran',
+    confirming: 'Menghentikan…',
+    cancel: 'Tidak jadi',
+    successTitle: 'Aliran gaji dihentikan',
+    done: 'Selesai',
+  },
+
+  fundingErrors: {
+    gas: 'Biaya transaksi belum siap. Coba lagi sebentar.',
+    funds: 'Saldo di akunmu tidak cukup untuk jumlah ini.',
+    wallet: 'Akunmu berubah atau belum siap. Muat ulang halaman, lalu coba lagi.',
+    rejected: 'Transaksi ditolak. Periksa data pekerja dan periode, lalu coba lagi.',
+    service: 'Layanan pembayaran sedang tidak tersedia. Coba lagi nanti.',
+    generic: 'Ada yang tidak berjalan semestinya. Coba lagi.',
+  },
+
   revoke: {
     title: 'Batalkan undangan?',
     body: (name: string) =>
@@ -176,22 +238,32 @@ const en: EmployerCopy = {
     loading: 'Loading dashboard…',
     retry: 'Try again',
 
-    fundLabel: 'Payroll funds',
-    fundUnavailable: 'Not available yet',
-    fundUnavailableHint: 'Your balance and days remaining will appear once payroll is connected.',
-    runwayDays: (n: number) => `Lasts about ${n} days`,
-    runwayLowBadge: (n: number) => `Funds last about ${n} days`,
-    runwayCriticalBadge: (n: number) => `About ${n} days of funds left`,
-    fundEmptyBadge: 'Out of funds',
+    fundLabel: 'Pay already funded',
+    fundHint: 'Locked in and not yet paid out to workers.',
+    runwayDays: (n: number) => `Nearest pay stream ends in about ${n} days`,
+    runwayLowBadge: (n: number) => `Ends in about ${n} days`,
+    runwayCriticalBadge: (n: number) => `Ends in about ${n} days`,
+    endedBadge: 'Pay streams ended',
+    unfundedHint: 'No pay funded yet.',
     runwayNoWorkers: 'No pay flowing yet',
-    topUp: 'Top up',
-    comingSoon: 'Coming soon',
+    walletLabel: 'Your balance',
+    testMode: 'Test mode',
+    fundAction: 'Fund pay',
 
-    criticalTitle: (n: number) => `About ${n} days of funds left`,
-    criticalMessage: 'When funds run out, your workers’ pay stops flowing. Top up before then.',
-    fundEmptyTitle: 'Pay is paused',
-    fundEmptyMessage: (workers: number) =>
-      `Payroll funds are empty. ${workers} ${workers === 1 ? 'worker has' : 'workers have'} stopped receiving pay until funds are added.`,
+    criticalTitle: (n: number) => `Pay streams end in about ${n} days`,
+    criticalMessage: 'Fund the next period so your workers’ pay keeps flowing without a gap.',
+    endedTitle: 'Your workers’ pay isn’t flowing',
+    endedMessage: (workers: number) =>
+      `${workers} ${workers === 1 ? 'worker isn’t' : 'workers aren’t'} receiving pay until you fund the next period.`,
+
+    payActive: (date: string) => `Flowing until ${date}`,
+    payScheduled: (date: string) => `Starts flowing ${date}`,
+    payEnded: (date: string) => `Ended ${date}`,
+    payUnfunded: 'Not funded',
+    fundWorker: 'Fund',
+    stopWorker: 'Stop',
+    colStatus: 'Pay status',
+    colActions: 'Actions',
 
     activeWorkers: 'Active workers',
     monthlyPayroll: 'Monthly payroll',
@@ -257,6 +329,58 @@ const en: EmployerCopy = {
       `Hi ${name}, ${company} has invited you to join Trickle. ` +
       `Your pay flows every second and you can withdraw it anytime. ` +
       `Open this link to accept the invite:\n${url}`,
+  },
+
+  fundSheet: {
+    title: 'Fund pay',
+    description: 'Pay is locked in and flows to the worker every second for the chosen period.',
+    workerLabel: 'Worker',
+    periodLabel: 'Period',
+    period: (days: number) => (days === 7 ? '1 week' : days === 14 ? '2 weeks' : '1 month'),
+    amountLabel: 'Amount',
+    perDay: (usd: string) => `= ${usd}/day`,
+    startNow: (end: string) => `Starts now, ends ${end}`,
+    startAfter: (start: string, end: string) =>
+      `Starts ${start} when the current stream ends, until ${end}`,
+    testNote:
+      'Test mode: if your balance is short, test funds are created automatically. No real money yet.',
+    submit: (amount: string) => `Fund ${amount} in pay`,
+    steps: {
+      preparing: 'Preparing your account…',
+      minting: 'Creating test funds…',
+      approving: 'Approving the payment…',
+      creating: 'Starting the pay stream…',
+      cancelling: 'Stopping the stream…',
+    },
+    stepsNote: 'Keep this page open until it’s done.',
+    successTitle: 'Pay is funded',
+    successBody: (name: string, end: string) => `${name}’s pay flows every second until ${end}.`,
+    done: 'Done',
+    failedTitle: 'Pay wasn’t funded',
+    unknownTitle: 'Not confirmed yet',
+    unknownBody:
+      'The transaction was sent but the result isn’t certain yet. Check the pay status in your worker list before trying again, so you don’t fund twice.',
+    retry: 'Try again',
+  },
+
+  stopSheet: {
+    title: 'Stop this pay stream?',
+    body: (name: string) =>
+      `${name}’s pay stops flowing now. What has already flowed stays with ${name}, and the rest returns to your balance.`,
+    confirm: 'Yes, stop the stream',
+    confirming: 'Stopping…',
+    cancel: 'Keep it',
+    successTitle: 'Pay stream stopped',
+    done: 'Done',
+  },
+
+  fundingErrors: {
+    gas: 'Transaction fees aren’t ready yet. Try again shortly.',
+    funds: 'Your balance isn’t enough for this amount.',
+    wallet: 'Your account changed or isn’t ready. Reload the page and try again.',
+    rejected: 'The transaction was rejected. Check the worker and period, then try again.',
+    service: 'The payment service is unavailable. Please try again later.',
+    generic: 'Something didn’t work. Try again.',
   },
 
   revoke: {
