@@ -1,6 +1,8 @@
 'use client'
 
 import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react'
+import { commonCopy } from '@/lib/copy/common'
+import { useDict } from '@/lib/i18n/client'
 import { XIcon } from './icons'
 
 type SheetProps = {
@@ -35,13 +37,14 @@ export function Sheet({
   description,
   children,
   footer,
-  closeLabel = 'Tutup',
+  closeLabel,
 }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const onCloseRef = useRef(onClose)
   const onClosedRef = useRef(onClosed)
   const closingHistory = useRef(false)
   const wasOpen = useRef(false)
+  const defaultCloseLabel = useDict(commonCopy).close
   const titleId = useId()
   const descId = useId()
 
@@ -130,7 +133,7 @@ export function Sheet({
             className="-mt-1 -mr-2 grid size-11 shrink-0 place-items-center rounded-xl text-muted active:scale-95"
           >
             <XIcon />
-            <span className="sr-only">{closeLabel}</span>
+            <span className="sr-only">{closeLabel ?? defaultCloseLabel}</span>
           </button>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-4">
