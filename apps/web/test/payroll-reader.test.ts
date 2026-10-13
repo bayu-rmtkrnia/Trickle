@@ -61,6 +61,13 @@ function setup(options: Record<string, number> = {}) {
   return { port, reader, blocks, log }
 }
 describe('payroll chain snapshot and discovery', () => {
+  it('reads backend-indexed stream ids without scanning historical logs', async () => {
+    const { port, reader } = setup()
+    const result = await reader.readWorkerSnapshotForIds(worker, [b(1)])
+    expect(result.streams).toHaveLength(1)
+    expect(port.logs).not.toHaveBeenCalled()
+    expect(port.stream).toHaveBeenCalledWith(b(1), b(15))
+  })
   it('proves an unused deployment is empty without scanning its entire history', async () => {
     const { port, reader } = setup()
     Object.assign(port, { nextStreamId: vi.fn(async () => b(1)) })

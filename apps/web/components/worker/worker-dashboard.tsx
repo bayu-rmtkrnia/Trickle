@@ -129,7 +129,7 @@ function EmploymentDashboard({ session }: { session: SessionContextValue }) {
   const { page, loading, loadingMore, error, pageError, retryUntil, reload, loadMore } =
     useWorkerEmployments(session)
   const wallet = session.user?.address ?? null
-  const streams = useWorkerStreams(wallet)
+  const streams = useWorkerStreams(wallet, session)
   return (
     <WorkerShell name={session.user?.displayName ?? t.fallbackName}>
       <div className="flex flex-col gap-8">
