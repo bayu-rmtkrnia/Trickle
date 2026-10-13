@@ -1,26 +1,16 @@
-import { createPublicClient, erc20Abi, http, parseAbiItem, type Abi, type Address } from 'viem'
-import abi from '../../../../packages/shared/abi/TricklePayroll.json'
+import { createPublicClient, erc20Abi, http, type Address } from 'viem'
+import { tricklePayrollAbi } from '../../../../packages/shared/abi/TricklePayroll'
 import { payrollChain, payrollConfig as config } from './config'
 import { createPayrollReader, type ChainPort } from './payroll-reader'
 import { ChainReadError } from './types'
 
-const payrollAbi = abi as Abi
-const creationEvent = parseAbiItem(
-  'event StreamCreated(uint256 indexed streamId, address indexed employer, address indexed worker, uint128 amount, uint40 start, uint40 end)',
-)
 export function createViemPort(signal?: AbortSignal): ChainPort {
   const client = createPublicClient({
     chain: payrollChain,
     transport: http(config.rpcUrl, { timeout: 10000, retryCount: 0, fetchOptions: { signal } }),
   })
-  const payroll = <T>(functionName: string, args: readonly unknown[], blockNumber: bigint) =>
-    client.readContract({
-      address: config.payrollAddress,
-      abi: payrollAbi,
-      functionName,
-      args,
-      blockNumber,
-    }) as Promise<T>
+  const payroll = { address: config.payrollAddress, abi: tricklePayrollAbi } as const
+  const token = { address: config.tokenAddress, abi: erc20Abi } as const
   return {
     chainId: () => client.getChainId(),
     bytecode: (address, blockNumber) => client.getBytecode({ address, blockNumber }),
@@ -31,26 +21,16 @@ export function createViemPort(signal?: AbortSignal): ChainPort {
       if (block.number === null || block.hash === null) throw new ChainReadError('CHAIN_CHANGED')
       return { number: block.number, timestamp: block.timestamp, hash: block.hash }
     },
-    token: (block) => payroll<Address>('token', [], block),
-    nextStreamId: (block) => payroll<bigint>('nextStreamId', [], block),
+    token: (blockNumber) => client.readContract({ ...payroll, functionName: 'token', blockNumber }),
+    nextStreamId: (blockNumber) =>
+      client.readContract({ ...payroll, functionName: 'nextStreamId', blockNumber }),
     decimals: (blockNumber) =>
-      client.readContract({
-        address: config.tokenAddress,
-        abi: erc20Abi,
-        functionName: 'decimals',
-        blockNumber,
-      }),
-    symbol: (blockNumber) =>
-      client.readContract({
-        address: config.tokenAddress,
-        abi: erc20Abi,
-        functionName: 'symbol',
-        blockNumber,
-      }),
+      client.readContract({ ...token, functionName: 'decimals', blockNumber }),
+    symbol: (blockNumber) => client.readContract({ ...token, functionName: 'symbol', blockNumber }),
     logs: async (worker, fromBlock, toBlock) => {
-      const logs = await client.getLogs({
-        address: config.payrollAddress,
-        event: creationEvent,
+      const logs = await client.getContractEvents({
+        ...payroll,
+        eventName: 'StreamCreated',
         args: { worker },
         strict: true,
         fromBlock,
@@ -74,32 +54,28 @@ export function createViemPort(signal?: AbortSignal): ChainPort {
           logIndex: log.logIndex!,
         }))
     },
-    stream: async (id, block) => {
-      const stream = await payroll<{
-        employer: Address
-        worker: Address
-        start: number
-        end: number
-        canceled: boolean
-        amount: bigint
-        withdrawn: bigint
-        refunded: bigint
-      }>('getStream', [id], block)
+    stream: async (id, blockNumber) => {
+      const stream = await client.readContract({
+        ...payroll,
+        functionName: 'getStream',
+        args: [id],
+        blockNumber,
+      })
       return { ...stream, id, start: BigInt(stream.start), end: BigInt(stream.end) }
     },
-    withdrawable: (id, block) => payroll<bigint>('withdrawable', [id], block),
-    split: async (worker, block) => {
-      const [recipient, bps] = await payroll<readonly [Address, number]>('splitOf', [worker], block)
-      return { recipient, bps }
-    },
-    balance: (address, blockNumber) =>
-      client.readContract({
-        address: config.tokenAddress,
-        abi: erc20Abi,
-        functionName: 'balanceOf',
-        args: [address],
-        blockNumber,
-      }),
+    withdrawable: (id, blockNumber) =>
+      client.readContract({ ...payroll, functionName: 'withdrawable', args: [id], blockNumber }),
+    splits: async (worker, blockNumber) =>
+      (
+        await client.readContract({
+          ...payroll,
+          functionName: 'splitsOf',
+          args: [worker],
+          blockNumber,
+        })
+      ).map(({ recipient, bps }) => ({ recipient, bps })),
+    balance: (address: Address, blockNumber) =>
+      client.readContract({ ...token, functionName: 'balanceOf', args: [address], blockNumber }),
   }
 }
 export const payrollReader = createPayrollReader(createViemPort)

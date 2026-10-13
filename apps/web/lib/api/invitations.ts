@@ -43,3 +43,12 @@ export function listFamilyInvitations(token: string, cursor?: string, options: C
   if (cursor) query.set('cursor', cursor)
   return apiRequest<InvitationPage>(`invites?${query}`, { ...options, token })
 }
+
+/** Cancels a pending invite I created (`DELETE /invites/{id}`); 409 once accepted. */
+export function cancelInvitation(id: string, token: string, options: ClientOptions = {}) {
+  return apiRequest<void>(`invites/${encodeURIComponent(id)}`, {
+    ...options,
+    method: 'DELETE',
+    token,
+  })
+}

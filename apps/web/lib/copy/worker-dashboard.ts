@@ -39,10 +39,6 @@ export const workerDashboardCopy = {
   emptyTitle: 'Belum ada pekerjaan terhubung',
   emptyBody:
     'Buka link undangan dari perusahaan dan terima undangannya untuk menghubungkan pekerjaanmu.',
-  familyTitle: 'Family',
-  familyUnavailable: 'Data keluarga belum tersedia',
-  familyBody:
-    'Daftar keluarga dan pengaturan pembagian gaji akan tersedia setelah fitur keluarga terhubung.',
   errors: {
     load: {
       title: 'Belum dapat memuat pekerjaan',

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { availableAt, splitAmounts, estimateTimestamp, streamStatus } from '@/lib/chain/stream-math'
+import { availableAt, estimateTimestamp, streamStatus } from '@/lib/chain/stream-math'
 import { formatToken } from '@/lib/chain/format-token'
 const b = BigInt
 const stream = {
@@ -35,18 +35,9 @@ describe('Solidity-compatible stream math', () => {
     const amount = b('100000000000000000000000000000')
     expect(availableAt({ ...stream, amount, withdrawn: b(0) }, b(150))).toBe(amount / b(2))
   })
-  it.each([
-    [0, 10001, 0],
-    [3000, 7001, 3000],
-    [10000, 0, 10001],
-  ])('split %i bps rounds dust to worker', (bps, worker, family) => {
-    expect(splitAmounts(b(10001), bps)).toEqual({ worker: b(worker), family: b(family) })
-  })
-  it('rejects invalid period, negative values and invalid split', () => {
+  it('rejects invalid period and negative values', () => {
     expect(() => availableAt({ ...stream, end: b(100) }, b(150))).toThrow()
     expect(() => availableAt({ ...stream, amount: b(-1) }, b(150))).toThrow()
-    expect(() => splitAmounts(b(10), 10001)).toThrow()
-    expect(() => splitAmounts(b(10), 0.5)).toThrow()
   })
   it('stops timestamp estimation at the stale threshold', () => {
     expect(estimateTimestamp(b(100), 1500)).toBe(b(101))

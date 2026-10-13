@@ -8,6 +8,12 @@ import { XIcon } from './icons'
 type SheetProps = {
   open: boolean
   onClose: () => void
+  /**
+   * Dipanggil setelah sheet benar-benar tertutup, termasuk entri history-nya.
+   * Buka sheet lain dari sini, bukan dari `onClose`, agar popstate yang
+   * tertinggal tidak menutup sheet baru.
+   */
+  onClosed?: () => void
   title: string
   description?: ReactNode
   children?: ReactNode
@@ -26,6 +32,7 @@ const HISTORY_KEY = 'trickleSheet'
 export function Sheet({
   open,
   onClose,
+  onClosed,
   title,
   description,
   children,
@@ -34,13 +41,16 @@ export function Sheet({
 }: SheetProps) {
   const ref = useRef<HTMLDialogElement>(null)
   const onCloseRef = useRef(onClose)
+  const onClosedRef = useRef(onClosed)
   const closingHistory = useRef(false)
+  const wasOpen = useRef(false)
   const defaultCloseLabel = useDict(commonCopy).close
   const titleId = useId()
   const descId = useId()
 
   useEffect(() => {
     onCloseRef.current = onClose
+    onClosedRef.current = onClosed
   })
 
   useEffect(() => {
@@ -53,13 +63,23 @@ export function Sheet({
   useEffect(() => {
     const marked = Boolean(window.history.state?.[HISTORY_KEY])
     if (!open) {
+      const closing = wasOpen.current
+      wasOpen.current = false
       // Ditutup oleh kode (bukan Back): buang entri history milik sheet.
       if (marked && !closingHistory.current) {
         closingHistory.current = true
+        if (closing) {
+          // Selesai baru setelah popstate dari back() ini benar-benar tiba.
+          const finished = () => onClosedRef.current?.()
+          window.addEventListener('popstate', finished, { once: true })
+        }
         window.history.back()
+        return
       }
+      if (closing) onClosedRef.current?.()
       return
     }
+    wasOpen.current = true
     closingHistory.current = false
     if (!marked) window.history.pushState({ [HISTORY_KEY]: true }, '')
     const onPop = () => onCloseRef.current()

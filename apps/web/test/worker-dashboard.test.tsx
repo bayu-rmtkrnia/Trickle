@@ -15,6 +15,15 @@ const deps = vi.hoisted(() => ({
 vi.mock('@/lib/account', () => ({ useAccount: () => deps.account }))
 vi.mock('@/providers/session-provider', () => ({ useSession: () => deps.session }))
 vi.mock('@/lib/api/worker', () => ({ listMyEmployments: deps.list }))
+vi.mock('@/lib/api/recipients', () => ({
+  listRecipients: vi.fn(async () => ({ data: [], nextCursor: null })),
+  deleteRecipient: vi.fn(),
+}))
+vi.mock('@/lib/api/invitations', () => ({
+  listFamilyInvitations: vi.fn(async () => ({ data: [], nextCursor: null })),
+  createFamilyInvitation: vi.fn(),
+  cancelInvitation: vi.fn(),
+}))
 const employment = {
   id: 'job-1',
   displayName: 'Siti',
@@ -67,7 +76,10 @@ describe('worker dashboard', () => {
     expect(screen.getByText('11 Okt')).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Tarik gaji' }).hasAttribute('disabled')).toBe(true)
     expect(screen.getByText('Saldo belum tersedia')).toBeTruthy()
-    expect(screen.getByText('Data keluarga belum tersedia')).toBeTruthy()
+    expect(
+      await screen.findByText('Belum ada penerima. Undang anggota keluarga terlebih dahulu.'),
+    ).toBeTruthy()
+    expect(screen.getByText('Pembagian aktif belum dapat dibaca dari jaringan.')).toBeTruthy()
     expect(screen.queryByText('Rp0')).toBeNull()
     expect(screen.queryByText('0x1111')).toBeNull()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)

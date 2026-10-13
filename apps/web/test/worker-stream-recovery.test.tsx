@@ -6,7 +6,7 @@ const deps = vi.hoisted(() => ({ read: vi.fn() }))
 vi.mock('@/lib/chain/viem-port', () => ({ payrollReader: { readWorkerSnapshot: deps.read } }))
 const snapshot = {
   streams: [],
-  split: { recipient: '0x2222222222222222222222222222222222222222', bps: 0 },
+  splits: [],
   walletBalance: BigInt(0),
   blockNumber: BigInt(100),
   blockTimestamp: BigInt(100),
