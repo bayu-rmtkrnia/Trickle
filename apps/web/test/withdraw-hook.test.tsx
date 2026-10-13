@@ -2,7 +2,8 @@
 import { StrictMode } from 'react'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { encodeAbiParameters, encodeEventTopics, parseAbiItem } from 'viem'
+import { encodeAbiParameters, encodeEventTopics } from 'viem'
+import { tricklePayrollAbi } from '../../../packages/shared/abi/TricklePayroll'
 import { useWithdrawal } from '@/hooks/use-withdrawal'
 import { pendingWithdrawalStore } from '@/lib/chain/withdraw-storage'
 import { payrollConfig as config } from '@/lib/chain/config'
@@ -32,9 +33,6 @@ function Harness({ address = worker, onSigning }: { address?: string; onSigning?
     </>
   )
 }
-const event = parseAbiItem(
-  'event Withdrawn(uint256 indexed streamId, address indexed worker, uint128 toWorker, address indexed recipient, uint128 toRecipient)',
-)
 const receipt = {
   transactionHash: hash,
   blockNumber: config.deploymentBlock + b(2),
@@ -44,8 +42,17 @@ const receipt = {
       address: config.payrollAddress,
       data: encodeAbiParameters([{ type: 'uint128' }, { type: 'uint128' }], [b(900), b(100)]),
       topics: encodeEventTopics({
-        abi: [event],
+        abi: tricklePayrollAbi,
         eventName: 'Withdrawn',
+        args: { streamId: b(1), worker },
+      }),
+    },
+    {
+      address: config.payrollAddress,
+      data: encodeAbiParameters([{ type: 'uint128' }], [b(100)]),
+      topics: encodeEventTopics({
+        abi: tricklePayrollAbi,
+        eventName: 'SplitPaid',
         args: { streamId: b(1), worker, recipient: other },
       }),
     },
@@ -54,6 +61,26 @@ const receipt = {
 beforeEach(() => {
   localStorage.clear()
   vi.clearAllMocks()
+  // jsdom has no Web Locks; a single-holder stand-in keeps the real hook path.
+  const held = new Set<string>()
+  Object.defineProperty(navigator, 'locks', {
+    configurable: true,
+    value: {
+      async request(
+        name: string,
+        _options: unknown,
+        callback: (lock: { name: string } | null) => Promise<unknown>,
+      ) {
+        if (held.has(name)) return callback(null)
+        held.add(name)
+        try {
+          return await callback({ name })
+        } finally {
+          held.delete(name)
+        }
+      },
+    },
+  })
   deps.send.mockResolvedValue({ hash })
   deps.account = {
     authenticated: true,
@@ -88,6 +115,7 @@ beforeEach(() => {
       to: config.payrollAddress,
       input: `0x2e1a7d4d${'0'.repeat(63)}1`,
       value: b(0),
+      nonce: b(0),
     }),
   }
 })
@@ -125,7 +153,7 @@ describe('withdrawal hook account lifecycle', () => {
     expect(deps.success).toHaveBeenCalledOnce()
   })
   it('isolates resumed transactions and late receipts when the wallet changes', async () => {
-    pendingWithdrawalStore(worker).write({ streamId: '1', hash: hash as `0x${string}` })
+    pendingWithdrawalStore(worker).write({ streamId: '1', hash: hash as `0x${string}`, nonce: '0' })
     let resolve!: (value: typeof receipt) => void
     deps.port.receipt = () =>
       new Promise((r) => {

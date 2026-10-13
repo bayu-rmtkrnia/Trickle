@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Field, inputClass } from '@/components/ui/field'
 import { withdrawCopy as t } from '@/lib/copy/withdraw'
 import { payrollConfig as config } from '@/lib/chain/config'
-import { availableAt, splitAmounts } from '@/lib/chain/stream-math'
+import { previewSplit, type Split } from '@/lib/chain/split'
+import { availableAt } from '@/lib/chain/stream-math'
 import { formatToken } from '@/lib/chain/format-token'
 import { TransactionStatus } from './transaction-status'
 export interface WithdrawSheetProps {
@@ -16,7 +17,7 @@ export interface WithdrawSheetProps {
   state: WithdrawalState
   streams: StreamSnapshot[]
   timestamp: bigint | null
-  splitBps: number
+  splits: readonly Split[]
   tokenSymbol: string
   walletAddress?: string | null
   select(id: bigint): void
@@ -30,7 +31,7 @@ export function WithdrawSheet({
   state,
   streams,
   timestamp,
-  splitBps,
+  splits,
   tokenSymbol,
   walletAddress,
   select,
@@ -43,7 +44,7 @@ export function WithdrawSheet({
   const recoveryWallet = walletAddress ?? streams[0]?.worker
   const stream = streams.find((s) => s.id === state.streamId)
   const gross = stream && timestamp !== null ? availableAt(stream, timestamp) : null
-  const split = gross !== null ? splitAmounts(gross, splitBps) : null
+  const split = gross !== null ? previewSplit(gross, splits) : null
   const token = (value: bigint) => `${formatToken(value, config.tokenDecimals)} ${tokenSymbol}`
   const busy = state.checking || state.phase === 'signing' || state.phase === 'pending'
   return (
@@ -133,12 +134,24 @@ export function WithdrawSheet({
                   </div>
                   <div>
                     <dt>{t.worker}</dt>
-                    <dd className="break-all font-semibold tabular-nums">{token(split.worker)}</dd>
+                    <dd className="break-all font-semibold tabular-nums">
+                      {token(split.toWorker)}
+                    </dd>
                   </div>
                   <div>
                     <dt>{t.family}</dt>
-                    <dd className="break-all font-semibold tabular-nums">{token(split.family)}</dd>
+                    <dd className="break-all font-semibold tabular-nums">
+                      {token(split.toRecipients)}
+                    </dd>
                   </div>
+                  {split.shares.map((share, index) => (
+                    <div key={share.recipient}>
+                      <dt className="text-label text-muted">
+                        {t.recipient(index + 1, share.recipient)}
+                      </dt>
+                      <dd className="break-all tabular-nums">{token(share.amount)}</dd>
+                    </div>
+                  ))}
                 </dl>
                 <p className="text-sm/6 text-muted">{t.estimate}</p>
               </>

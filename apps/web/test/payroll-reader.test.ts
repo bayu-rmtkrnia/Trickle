@@ -50,7 +50,7 @@ function setup(options: Record<string, number> = {}) {
     logs: vi.fn(async () => [log, log]),
     stream: vi.fn(async () => stream),
     withdrawable: vi.fn(async () => b(400000)),
-    split: vi.fn(async () => ({ recipient: other, bps: 3000 })),
+    splits: vi.fn(async () => [{ recipient: other, bps: 3000 }]),
     balance: vi.fn(async () => b(250000)),
   }
   const reader = createPayrollReader(() => port, config, {
@@ -95,6 +95,48 @@ describe('payroll chain snapshot and discovery', () => {
     expect(port.logs).toHaveBeenCalledWith(worker, b(13), b(15))
     expect(port.stream).toHaveBeenCalledWith(b(1), b(15))
     expect(port.withdrawable).toHaveBeenCalledWith(b(1), b(15))
+  })
+  it('reads splitsOf at the snapshot block, up to three recipients', async () => {
+    const { port, reader } = setup()
+    const splits = [
+      { recipient: other, bps: 2000 },
+      { recipient: employer, bps: 1500 },
+      { recipient: '0x4444444444444444444444444444444444444444' as const, bps: 500 },
+    ]
+    vi.mocked(port.splits).mockResolvedValue(splits)
+    const result = await reader.readWorkerSnapshot(worker)
+    expect(result.splits).toEqual(splits)
+    expect(port.splits).toHaveBeenCalledWith(worker, b(15))
+  })
+  it.each([
+    [
+      'more than three recipients',
+      ['0x4', '0x5', '0x6', '0x7'].map((p) => ({
+        recipient: `${p.padEnd(42, '4')}` as `0x${string}`,
+        bps: 100,
+      })),
+    ],
+    [
+      'a total above 100%',
+      [
+        { recipient: other, bps: 6000 },
+        { recipient: employer, bps: 5000 },
+      ],
+    ],
+    [
+      'a duplicated recipient',
+      [
+        { recipient: other, bps: 100 },
+        { recipient: other, bps: 100 },
+      ],
+    ],
+    ['a zero share', [{ recipient: other, bps: 0 }]],
+  ])('rejects a split list with %s', async (_, splits) => {
+    const { port, reader } = setup()
+    vi.mocked(port.splits).mockResolvedValue(splits)
+    await expect(reader.readWorkerSnapshot(worker)).rejects.toMatchObject({
+      code: 'SNAPSHOT_MISMATCH',
+    })
   })
   it('returns a real zero only after complete successful discovery', async () => {
     const { port, reader } = setup()

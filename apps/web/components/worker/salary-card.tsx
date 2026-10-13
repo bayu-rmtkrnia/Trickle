@@ -10,9 +10,10 @@ import { WAVE_SRC } from '@/lib/brand'
 import { workerDashboardCopy as t } from '@/lib/copy/worker-dashboard'
 import { payrollCopy as p, payrollError } from '@/lib/copy/payroll'
 import { payrollConfig } from '@/lib/chain/config'
-import { availableAt, splitAmounts, streamStatus } from '@/lib/chain/stream-math'
+import { previewSplit } from '@/lib/chain/split'
+import { availableAt, streamStatus } from '@/lib/chain/stream-math'
 import { formatToken } from '@/lib/chain/format-token'
-import { useWorkerStreams } from '@/hooks/use-worker-streams'
+import { useWorkerStreams, type WorkerStreamState } from '@/hooks/use-worker-streams'
 import type { EmploymentDto } from '@/lib/api/worker'
 import { useWithdrawal } from '@/hooks/use-withdrawal'
 import { WithdrawSheet } from './withdraw-sheet'
@@ -21,11 +22,15 @@ import { withdrawCopy as w } from '@/lib/copy/withdraw'
 export function SalaryCard({
   walletAddress = null,
   employments = [],
+  streams,
 }: {
   walletAddress?: string | null
   employments?: EmploymentDto[]
+  /** Shared snapshot from the dashboard; without it the card reads its own. */
+  streams?: WorkerStreamState
 }) {
-  const { phase, snapshot, timestamp, refresh, refreshing, error } = useWorkerStreams(walletAddress)
+  const own = useWorkerStreams(streams ? null : walletAddress)
+  const { phase, snapshot, timestamp, refresh, refreshing, error } = streams ?? own
   const [sheetOpen, setSheetOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [payrollOpen, setPayrollOpen] = useState(false)
@@ -78,10 +83,19 @@ export function SalaryCard({
     snapshot && timestamp !== null
       ? snapshot.streams.reduce(
           (sum, stream) => {
-            const share = splitAmounts(availableAt(stream, timestamp), snapshot.split.bps)
-            return { worker: sum.worker + share.worker, family: sum.family + share.family }
+            // Same rounding as `withdraw`, which splits each stream on its own.
+            const preview = previewSplit(availableAt(stream, timestamp), snapshot.splits)
+            return {
+              worker: sum.worker + preview.toWorker,
+              family: sum.family + preview.toRecipients,
+              shares: sum.shares.map((value, index) => value + preview.shares[index]!.amount),
+            }
           },
-          { worker: BigInt(0), family: BigInt(0) },
+          {
+            worker: BigInt(0),
+            family: BigInt(0),
+            shares: snapshot.splits.map(() => BigInt(0)),
+          },
         )
       : null
   const amount = (value: bigint) => formatToken(value, payrollConfig.tokenDecimals)
@@ -199,6 +213,10 @@ export function SalaryCard({
                   [p.walletBalance, token(snapshot.walletBalance)],
                   [p.workerShare, token(split.worker)],
                   [p.familyShare, token(split.family)],
+                  ...snapshot.splits.map(({ recipient, bps }, index) => [
+                    p.recipientShare(index + 1, recipient, (bps / 100).toString()),
+                    token(split.shares[index]!),
+                  ]),
                 ].map(([label, value]) => (
                   <div
                     key={label}
@@ -210,7 +228,11 @@ export function SalaryCard({
                 ))}
               </dl>
               <p className="text-label text-muted">
-                {phase === 'stale' ? p.staleHint : p.splitHint}
+                {phase === 'stale'
+                  ? p.staleHint
+                  : snapshot.splits.length === 0
+                    ? p.noSplit
+                    : p.splitHint}
               </p>
             </div>
           ) : phase === 'loading' ? (
@@ -276,7 +298,7 @@ export function SalaryCard({
         state={withdrawal.state}
         streams={snapshot?.streams ?? []}
         timestamp={phase === 'ready' ? timestamp : null}
-        splitBps={snapshot?.split.bps ?? 0}
+        splits={snapshot?.splits ?? []}
         tokenSymbol={snapshot?.tokenSymbol ?? w.tokenFallback}
         walletAddress={walletAddress}
         select={withdrawal.select}

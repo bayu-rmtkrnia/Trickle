@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
-import { encodeAbiParameters, encodeEventTopics, parseAbiItem, type Hex } from 'viem'
+import { encodeAbiParameters, encodeEventTopics, type Address, type Hex } from 'viem'
+import { tricklePayrollAbi } from '../../../packages/shared/abi/TricklePayroll'
 import {
   createPayrollWriter,
   WithdrawalError,
@@ -12,9 +13,38 @@ const worker = '0x2222222222222222222222222222222222222222' as const
 const other = '0x3333333333333333333333333333333333333333' as const
 const hash = `0x${'a'.repeat(64)}` as const
 const calldata = `0x2e1a7d4d${'0'.repeat(63)}1` as const
-const event = parseAbiItem(
-  'event Withdrawn(uint256 indexed streamId, address indexed worker, uint128 toWorker, address indexed recipient, uint128 toRecipient)',
-)
+function withdrawnLog(
+  streamId: bigint,
+  toWorker: bigint,
+  toRecipients: bigint,
+  from: Address = worker,
+) {
+  return {
+    address: config.payrollAddress,
+    data: encodeAbiParameters([{ type: 'uint128' }, { type: 'uint128' }], [toWorker, toRecipients]),
+    topics: encodeEventTopics({
+      abi: tricklePayrollAbi,
+      eventName: 'Withdrawn',
+      args: { streamId, worker: from },
+    }) as Hex[],
+  }
+}
+function splitPaidLog(
+  streamId: bigint,
+  recipient: Address,
+  amount: bigint,
+  from: Address = worker,
+) {
+  return {
+    address: config.payrollAddress,
+    data: encodeAbiParameters([{ type: 'uint128' }], [amount]),
+    topics: encodeEventTopics({
+      abi: tricklePayrollAbi,
+      eventName: 'SplitPaid',
+      args: { streamId, worker: from, recipient },
+    }) as Hex[],
+  }
+}
 function fixture() {
   const port: WithdrawalPort = {
     chainId: async () => config.chainId,
@@ -40,7 +70,7 @@ function fixture() {
       canceled: false,
     }),
     withdrawable: async () => b(1000),
-    split: async () => ({ recipient: other, bps: 1000 }),
+    splits: async () => [{ recipient: other, bps: 1000 }],
     balance: async () => b(0),
     nativeBalance: vi.fn(async () => b(100)),
     gasCost: vi.fn(async () => b(10)),
@@ -50,23 +80,14 @@ function fixture() {
       transactionHash: hash,
       blockNumber: config.deploymentBlock + b(2),
       status: 'success' as const,
-      logs: [
-        {
-          address: config.payrollAddress,
-          data: encodeAbiParameters([{ type: 'uint128' }, { type: 'uint128' }], [b(900), b(100)]),
-          topics: encodeEventTopics({
-            abi: [event],
-            eventName: 'Withdrawn',
-            args: { streamId: b(1), worker, recipient: other },
-          }) as Hex[],
-        },
-      ],
+      logs: [withdrawnLog(b(1), b(900), b(100)), splitPaidLog(b(1), other, b(100))],
     })),
     transaction: vi.fn(async () => ({
       from: worker,
       to: config.payrollAddress,
       input: calldata,
       value: b(0),
+      nonce: b(7),
     })),
   }
   return { port, writer: createPayrollWriter(port) }
@@ -139,8 +160,95 @@ describe('payroll withdrawal preparation and settlement', () => {
       hash,
       streamId: b(1),
       toWorker: b(900),
-      recipient: other,
-      toRecipient: b(100),
+      toRecipients: b(100),
+      paid: [{ recipient: other, amount: b(100) }],
+    })
+  })
+  it('collects every SplitPaid for up to three recipients in log order', async () => {
+    const { port, writer } = fixture()
+    const third = '0x4444444444444444444444444444444444444444' as const
+    const fourth = '0x5555555555555555555555555555555555555555' as const
+    vi.mocked(port.receipt).mockResolvedValue({
+      transactionHash: hash,
+      blockNumber: config.deploymentBlock + b(2),
+      status: 'success',
+      logs: [
+        splitPaidLog(b(1), other, b(50)),
+        splitPaidLog(b(1), third, b(30)),
+        splitPaidLog(b(1), fourth, b(20)),
+        withdrawnLog(b(1), b(900), b(100)),
+      ],
+    })
+    await expect(writer.settle(worker, b(1), hash)).resolves.toEqual({
+      hash,
+      streamId: b(1),
+      toWorker: b(900),
+      toRecipients: b(100),
+      paid: [
+        { recipient: other, amount: b(50) },
+        { recipient: third, amount: b(30) },
+        { recipient: fourth, amount: b(20) },
+      ],
+    })
+  })
+  it('settles a withdrawal without split as an empty payment list', async () => {
+    const { port, writer } = fixture()
+    vi.mocked(port.receipt).mockResolvedValue({
+      transactionHash: hash,
+      blockNumber: config.deploymentBlock + b(2),
+      status: 'success',
+      logs: [withdrawnLog(b(1), b(1000), b(0))],
+    })
+    await expect(writer.settle(worker, b(1), hash)).resolves.toMatchObject({
+      toWorker: b(1000),
+      toRecipients: b(0),
+      paid: [],
+    })
+  })
+  it('ignores SplitPaid from another stream or worker', async () => {
+    const { port, writer } = fixture()
+    vi.mocked(port.receipt).mockResolvedValue({
+      transactionHash: hash,
+      blockNumber: config.deploymentBlock + b(2),
+      status: 'success',
+      logs: [
+        splitPaidLog(b(2), other, b(100)),
+        splitPaidLog(b(1), other, b(100), other),
+        splitPaidLog(b(1), other, b(100)),
+        withdrawnLog(b(1), b(900), b(100)),
+      ],
+    })
+    const result = await writer.settle(worker, b(1), hash)
+    expect(result.paid).toEqual([{ recipient: other, amount: b(100) }])
+  })
+  it.each([
+    ['payments below toRecipients', [splitPaidLog(b(1), other, b(60))]],
+    [
+      'payments above toRecipients',
+      [splitPaidLog(b(1), other, b(60)), splitPaidLog(b(1), other, b(60))],
+    ],
+  ])('rejects a receipt whose %s', async (_, payments) => {
+    const { port, writer } = fixture()
+    vi.mocked(port.receipt).mockResolvedValue({
+      transactionHash: hash,
+      blockNumber: config.deploymentBlock + b(2),
+      status: 'success',
+      logs: [...payments, withdrawnLog(b(1), b(900), b(100))],
+    })
+    await expect(writer.settle(worker, b(1), hash)).rejects.toMatchObject({
+      code: 'RECEIPT_UNVERIFIED',
+    })
+  })
+  it('rejects a receipt with two Withdrawn events for the stream', async () => {
+    const { port, writer } = fixture()
+    vi.mocked(port.receipt).mockResolvedValue({
+      transactionHash: hash,
+      blockNumber: config.deploymentBlock + b(2),
+      status: 'success',
+      logs: [withdrawnLog(b(1), b(900), b(0)), withdrawnLog(b(1), b(900), b(0))],
+    })
+    await expect(writer.settle(worker, b(1), hash)).rejects.toMatchObject({
+      code: 'RECEIPT_UNVERIFIED',
     })
   })
   it('rejects reverted receipts and unrelated replacement transactions', async () => {
@@ -195,6 +303,7 @@ function coordinatorFixture() {
     store,
     isCurrent: () => current,
     onSuccess,
+    submissionNonce: async () => b(7),
   })
   return {
     coordinator,
@@ -259,7 +368,13 @@ describe('withdrawal transaction lifecycle', () => {
     await vi.waitFor(() => expect(coordinator.getSnapshot().phase).toBe('pending'))
     expect(store.read()?.hash).toBe(hash)
     expect(onSuccess).not.toHaveBeenCalled()
-    resolve({ hash, streamId: b(1), toWorker: b(900), recipient: other, toRecipient: b(100) })
+    resolve({
+      hash,
+      streamId: b(1),
+      toWorker: b(900),
+      toRecipients: b(100),
+      paid: [{ recipient: other, amount: b(100) }],
+    })
     await done
     expect(onSuccess).toHaveBeenCalledOnce()
     expect(store.read()).toBeNull()
@@ -297,7 +412,7 @@ describe('withdrawal transaction lifecycle', () => {
   })
   it('recovers a stored pending transaction after reload without asking for another signature', async () => {
     const { writer, send, store } = coordinatorFixture()
-    store.write({ streamId: '1', hash })
+    store.write({ streamId: '1', hash, nonce: '7' })
     const fresh = new WithdrawalCoordinator({
       worker,
       writer,
@@ -321,7 +436,13 @@ describe('withdrawal transaction lifecycle', () => {
     const done = coordinator.submit()
     await vi.waitFor(() => expect(coordinator.getSnapshot().phase).toBe('pending'))
     switchAccount()
-    resolve({ hash, streamId: b(1), toWorker: b(900), recipient: other, toRecipient: b(100) })
+    resolve({
+      hash,
+      streamId: b(1),
+      toWorker: b(900),
+      toRecipients: b(100),
+      paid: [{ recipient: other, amount: b(100) }],
+    })
     await done
     expect(onSuccess).not.toHaveBeenCalled()
   })
@@ -370,6 +491,22 @@ describe('manual receipt identity verification', () => {
     await expect(
       writer.settle(worker, b(1), hash, config.deploymentBlock + b(3)),
     ).rejects.toMatchObject({ code: 'TRANSACTION_MISMATCH' })
+  })
+  it('rejects a recovery hash whose transaction used another nonce', async () => {
+    const { port, writer } = fixture()
+    const tx = await port.transaction(hash)
+    vi.mocked(port.transaction).mockResolvedValue({ ...tx, nonce: b(8) })
+    await expect(writer.settle(worker, b(1), hash, undefined, b(7))).rejects.toMatchObject({
+      code: 'TRANSACTION_MISMATCH',
+    })
+    vi.mocked(port.transaction).mockResolvedValue({ ...tx, nonce: b(7) })
+    await expect(writer.settle(worker, b(1), hash, undefined, b(7))).resolves.toMatchObject({
+      toWorker: b(900),
+    })
+    vi.mocked(port.transaction).mockResolvedValue({ ...tx, nonce: undefined })
+    await expect(writer.settle(worker, b(1), hash, undefined, b(7))).rejects.toMatchObject({
+      code: 'TRANSACTION_MISMATCH',
+    })
   })
   it('treats an unrelated transaction as unverifiable rather than a cancellation of the original request', async () => {
     const { port, writer } = fixture()

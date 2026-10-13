@@ -33,9 +33,19 @@ export function TransactionStatus({
             <div>
               <dt>{t.family}</dt>
               <dd className="break-all font-semibold tabular-nums">
-                {formatToken(state.result.toRecipient, config.tokenDecimals)} {tokenSymbol}
+                {formatToken(state.result.toRecipients, config.tokenDecimals)} {tokenSymbol}
               </dd>
             </div>
+            {state.result.paid.map((payment, index) => (
+              <div key={`${payment.recipient}:${index}`}>
+                <dt className="text-label text-muted">
+                  {t.recipient(index + 1, payment.recipient)}
+                </dt>
+                <dd className="break-all tabular-nums">
+                  {formatToken(payment.amount, config.tokenDecimals)} {tokenSymbol}
+                </dd>
+              </div>
+            ))}
           </dl>
         </div>
       )}

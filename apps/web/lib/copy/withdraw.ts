@@ -12,6 +12,8 @@ export const withdrawCopy = {
   gross: 'Total perkiraan',
   worker: 'Bagian kamu',
   family: 'Bagian keluarga',
+  recipient: (index: number, address: string) =>
+    `Penerima ${index} (${address.slice(0, 6)}…${address.slice(-4)})`,
   estimate: 'Jumlah masih berupa perkiraan. Nilai akhirnya mengikuti transaksi yang dikonfirmasi.',
   demo: 'Ini token testnet untuk pengujian, tanpa nilai uang nyata.',
   stale: 'Perbarui payroll sebelum mengonfirmasi penarikan.',
@@ -79,6 +81,10 @@ export function withdrawalMessage(error: unknown): string {
     RECOVERY_UNVERIFIED:
       'Belum dapat memastikan permintaan ini tidak terkirim. Periksa aktivitas wallet atau masukkan hash transaksinya.',
     PENDING_CHANGED: 'Status penarikan berubah di tab lain. Muat ulang sebelum melanjutkan.',
+    SIGNATURE_PENDING:
+      'Persetujuan wallet untuk penarikan ini masih terbuka di tab lain. Selesaikan atau tutup di sana, lalu periksa lagi.',
+    LOCK_UNAVAILABLE:
+      'Browser ini belum mendukung penguncian antar-tab yang dibutuhkan untuk penarikan aman. Perbarui browser lalu coba lagi.',
   }
   if (code && messages[code]) return messages[code]!
   const value = error as {

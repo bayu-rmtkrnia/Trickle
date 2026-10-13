@@ -8,7 +8,7 @@ const wallet = '0x2222222222222222222222222222222222222222'
 const second = '0x3333333333333333333333333333333333333333'
 const snapshot = {
   streams: [],
-  split: { recipient: second, bps: 0 },
+  splits: [],
   walletBalance: BigInt(5),
   blockNumber: BigInt(15),
   blockTimestamp: BigInt(100),

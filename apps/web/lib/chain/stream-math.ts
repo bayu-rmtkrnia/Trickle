@@ -25,12 +25,6 @@ export function availableAt(s: Stream, now: bigint): bigint {
         : (s.amount * (now - s.start)) / (s.end - s.start)
   return vested > s.withdrawn ? vested - s.withdrawn : zero
 }
-export function splitAmounts(gross: bigint, bps: number) {
-  if (gross < zero || !Number.isInteger(bps) || bps < 0 || bps > 10000)
-    throw new RangeError('Invalid split')
-  const family = (gross * BigInt(bps)) / BigInt(10000)
-  return { worker: gross - family, family }
-}
 export function estimateTimestamp(timestamp: bigint, elapsedMs: number) {
   return timestamp + BigInt(Math.floor(Math.max(0, Math.min(elapsedMs, STALE_AFTER_MS)) / 1000))
 }
