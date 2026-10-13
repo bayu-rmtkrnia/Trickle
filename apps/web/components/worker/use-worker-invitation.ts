@@ -6,12 +6,14 @@ import { useAccount } from '@/lib/account'
 import { ApiError, isApiError } from '@/lib/api/errors'
 import { acceptInvitation, getInvitation } from '@/lib/api/invitations'
 import type { Invite } from '@/lib/api/types'
-import { invitationCopy as t } from '@/lib/copy/worker'
+import { invitationCopy } from '@/lib/copy/worker'
+import { useDict } from '@/lib/i18n/client'
 import { useSession } from '@/providers/session-provider'
 
 type Phase = 'idle' | 'accepting' | 'refreshing' | 'refresh-error' | 'unknown'
 
 export function useWorkerInvitation(code: string) {
+  const t = useDict(invitationCopy)
   const account = useAccount()
   const session = useSession()
   const router = useRouter()

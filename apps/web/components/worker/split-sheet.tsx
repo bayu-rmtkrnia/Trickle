@@ -11,10 +11,8 @@ import type { RecipientDto } from '@/lib/api/recipients'
 import { payrollConfig as config } from '@/lib/chain/config'
 import { MAX_RECIPIENTS, bpsToPercent, type Split } from '@/lib/chain/split'
 import { splitTxMessage, workerFamilyCopy } from '@/lib/copy/worker-family'
+import { useLocale } from '@/lib/i18n/client'
 import { buildSplitDraft, type SplitRow } from '@/lib/split-form'
-
-const t = workerFamilyCopy.splitSheet
-const percentText = (bps: number) => bpsToPercent(bps).replace('.', ',')
 
 export function SplitSheet({
   open,
@@ -32,6 +30,10 @@ export function SplitSheet({
   settings: SplitSettings
   worker: string | null
 }) {
+  const { locale } = useLocale()
+  const t = workerFamilyCopy[locale].splitSheet
+  const percentText = (bps: number) =>
+    locale === 'en' ? bpsToPercent(bps) : bpsToPercent(bps).replace('.', ',')
   const formId = useId()
   const baseId = useId()
   const [rows, setRows] = useState<SplitRow[]>(() =>
@@ -160,7 +162,7 @@ export function SplitSheet({
                         (r) => r.address.toLowerCase() === row.recipient.toLowerCase(),
                       ) && (
                         <option value={row.recipient}>
-                          {workerFamilyCopy.unnamed(row.recipient)}
+                          {workerFamilyCopy[locale].unnamed(row.recipient)}
                         </option>
                       )}
                   </select>
@@ -200,7 +202,7 @@ export function SplitSheet({
           </div>
           {general && <InlineError title={general} />}
           {state.phase === 'failed' && state.error !== null && (
-            <InlineError title={t.phases.failed!} message={splitTxMessage(state.error)} />
+            <InlineError title={t.phases.failed!} message={splitTxMessage(state.error, locale)} />
           )}
         </form>
       ) : (
@@ -210,7 +212,7 @@ export function SplitSheet({
           </StatusBadge>
           {state.phase === 'unknown' && <p className="text-label">{t.unknownBody}</p>}
           {state.phase === 'unknown' && state.error !== null && (
-            <InlineError title={t.phases.unknown!} message={splitTxMessage(state.error)} />
+            <InlineError title={t.phases.unknown!} message={splitTxMessage(state.error, locale)} />
           )}
           {state.hash && (
             <a

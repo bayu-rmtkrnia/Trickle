@@ -7,13 +7,16 @@ import { PersonCard } from '@/components/ui/person-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { BankAccountsState } from '@/hooks/use-bank-accounts'
 import { MAX_BANK_ACCOUNTS, type BankAccountDto } from '@/lib/api/bank-accounts'
-import { bankCopy as t, bankError, bankNames } from '@/lib/copy/family'
+import { bankCopy, bankError, bankNames } from '@/lib/copy/family'
+import { useLocale } from '@/lib/i18n/client'
 import { BankAccountSheet } from './bank-account-sheet'
 import { DeleteBankAccountSheet } from './delete-bank-account-sheet'
 
 type Target = { mode: 'create' } | { mode: 'edit'; account: BankAccountDto }
 
 export function BankAccountList({ bank }: { bank: BankAccountsState }) {
+  const { locale } = useLocale()
+  const t = bankCopy[locale]
   const [target, setTarget] = useState<Target>({ mode: 'create' })
   const [formOpen, setFormOpen] = useState(false)
   const [removing, setRemoving] = useState<BankAccountDto | null>(null)
@@ -51,7 +54,7 @@ export function BankAccountList({ bank }: { bank: BankAccountsState }) {
         </div>
       ) : bank.error ? (
         <>
-          <InlineError {...bankError(bank.error, 'load')} />
+          <InlineError {...bankError(bank.error, 'load', locale)} />
           <Button variant="secondary" block onClick={bank.reload} disabled={bank.retryUntil > 0}>
             {t.retry}
           </Button>
@@ -92,7 +95,9 @@ export function BankAccountList({ bank }: { bank: BankAccountsState }) {
             ))}
           </ul>
           {full && <p className="text-label text-muted">{t.limit(MAX_BANK_ACCOUNTS)}</p>}
-          {bank.pageError !== null && <InlineError {...bankError(bank.pageError, 'page')} />}
+          {bank.pageError !== null && (
+            <InlineError {...bankError(bank.pageError, 'page', locale)} />
+          )}
           {bank.page?.nextCursor && (
             <Button
               variant="secondary"

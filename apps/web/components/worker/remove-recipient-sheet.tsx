@@ -7,8 +7,7 @@ import { Sheet } from '@/components/ui/sheet'
 import { isApiError } from '@/lib/api/errors'
 import type { RecipientDto } from '@/lib/api/recipients'
 import { familyApiMessage, workerFamilyCopy } from '@/lib/copy/worker-family'
-
-const t = workerFamilyCopy.removeSheet
+import { useLocale } from '@/lib/i18n/client'
 
 export function RemoveRecipientSheet({
   recipient,
@@ -24,6 +23,8 @@ export function RemoveRecipientSheet({
   onRemove: (id: string) => Promise<void>
   onEditSplit: () => void
 }) {
+  const { locale } = useLocale()
+  const t = workerFamilyCopy[locale].removeSheet
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<unknown>(null)
   const splitActive = isApiError(failure) && failure.code === 'SPLIT_ACTIVE'
@@ -88,7 +89,7 @@ export function RemoveRecipientSheet({
         )
       }
     >
-      {failure !== null && <InlineError {...familyApiMessage(failure)} />}
+      {failure !== null && <InlineError {...familyApiMessage(failure, locale)} />}
     </Sheet>
   )
 }

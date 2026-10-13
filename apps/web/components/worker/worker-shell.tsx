@@ -1,8 +1,12 @@
+'use client'
+
 import type { ReactNode } from 'react'
 import { DashboardHeader } from '@/components/ui/dashboard-header'
-import { workerDashboardCopy as t } from '@/lib/copy/worker-dashboard'
+import { workerDashboardCopy } from '@/lib/copy/worker-dashboard'
+import { useDict } from '@/lib/i18n/client'
 
 export function WorkerShell({ name, children }: { name?: string; children: ReactNode }) {
+  const t = useDict(workerDashboardCopy)
   return (
     <div className="min-h-dvh pb-[calc(96px+env(safe-area-inset-bottom))] md:pb-10">
       <DashboardHeader name={name ? t.greeting(name) : undefined} avatarName={name} />

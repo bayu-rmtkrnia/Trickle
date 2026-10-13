@@ -5,8 +5,9 @@ import { payrollConfig } from '@/lib/chain/config'
 import { formatToken } from '@/lib/chain/format-token'
 import type { FamilyPayoutState } from '@/lib/chain/payout-coordinator'
 import { bankNames } from '@/lib/copy/family'
-import { payoutCopy as t, payoutMessage } from '@/lib/copy/family-payout'
+import { payoutCopy, payoutMessage } from '@/lib/copy/family-payout'
 import { formatIdr } from '@/lib/format'
+import { useLocale } from '@/lib/i18n/client'
 
 const tone = (phase: FamilyPayoutState['phase']): BadgeTone =>
   phase === 'completed'
@@ -17,9 +18,12 @@ const tone = (phase: FamilyPayoutState['phase']): BadgeTone =>
 
 /** Server payout fields; the IDR amount shown here is the backend's, not an estimate. */
 export function PayoutDetails({ payout }: { payout: PayoutDto }) {
+  const { locale } = useLocale()
+  const t = payoutCopy[locale]
+  const amountUsd = locale === 'en' ? payout.amountUsd : payout.amountUsd.replace('.', ',')
   const rows: [string, string][] = [
-    [t.sentAmount, `${payout.amountUsd.replace('.', ',')} mAUSD`],
-    [t.receivedIdr, payout.amountIdr === null ? '–' : formatIdr(payout.amountIdr)],
+    [t.sentAmount, `${amountUsd} mAUSD`],
+    [t.receivedIdr, payout.amountIdr === null ? '–' : formatIdr(payout.amountIdr, locale)],
     [
       t.account,
       `${bankNames[payout.bankAccount.bankCode] ?? payout.bankAccount.bankCode} •••• ${payout.bankAccount.accountNumberLast4}`,
@@ -45,6 +49,8 @@ export function PayoutDetails({ payout }: { payout: PayoutDto }) {
 }
 
 export function PayoutStatus({ state }: { state: FamilyPayoutState }) {
+  const { locale } = useLocale()
+  const t = payoutCopy[locale]
   const body = (t.bodies as Record<string, string | undefined>)[state.phase]
   return (
     <div className="flex flex-col gap-4">
@@ -55,7 +61,8 @@ export function PayoutStatus({ state }: { state: FamilyPayoutState }) {
       {body && <p role="status">{body}</p>}
       {state.amountUnits !== null && !state.payout && (
         <p className="font-semibold tabular-nums">
-          {t.sentAmount}: {formatToken(state.amountUnits, payrollConfig.tokenDecimals)} mAUSD
+          {t.sentAmount}: {formatToken(state.amountUnits, payrollConfig.tokenDecimals, locale)}{' '}
+          mAUSD
         </p>
       )}
       {state.hash && (
@@ -74,7 +81,7 @@ export function PayoutStatus({ state }: { state: FamilyPayoutState }) {
       )}
       {state.payout && <PayoutDetails payout={state.payout} />}
       {state.error !== null && state.error !== undefined && (
-        <InlineError title={t.errorTitle} message={payoutMessage(state.error)} />
+        <InlineError title={t.errorTitle} message={payoutMessage(state.error, locale)} />
       )}
     </div>
   )

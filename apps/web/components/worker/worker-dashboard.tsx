@@ -8,7 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { useWorkerStreams } from '@/hooks/use-worker-streams'
 import { useAccount } from '@/lib/account'
-import { workerDashboardCopy as t, workerDashboardError } from '@/lib/copy/worker-dashboard'
+import { workerDashboardCopy, workerDashboardError } from '@/lib/copy/worker-dashboard'
+import { useDict, useLocale } from '@/lib/i18n/client'
 import { formatDateShort, formatUsd } from '@/lib/format'
 import { useSession, type SessionContextValue } from '@/providers/session-provider'
 import { SalaryCard } from './salary-card'
@@ -19,6 +20,7 @@ import { useWorkerEmployments } from './use-worker-employments'
 export function WorkerDashboard() {
   const account = useAccount()
   const session = useSession()
+  const t = useDict(workerDashboardCopy)
   const [recovering, setRecovering] = useState(false)
   const [loginFailed, setLoginFailed] = useState(false)
   async function recover() {
@@ -113,6 +115,7 @@ export function WorkerDashboard() {
 }
 
 function DashboardSkeleton() {
+  const t = useDict(workerDashboardCopy)
   return (
     <WorkerShell>
       <div role="status" aria-label={t.loading} className="flex flex-col gap-4">
@@ -126,6 +129,8 @@ function DashboardSkeleton() {
 }
 
 function EmploymentDashboard({ session }: { session: SessionContextValue }) {
+  const { locale } = useLocale()
+  const t = workerDashboardCopy[locale]
   const { page, loading, loadingMore, error, pageError, retryUntil, reload, loadMore } =
     useWorkerEmployments(session)
   const wallet = session.user?.address ?? null
@@ -149,7 +154,7 @@ function EmploymentDashboard({ session }: { session: SessionContextValue }) {
               </div>
             ) : error ? (
               <>
-                <InlineError {...workerDashboardError(error)} />
+                <InlineError {...workerDashboardError(error, false, locale)} />
                 <Button variant="secondary" block onClick={reload} disabled={retryUntil > 0}>
                   {t.retry}
                 </Button>
@@ -172,13 +177,15 @@ function EmploymentDashboard({ session }: { session: SessionContextValue }) {
                         <div>
                           <dt className="text-muted">{t.salaryReference}</dt>
                           <dd className="mt-1 font-semibold">
-                            {t.perMonth(formatUsd(job.monthlySalaryUsd))}
+                            {t.perMonth(formatUsd(job.monthlySalaryUsd, locale))}
                           </dd>
                         </div>
                         <div>
                           <dt className="text-muted">{t.joined}</dt>
                           <dd className="mt-1">
-                            <time dateTime={job.joinedAt}>{formatDateShort(job.joinedAt)}</time>
+                            <time dateTime={job.joinedAt}>
+                              {formatDateShort(job.joinedAt, locale)}
+                            </time>
                           </dd>
                         </div>
                       </dl>
@@ -189,7 +196,7 @@ function EmploymentDashboard({ session }: { session: SessionContextValue }) {
                 {(page?.data.length ?? 0) > 0 && (
                   <p className="text-label text-muted">{t.salaryHint}</p>
                 )}
-                {pageError && <InlineError {...workerDashboardError(pageError, true)} />}
+                {pageError && <InlineError {...workerDashboardError(pageError, true, locale)} />}
                 {page?.nextCursor && (
                   <Button
                     variant="secondary"

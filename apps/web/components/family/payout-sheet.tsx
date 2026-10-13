@@ -12,8 +12,9 @@ import type { FxQuoteDto } from '@/lib/api/fx'
 import { payrollConfig } from '@/lib/chain/config'
 import { formatToken } from '@/lib/chain/format-token'
 import { bankCopy, bankNames } from '@/lib/copy/family'
-import { payoutCopy as t, payoutMessage } from '@/lib/copy/family-payout'
+import { payoutCopy, payoutMessage } from '@/lib/copy/family-payout'
 import { estimateIdr, formatIdrUnits, parseTokenAmount } from '@/lib/family-money'
+import { useDict, useLocale } from '@/lib/i18n/client'
 import { PayoutStatus as PayoutStatusBlock } from './payout-status'
 
 const HASH = /^0x[0-9a-fA-F]{64}$/
@@ -29,6 +30,7 @@ function BankChoice({
   onChange: (id: string) => void
   name: string
 }) {
+  const masked = useDict(bankCopy).masked
   return (
     <div className="flex flex-col gap-2">
       {accounts.map((account) => (
@@ -46,7 +48,7 @@ function BankChoice({
           <span className="min-w-0 flex-1">
             <span className="block font-semibold">
               {bankNames[account.bankCode] ?? account.bankCode} ·{' '}
-              {bankCopy.masked(account.accountNumberLast4)}
+              {masked(account.accountNumberLast4)}
             </span>
             <span className="block truncate text-label text-muted">
               {account.label ?? account.accountName}
@@ -78,6 +80,8 @@ export function PayoutSheet({
   quote: FxQuoteDto | null
   walletAddress: string | null
 }) {
+  const { locale } = useLocale()
+  const t = payoutCopy[locale]
   const amountId = useId()
   const bankGroup = useId()
   const recoveryId = useId()
@@ -92,7 +96,9 @@ export function PayoutSheet({
   const decimals = payrollConfig.tokenDecimals
   const parsed = parseTokenAmount(amount, decimals)
   const estimate =
-    parsed.ok && quote ? formatIdrUnits(estimateIdr(parsed.units, decimals, quote.rate)) : null
+    parsed.ok && quote
+      ? formatIdrUnits(estimateIdr(parsed.units, decimals, quote.rate), locale)
+      : null
   const busy = state.checking || state.phase === 'signing'
   const bankMissing =
     state.phase === 'registration-pending' &&
@@ -247,7 +253,7 @@ export function PayoutSheet({
               hint={
                 balance === null
                   ? undefined
-                  : t.amountHint(`${formatToken(balance, decimals)} ${tokenSymbol}`)
+                  : t.amountHint(`${formatToken(balance, decimals, locale)} ${tokenSymbol}`)
               }
               error={errors.amount}
             >
@@ -267,7 +273,13 @@ export function PayoutSheet({
                   variant="secondary"
                   disabled={balance === null || balance === BigInt(0) || busy}
                   onClick={() =>
-                    balance !== null && setAmount(formatToken(balance, decimals).replace(/\./g, ''))
+                    balance !== null &&
+                    setAmount(
+                      formatToken(balance, decimals, locale).replace(
+                        locale === 'en' ? /,/g : /\./g,
+                        '',
+                      ),
+                    )
                   }
                 >
                   {t.max}
@@ -374,5 +386,8 @@ export function PayoutSheet({
 }
 
 function PayoutStatusError({ error }: { error: unknown }) {
-  return <InlineError title={t.errorTitle} message={payoutMessage(error)} />
+  const { locale } = useLocale()
+  return (
+    <InlineError title={payoutCopy[locale].errorTitle} message={payoutMessage(error, locale)} />
+  )
 }

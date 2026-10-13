@@ -7,8 +7,7 @@ import { Sheet } from '@/components/ui/sheet'
 import type { BankAccountDto } from '@/lib/api/bank-accounts'
 import { isApiError } from '@/lib/api/errors'
 import { bankCopy, bankError, bankNames } from '@/lib/copy/family'
-
-const t = bankCopy.delete
+import { useLocale } from '@/lib/i18n/client'
 
 /** Confirmation before a soft delete. Payout history is kept by the backend. */
 export function DeleteBankAccountSheet({
@@ -20,6 +19,8 @@ export function DeleteBankAccountSheet({
   onClose: () => void
   onRemove: (id: string) => Promise<void>
 }) {
+  const { locale } = useLocale()
+  const t = bankCopy[locale].delete
   const [busy, setBusy] = useState(false)
   const [failure, setFailure] = useState<unknown>(null)
   const pending = useRef(false)
@@ -76,7 +77,7 @@ export function DeleteBankAccountSheet({
         </>
       }
     >
-      {failure !== null && <InlineError {...bankError(failure)} />}
+      {failure !== null && <InlineError {...bankError(failure, 'mutation', locale)} />}
     </Sheet>
   )
 }

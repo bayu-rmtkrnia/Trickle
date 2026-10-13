@@ -11,14 +11,14 @@ import { useSplitSettings } from '@/hooks/use-split-settings'
 import { useWorkerFamily } from '@/hooks/use-worker-family'
 import type { RecipientDto } from '@/lib/api/recipients'
 import { bpsToPercent } from '@/lib/chain/split'
-import { familyApiMessage, workerFamilyCopy as t } from '@/lib/copy/worker-family'
+import { familyApiMessage, workerFamilyCopy } from '@/lib/copy/worker-family'
+import { useLocale } from '@/lib/i18n/client'
 import { useCopy } from '@/lib/use-copy'
 import type { SessionContextValue } from '@/providers/session-provider'
 import { InviteFamilySheet } from './invite-family-sheet'
 import { RemoveRecipientSheet } from './remove-recipient-sheet'
 import { SplitSheet } from './split-sheet'
 
-const percent = (bps: number) => bpsToPercent(bps).replace('.', ',')
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
 export function WorkerFamilySection({
@@ -30,6 +30,10 @@ export function WorkerFamilySection({
   walletAddress: string | null
   streams: WorkerStreamState
 }) {
+  const { locale } = useLocale()
+  const t = workerFamilyCopy[locale]
+  const percent = (bps: number) =>
+    locale === 'en' ? bpsToPercent(bps) : bpsToPercent(bps).replace('.', ',')
   const family = useWorkerFamily(session)
   const rootRef = useRef<HTMLElement | null>(null)
   const signingHandoff = useRef(false)
@@ -179,7 +183,7 @@ export function WorkerFamilySection({
                 {t.invite}
               </Button>
             </div>
-            {inviteError !== null && <InlineError {...familyApiMessage(inviteError)} />}
+            {inviteError !== null && <InlineError {...familyApiMessage(inviteError, locale)} />}
             {(family.invites ?? []).length === 0 ? (
               <p className="text-label text-muted">{t.invitesEmpty}</p>
             ) : (

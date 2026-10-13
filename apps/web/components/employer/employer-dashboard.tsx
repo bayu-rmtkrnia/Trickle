@@ -323,14 +323,8 @@ function Shell({
       <DashboardHeader
         name={companyName}
         nameLabel={t.companyLabel}
-        action={
-          companyName && (
-            <>
-              {headerAction}
-              <SignOutButton />
-            </>
-          )
-        }
+        action={companyName && headerAction}
+        end={companyName && <SignOutButton />}
       />
       <main className="mx-auto max-w-[1120px] px-4 pt-2">
         <h1 className="sr-only">{t.heading}</h1>
