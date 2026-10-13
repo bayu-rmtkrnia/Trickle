@@ -5,11 +5,12 @@
 import type { EmployerState } from '@/lib/dev-state'
 import { ApiError } from './errors'
 import type {
+  CompanyStream,
   CreateEmployerInput,
   CreateWorkerInviteInput,
   Employer,
   Invite,
-  PayrollFund,
+  StreamStatus,
   Worker,
 } from './types'
 
@@ -21,12 +22,47 @@ type Store = {
   employer: Employer | null
   workers: Worker[]
   invites: Invite[]
-  fund: PayrollFund
+  /** Aliran gaji contoh; status dihitung saat dibaca, sama seperti backend. */
+  streams: CompanyStream[]
+  /** Saldo mAUSD (mode uji) di akun perusahaan, dalam unit token. */
+  walletUnits: bigint
   /** `loading` = request tidak pernah selesai; `network` = semua request gagal. */
   mode: 'normal' | 'loading' | 'network'
 }
 
 const daysAgo = (d: number) => new Date(Date.now() - d * DAY_MS).toISOString()
+const daysFromNow = (d: number) => new Date(Date.now() + d * DAY_MS).toISOString()
+const USD = BigInt(1_000_000)
+
+/** Status aliran dihitung dari waktu, seperti indexer backend. */
+function streamStatus(stream: CompanyStream): StreamStatus {
+  if (stream.status === 'CANCELED') return 'CANCELED'
+  const now = Date.now()
+  if (now < Date.parse(stream.startsAt)) return 'SCHEDULED'
+  if (now >= Date.parse(stream.endsAt)) return 'ENDED'
+  return 'ACTIVE'
+}
+
+let nextStreamId = 1
+function stream(
+  worker: Worker,
+  salaryDays: number,
+  startDaysAgo: number,
+  endsInDays: number,
+): CompanyStream {
+  const amount = (BigInt(worker.monthlySalaryUsd) * USD * BigInt(salaryDays)) / BigInt(30)
+  return {
+    id: String(nextStreamId++),
+    workerAddress: worker.address,
+    amountUnits: amount.toString(),
+    withdrawnUnits: '0',
+    refundedUnits: '0',
+    startsAt: daysAgo(startDaysAgo),
+    endsAt: daysFromNow(endsInDays),
+    status: 'ACTIVE',
+    worker: { id: worker.id, displayName: worker.displayName },
+  }
+}
 
 function inviteUrl(type: Invite['type'], code: string) {
   const origin = typeof window === 'undefined' ? 'http://localhost:3000' : window.location.origin
@@ -63,9 +99,27 @@ function fixture(state: EmployerState): Store {
   const employer: Employer = { id: 'emp_1', name: COMPANY, country: 'MY', createdAt: daysAgo(30) }
   // Total $2.400/bulan = $80/hari.
   const workers: Worker[] = [
-    { id: 'ew_1', displayName: 'Raka Bagus Samudra', monthlySalaryUsd: 800, joinedAt: daysAgo(6) },
-    { id: 'ew_2', displayName: 'Siti Aminah', monthlySalaryUsd: 750, joinedAt: daysAgo(20) },
-    { id: 'ew_3', displayName: 'Dewi Lestari', monthlySalaryUsd: 850, joinedAt: daysAgo(2) },
+    {
+      id: 'ew_1',
+      address: '0x00000000000000000000000000000000000000a1',
+      displayName: 'Raka Bagus Samudra',
+      monthlySalaryUsd: 800,
+      joinedAt: daysAgo(6),
+    },
+    {
+      id: 'ew_2',
+      address: '0x00000000000000000000000000000000000000a2',
+      displayName: 'Siti Aminah',
+      monthlySalaryUsd: 750,
+      joinedAt: daysAgo(20),
+    },
+    {
+      id: 'ew_3',
+      address: '0x00000000000000000000000000000000000000a3',
+      displayName: 'Dewi Lestari',
+      monthlySalaryUsd: 850,
+      joinedAt: daysAgo(2),
+    },
   ]
   const invites: Invite[] = [
     workerInvite('BUDI7K2Q', 'Budi Santoso', 700, 2),
@@ -74,7 +128,17 @@ function fixture(state: EmployerState): Store {
     workerInvite('JOKO5T3W', 'Joko Prasetyo', 700, 5, 'REVOKED'),
     workerInvite('RINA8V6N', 'Rina Wulandari', 700, 20),
   ]
-  const base: Store = { employer, workers, invites, fund: { balanceUsd: 1800 }, mode: 'normal' }
+  // Aliran 30 hari yang sudah berjalan 8 hari: berakhir ±22 hari lagi. Satu pekerja belum didanai.
+  const funded = (endsIn: number) =>
+    workers.slice(0, 2).map((w) => stream(w, 30, 30 - endsIn, endsIn))
+  const base: Store = {
+    employer,
+    workers,
+    invites,
+    streams: funded(22),
+    walletUnits: BigInt(500) * USD,
+    mode: 'normal',
+  }
 
   switch (state) {
     case 'loading':
@@ -82,15 +146,16 @@ function fixture(state: EmployerState): Store {
     case 'network-error':
       return { ...base, mode: 'network' }
     case 'belum-ada-profil':
-      return { ...base, employer: null, workers: [], invites: [], fund: { balanceUsd: 0 } }
+      return { ...base, employer: null, workers: [], invites: [], streams: [] }
     case 'belum-ada-pekerja':
-      return { ...base, workers: [], invites: [], fund: { balanceUsd: 500 } }
+      return { ...base, workers: [], invites: [], streams: [] }
     case 'runway-rendah':
-      return { ...base, fund: { balanceUsd: 400 } }
+      return { ...base, streams: funded(5) }
     case 'runway-kritis':
-      return { ...base, fund: { balanceUsd: 160 } }
+      return { ...base, streams: funded(2) }
     case 'dana-habis':
-      return { ...base, fund: { balanceUsd: 0 } }
+      // Semua aliran sudah berakhir kemarin; tidak ada saldo uji.
+      return { ...base, streams: funded(-1), walletUnits: BigInt(0) }
     default:
       return base
   }
@@ -158,7 +223,12 @@ export const mockApi = {
   listWorkers: () =>
     respond(() => [...getStore().workers].sort((a, b) => b.joinedAt.localeCompare(a.joinedAt))),
 
-  getPayrollFund: () => respond((): PayrollFund | null => getStore().fund),
+  listStreams: () =>
+    respond(() =>
+      getStore()
+        .streams.map((s) => ({ ...s, status: streamStatus(s) }))
+        .sort((a, b) => Number(b.id) - Number(a.id)),
+    ),
 
   listInvites: () =>
     respond(() =>
@@ -186,4 +256,52 @@ export const mockApi = {
       if (withDerivedStatus(invite).status !== 'PENDING') throw new ApiError('conflict')
       invite.status = 'REVOKED'
     }, 600),
+}
+
+/**
+ * Simulasi transaksi kontrak saat pratinjau mock: tanpa chain, tanpa gas. Dipakai oleh
+ * alur "Danai gaji" dan "Hentikan aliran" supaya bisa dicoba lewat `?state=`.
+ */
+export const mockFunding = {
+  walletUnits: () => respond(() => getStore().walletUnits, 250),
+
+  mint: (units: bigint) =>
+    respond(() => {
+      getStore().walletUnits += units
+    }, 600),
+
+  createStream: (worker: Worker, units: bigint, startSeconds: number, endSeconds: number) =>
+    respond(() => {
+      const s = getStore()
+      if (s.walletUnits < units) throw new ApiError('conflict')
+      s.walletUnits -= units
+      const created: CompanyStream = {
+        id: String(nextStreamId++),
+        workerAddress: worker.address,
+        amountUnits: units.toString(),
+        withdrawnUnits: '0',
+        refundedUnits: '0',
+        startsAt: new Date((startSeconds || Math.floor(Date.now() / 1000)) * 1000).toISOString(),
+        endsAt: new Date(endSeconds * 1000).toISOString(),
+        status: 'ACTIVE',
+        worker: { id: worker.id, displayName: worker.displayName },
+      }
+      s.streams = [created, ...s.streams]
+      return created.id
+    }, 900),
+
+  cancel: (streamId: string) =>
+    respond(() => {
+      const s = getStore()
+      const target = s.streams.find((x) => x.id === streamId)
+      if (!target) throw new ApiError('not-found')
+      const start = Date.parse(target.startsAt)
+      const end = Date.parse(target.endsAt)
+      const amount = BigInt(target.amountUnits)
+      const elapsed = Math.min(Math.max(Date.now() - start, 0), end - start)
+      const streamed = (amount * BigInt(elapsed)) / BigInt(end - start)
+      target.status = 'CANCELED'
+      target.refundedUnits = (amount - streamed).toString()
+      s.walletUnits += amount - streamed
+    }, 900),
 }
