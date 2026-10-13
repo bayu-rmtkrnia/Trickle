@@ -174,10 +174,13 @@ model Invite {
   @@index([companyId])
 }
 
-/// One drip per address, ever. The unique constraint is the idempotency guard.
+/// Drips per address: `seq` 0 is the first, later ones are refills for an
+/// account that ran low. The (address, seq) unique constraint stops two
+/// concurrent requests from sending the same drip twice.
 model GasDrip {
   id        String        @id @default(cuid())
-  address   String        @unique
+  address   String
+  seq       Int           @default(0)
   amountWei String
   status    GasDripStatus @default(PENDING)
   txHash    String?
@@ -186,6 +189,7 @@ model GasDrip {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
+  @@unique([address, seq])
   @@index([createdAt])
 }
 

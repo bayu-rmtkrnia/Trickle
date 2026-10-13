@@ -10,7 +10,8 @@ const gas: FastifyPluginAsyncZod = async (app) => {
     createGasService({ repo: createGasRepository(app.db), chain: app.chain, env: app.env }),
   )
   // No role guard: judge mode accounts have none yet but need gas to withdraw.
-  // Abuse is capped once per address, per IP per day, and per day overall.
+  // Abuse is capped by refilling only low balances, per address, per IP (new
+  // accounts), and per day overall.
   const drip = {
     onRequest: [app.authenticate],
     config: { rateLimit: { max: 5, timeWindow: '1 minute' } },

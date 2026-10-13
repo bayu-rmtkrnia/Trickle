@@ -2,7 +2,7 @@
 
 Dokumen ini merangkum apa saja yang berubah di API dibanding versi lama (production 0.1.0 dan mock di `apps/web/lib/api`), dan cara memakai endpoint baru dari sisi FE. Detail lengkap setiap field ada di Swagger.
 
-Terakhir diperbarui: 12 Okt 2026 (API 1.1.0).
+Terakhir diperbarui: 13 Okt 2026 (isi ulang gas drip).
 
 | | |
 | --- | --- |
@@ -263,12 +263,15 @@ Alurnya:
 
 | Method | Path | Akses | Respons | Error khusus |
 | ------ | ---- | ----- | ------- | ------------ |
-| POST | `/gas-drips` | ✓ (tanpa peran) | 201 `GasDrip` (200 + `alreadyDripped: true` kalau sudah pernah) | 429 `DRIP_IP_LIMIT`, `DRIP_DAILY_LIMIT`, `RATE_LIMITED`; 502 `DRIP_FAILED` (boleh retry); 503 `DRIP_UNAVAILABLE`, `DRIP_TREASURY_EMPTY` |
+| POST | `/gas-drips` | ✓ (tanpa peran) | 201 `GasDrip` (drip baru atau isi ulang); 200 + `alreadyDripped: true` kalau drip sebelumnya masih cukup | 429 `DRIP_IP_LIMIT`, `DRIP_ADDRESS_LIMIT`, `DRIP_DAILY_LIMIT`, `RATE_LIMITED`; 502 `DRIP_FAILED` (boleh retry); 503 `DRIP_UNAVAILABLE`, `DRIP_TREASURY_EMPTY` |
 | GET | `/gas-drips/status` | – | Saldo treasury dan pemakaian harian | |
 
 `GasDrip = { address, status, amountMon, txHash, alreadyDripped, createdAt }`
 
-- Panggil sebelum transaksi pertama akun (mis. withdraw, `setSplits`, transfer untuk payout). Sekali per alamat.
+- Panggil sebelum transaksi akun (mis. withdraw, `setSplits`, `createStream`, transfer untuk payout) kalau saldo MON-nya mungkin kurang. Aman dipanggil berulang.
+- **Isi ulang:** kalau alamat sudah pernah dapat gas tapi saldonya di bawah 0,03 MON (`GAS_DRIP_REFILL_BELOW_MON`), panggilan berikutnya mengirim drip lagi (201). Ini untuk akun yang butuh gas berkali-kali, misalnya employer yang mendanai beberapa stream. Selama saldonya masih di atas ambang, jawabannya 200 `alreadyDripped: true` dan tidak ada yang dikirim.
+- Isi ulang baru diberikan 30 detik setelah drip sebelumnya, supaya MON-nya sempat masuk. Kalau dapat 200 padahal saldo masih kurang, tunggu receipt drip sebelumnya lalu coba lagi.
+- Maksimal 5 drip per alamat per hari (`GAS_DRIP_ADDRESS_DAILY_LIMIT`), lewat dari itu 429 `DRIP_ADDRESS_LIMIT`. Batas per IP (`DRIP_IP_LIMIT`) hanya menghitung akun baru, bukan isi ulang.
 - `SENT` artinya transaksi gas sudah dikirim, **belum tentu terkonfirmasi**. Tunggu receipt `txHash` sebelum mengirim transaksi pengguna.
 - `PENDING` dengan `txHash: null`: drip sebelumnya masih diproses. Coba lagi sebentar.
 
@@ -325,7 +328,7 @@ Alurnya:
 | `BANK_ACCOUNT_EXISTS`, `BANK_ACCOUNT_LIMIT`, `BANK_ACCOUNT_NOT_FOUND`, `BANK_ACCOUNTS_UNAVAILABLE` | 409, 409, 404, 503 | `/bank-accounts`, `/payouts` |
 | `TX_PENDING`, `TX_FAILED`, `TX_NOT_A_PAYOUT`, `PAYOUT_EXISTS`, `PAYOUT_NOT_FOUND`, `CHAIN_UNAVAILABLE`, `PAYOUTS_UNAVAILABLE` | 409, 400, 400, 409, 404, 502, 503 | `/payouts` |
 | `DEMO_IP_LIMIT`, `DEMO_DAILY_LIMIT`, `DEMO_STREAM_FAILED`, `DEMO_UNAVAILABLE` | 429, 429, 502, 503 | `/demo-streams` |
-| `DRIP_IP_LIMIT`, `DRIP_DAILY_LIMIT`, `DRIP_FAILED`, `DRIP_UNAVAILABLE`, `DRIP_TREASURY_EMPTY` | 429, 429, 502, 503, 503 | `/gas-drips` |
+| `DRIP_IP_LIMIT`, `DRIP_ADDRESS_LIMIT`, `DRIP_DAILY_LIMIT`, `DRIP_FAILED`, `DRIP_UNAVAILABLE`, `DRIP_TREASURY_EMPTY` | 429, 429, 429, 502, 503, 503 | `/gas-drips` |
 
 ## 7. Endpoint deprecated
 

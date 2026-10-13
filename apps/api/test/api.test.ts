@@ -31,9 +31,10 @@ describe.skipIf(!url)('api (integration)', () => {
   })
   const db = createPrisma(env.DATABASE_URL)
   const sendNative = vi.fn<Chain['sendNative']>()
+  const getBalance = vi.fn<Chain['getBalance']>()
   const chain: Chain = {
     treasuryAddress: '0x000000000000000000000000000000000000dEaD',
-    getBalance: async () => 10n ** 18n,
+    getBalance,
     sendNative,
   }
   const fx = { usdIdr: vi.fn() }
@@ -111,6 +112,7 @@ describe.skipIf(!url)('api (integration)', () => {
 
   beforeEach(async () => {
     sendNative.mockReset()
+    getBalance.mockReset().mockResolvedValue(10n ** 18n)
     checkTransfer.mockReset().mockResolvedValue({ status: 'ok', amount: 50_000_000n })
     createStream.mockReset().mockImplementation(async (_worker, _amount, seconds) => {
       const start = Math.floor(Date.now() / 1000)
@@ -1505,6 +1507,36 @@ describe.skipIf(!url)('api (integration)', () => {
       expect(res.statusCode).toBe(429)
       expect(res.json().error.code).toBe('DRIP_IP_LIMIT')
       expect(sendNative).toHaveBeenCalledTimes(2)
+    })
+
+    it('refills an address that ran low, outside the per-IP cap', async () => {
+      sendNative.mockResolvedValue(`0x${'ab'.repeat(32)}`)
+      const drip = (token: string) =>
+        app.inject({ method: 'POST', url: '/api/v1/gas-drips', headers: as(token) })
+      const employer = await signIn('employer')
+      // Two first drips use up this IP's cap (2).
+      expect((await drip(employer.token)).statusCode).toBe(201)
+      expect((await drip((await signIn('other')).token)).statusCode).toBe(201)
+
+      // The employer spent most of its MON; its last drip is older than the refill gap.
+      getBalance.mockImplementation(async (a) =>
+        a.toLowerCase() === employer.address.toLowerCase() ? 9n * 10n ** 15n : 10n ** 18n,
+      )
+      await db.$executeRaw`UPDATE "GasDrip" SET "updatedAt" = now() - interval '1 minute'`
+      const refill = await drip(employer.token)
+      expect(refill.statusCode).toBe(201)
+      expect(refill.json()).toMatchObject({ status: 'SENT', alreadyDripped: false })
+
+      // Right after a refill the balance has not caught up yet, so no second refill.
+      const again = await drip(employer.token)
+      expect(again.statusCode).toBe(200)
+      expect(again.json().alreadyDripped).toBe(true)
+      expect(sendNative).toHaveBeenCalledTimes(3)
+      const rows = await db.gasDrip.findMany({
+        where: { address: employer.address.toLowerCase() },
+        orderBy: { seq: 'asc' },
+      })
+      expect(rows.map((r) => r.seq)).toEqual([0, 1])
     })
 
     it('keeps the old paths working, marked deprecated', async () => {

@@ -217,7 +217,7 @@
           },
           "alreadyDripped": {
             "type": "boolean",
-            "description": "true when this address was funded by an earlier call"
+            "description": "true when an earlier drip still covers this address; nothing was sent"
           },
           "createdAt": {
             "type": "string"
@@ -892,7 +892,7 @@
           },
           "alreadyDripped": {
             "type": "boolean",
-            "description": "true when this address was funded by an earlier call"
+            "description": "true when an earlier drip still covers this address; nothing was sent"
           },
           "createdAt": {
             "type": "string"
@@ -4662,9 +4662,9 @@
     },
     "/api/v1/gas-drips": {
       "post": {
-        "summary": "Fund the signed-in account's gas, once per address",
+        "summary": "Fund the signed-in account's gas, and refill it when it runs low",
         "tags": ["Gas"],
-        "description": "Called by the web app before the first transaction (e.g. a withdrawal), so users never hold or see MON. Open to any signed-in account, including brand-new judge mode accounts. Idempotent: calling again returns the original drip (200). `SENT` means broadcast; wait for the receipt of `txHash` before relying on the balance.\n\nErrors: 429 `DRIP_IP_LIMIT` (per IP per day), `DRIP_DAILY_LIMIT` (all users), `RATE_LIMITED`; 503 `DRIP_UNAVAILABLE` (no treasury configured), `DRIP_TREASURY_EMPTY`; 502 `DRIP_FAILED` (safe to retry).",
+        "description": "Called by the web app before the first transaction (e.g. a withdrawal), so users never hold or see MON. Open to any signed-in account, including brand-new judge mode accounts. Calling again returns the latest drip (200, `alreadyDripped: true`) while the account still has at least `GAS_DRIP_REFILL_BELOW_MON`. Once it runs below that (e.g. an employer funding several streams), the next call sends a refill (201), at most `GAS_DRIP_ADDRESS_DAILY_LIMIT` drips per address per day. A refill waits 30 seconds after the previous drip so its MON can land first. `SENT` means broadcast; wait for the receipt of `txHash` before relying on the balance.\n\nErrors: 429 `DRIP_IP_LIMIT` (new accounts per IP per day; refills do not count), `DRIP_ADDRESS_LIMIT` (drips per address per day), `DRIP_DAILY_LIMIT` (all users), `RATE_LIMITED`; 503 `DRIP_UNAVAILABLE` (no treasury configured), `DRIP_TREASURY_EMPTY`; 502 `DRIP_FAILED` (safe to retry).",
         "security": [
           {
             "bearerAuth": []
@@ -4790,7 +4790,7 @@
     },
     "/api/v1/gas/drip": {
       "post": {
-        "summary": "Fund the signed-in account's gas, once per address",
+        "summary": "Fund the signed-in account's gas, and refill it when it runs low",
         "tags": ["Gas"],
         "description": "Deprecated: use `POST /gas-drips`. Kept until the web app moves over; same behaviour.",
         "deprecated": true,

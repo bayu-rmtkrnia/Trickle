@@ -4,7 +4,7 @@ Isinya keadaan aplikasi **saat ini**: apa saja yang sudah ada, di mana letaknya,
 
 > **Aturan:** setiap PR yang menambah atau mengubah fitur, endpoint, tabel, env var, atau keputusan desain **wajib memperbarui file ini** di PR yang sama. Kalau ada isi file ini yang tidak lagi sesuai dengan kode, berarti file ini yang salah, jadi perbaiki.
 
-Terakhir diperbarui: 13 Okt 2026 (sinkron dengan integrasi FE dan `.env.example`).
+Terakhir diperbarui: 13 Okt 2026 (isi ulang gas drip).
 
 ---
 
@@ -88,7 +88,7 @@ Semua endpoint resource ada di bawah `/api/v1`, kecuali `/health` dan `/docs` (S
 | | `DELETE /invites/:id` | Pembuat undangan | PENDING → REVOKED; 409 kalau sudah diterima |
 | | `GET /invites/:code` | – | Publik supaya link bisa dibuka sebelum login |
 | | `POST /invites/:code/acceptance` | ✓ | Siapa pun yang login, kecuali pembuatnya |
-| gas | `POST /gas-drips` | ✓ (tanpa peran) | Kirim MON testnet sekali per alamat; dibatasi per IP dan per hari. Rate limit 5/menit |
+| gas | `POST /gas-drips` | ✓ (tanpa peran) | Kirim MON testnet ke alamat sendiri, dan isi ulang saat saldonya hampir habis; dibatasi per alamat, per IP (akun baru), dan per hari. Rate limit 5/menit |
 | | `GET /gas-drips/status` | – | Saldo treasury dan pemakaian harian |
 | demo-streams | `POST /demo-streams` | ✓ (tanpa peran) | Judge mode: stream testnet sungguhan dari employer demo, sekali per akun |
 | | `GET /demo-streams/status` | – | Gas employer demo dan pemakaian harian, untuk dipantau selama penjurian |
@@ -215,6 +215,8 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Gas drip tetap dipakai walaupun login sekarang lewat Privy.** Wallet embedded Privy juga butuh MON untuk transaksi pertama (misalnya menarik gaji), dan FE sudah memakainya. Keputusan D6 (sponsor gas) tidak berubah.
 - **Gas drip dan kurs butuh login, tapi tanpa syarat peran.** Akun juri dari judge mode belum punya peran, padahal butuh gas untuk menarik saldo dan kurs untuk menampilkan rupiah. Penyalahgunaan gas dibatasi oleh: sekali per alamat, `GAS_DRIP_IP_DAILY_LIMIT` per IP per hari, `GAS_DRIP_DAILY_LIMIT` total, dan rate limit 5/menit.
 - **Batas per IP disimpan di DB** (kolom `GasDrip.ip`), sama seperti judge mode, supaya tetap berlaku setelah restart.
+- **Alamat yang saldonya hampir habis diisi ulang.** Awalnya drip hanya sekali per alamat, tapi employer butuh gas setiap kali mendanai stream (mint, approve, `createStream`), sehingga 0,05 MON habis setelah satu stream. Sekarang alamat yang sudah pernah dapat drip mendapat drip lagi kalau saldo on-chain-nya di bawah `GAS_DRIP_REFILL_BELOW_MON` (default 0,03, sedikit di atas gas satu `createStream`). Kenapa berdasarkan saldo, bukan peran: kebutuhan gas tidak ditentukan peran (pekerja juga bisa banyak bertransaksi), dan saldo on-chain langsung menunjukkan akun itu benar-benar kehabisan. Akun yang saldonya masih cukup tetap dijawab 200 `alreadyDripped`.
+- **Isi ulang dibatasi tiga lapis.** (1) Maksimal `GAS_DRIP_ADDRESS_DAILY_LIMIT` drip per alamat per hari (429 `DRIP_ADDRESS_LIMIT`), jadi satu akun paling banyak menghabiskan 0,25 MON per hari dengan default. (2) Isi ulang menunggu 30 detik setelah drip sebelumnya dan tidak jalan selama drip masih PENDING, supaya saldo yang belum ter-update tidak memicu dua kiriman. (3) Kalau saldo akun gagal dibaca, tidak ada isi ulang. Batas per IP hanya menghitung drip pertama (`seq` 0), karena tujuannya membatasi akun baru dari satu jaringan; kalau isi ulang ikut dihitung, satu employer bisa memblokir teman setim di wifi yang sama.
 - **Treasury kosong dijawab 503 `DRIP_TREASURY_EMPTY` sebelum mengirim**, bukan 502 setelah transfer gagal. FE bisa menampilkan "sponsor gas sedang berhenti" dan tim tahu harus mengisi treasury (tercatat sebagai error di log). Kalau saldo gagal dibaca, transfer tetap dicoba.
 - **Kurs di path baru memakai `cache-control: private`** karena sekarang ada di balik sesi. Path lama yang publik tetap `public`.
 
@@ -247,7 +249,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Status `EXPIRED` undangan dihitung saat dibaca**, tidak disimpan. Kenapa: tidak perlu cron job.
 
 ### Operasional
-- **Gas drip idempoten per alamat** lewat unique constraint `GasDrip.address`. Drip yang gagal bisa dicoba ulang, dan ada batas harian (`GAS_DRIP_DAILY_LIMIT`).
+- **Gas drip aman dari request bersamaan** lewat unique `(address, seq)`: drip berikutnya untuk satu alamat hanya bisa dibuat sekali, dan request yang kalah dijawab dengan drip yang menang. Drip yang gagal dicoba ulang lewat update bersyarat (`status = FAILED`), dan ada batas harian total (`GAS_DRIP_DAILY_LIMIT`).
 - **Kurs FX di-cache di memori.** Kalau provider mati, API memakai kurs terakhir lalu kurs fallback statis, dan respons selalu menyebut `source`-nya.
 - **Rate limit global 120/menit per IP**, dengan batas lebih ketat di sign-in, gas drip, dan demo stream. Batas harian per IP untuk gas drip dan demo stream disimpan di DB.
 - **CORS menyebut `methods` secara eksplisit** (`GET, HEAD, POST, PATCH, DELETE`). Kenapa: sejak v10, default `@fastify/cors` hanya `GET,HEAD,POST`, sehingga preflight `PATCH`/`DELETE` dari browser ditolak. Kalau menambah route dengan method lain (misalnya `PUT`), daftarnya juga harus ditambah.
@@ -264,7 +266,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 | `Recipient` | Penerima milik pekerja: `ownerId` (pekerja), `userId` (penerima), `displayName`, `relation`, `deletedAt`. Unik per (pemilik, user) |
 | `Invite` | Undangan WORKER (dengan `companyId`) / RECIPIENT, status PENDING/ACCEPTED/REVOKED (EXPIRED dihitung saat dibaca) |
 | `BankAccount` | Rekening penerima: `bankCode`, `accountName`, `label`, `numberEncrypted` (AES-256-GCM), `numberLast4`, `numberFingerprint` (HMAC, unik per user), `deletedAt` |
-| `GasDrip` | Log drip, satu per alamat |
+| `GasDrip` | Log drip per alamat: `seq` 0 drip pertama, 1+ isi ulang; unik `(address, seq)` |
 | `DemoStream` | Stream judge mode, satu per akun: alamat, jumlah (unit token), durasi, status PENDING/SENT/FAILED, `streamId` on-chain, `txHash`, IP |
 | `Payout` | Pencairan: `bankAccountId`, `sourceTxHash` (unik), jumlah (unit token dan IDR), `fxRate`/`fxSource`, `provider`/`providerRef` (unik), status PENDING/PROCESSING/COMPLETED/FAILED, `failureReason` |
 
@@ -281,7 +283,7 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 | `SESSION_TTL_DAYS` | Masa berlaku sesi (default 7) |
 | `WEB_URL`, `CORS_ORIGINS` | Link undangan dan origin web yang diizinkan (dipisah koma). Keduanya origin persis, tanpa `/` di akhir. Di production diisi domain FE (Vercel) |
 | `INVITE_TTL_DAYS` | Masa berlaku undangan (default 14) |
-| `CHAIN_ID`, `RPC_URL`, `GAS_TREASURY_PRIVATE_KEY`, `GAS_DRIP_*` | Gas drip: key treasury (testnet), jumlah per drip, batas harian total (`GAS_DRIP_DAILY_LIMIT`) dan per IP (`GAS_DRIP_IP_DAILY_LIMIT`) |
+| `CHAIN_ID`, `RPC_URL`, `GAS_TREASURY_PRIVATE_KEY`, `GAS_DRIP_*` | Gas drip: key treasury (testnet), jumlah per drip, batas harian total (`GAS_DRIP_DAILY_LIMIT`), per IP untuk akun baru (`GAS_DRIP_IP_DAILY_LIMIT`), ambang isi ulang (`GAS_DRIP_REFILL_BELOW_MON`, default 0,03) dan batas per alamat (`GAS_DRIP_ADDRESS_DAILY_LIMIT`, default 5) |
 | `PAYROLL_ADDRESS` | Kontrak `TricklePayroll` v2, untuk cek split saat menghapus penerima, indexer stream, dan judge mode. Kosong = cek split dan cek stream dilewati (dicatat di log), indexer mati, judge mode menjawab 503 |
 | `STREAM_SYNC_SECONDS` | Jeda antar-putaran indexer stream (default 15). `0` mematikan loop; pengecekan `STREAM_ACTIVE` tetap menyinkronkan sendiri |
 | `PAYOUT_ADDRESS`, `PAYOUT_WEBHOOK_SECRET`, `MOCK_PAYOUT_SECONDS` | Payouts: alamat tujuan transfer penerima, secret signature webhook, dan lama provider mock memproses. Tanpa `PAYOUT_ADDRESS` (atau `PAYROLL_ADDRESS`/`BANK_ENCRYPTION_KEY`), `POST /payouts` menjawab 503; tanpa secret, webhook 503 |
@@ -302,6 +304,7 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 - **FE pekerja masih memindai log `StreamCreated` sendiri di browser** (`apps/web/lib/chain/viem-port.ts`, dipakai `payroll-reader.ts`), sehingga terkena batas 100 blok. Bisa diganti `GET /users/me/streams`.
 - **Indexer membaca ulang semua stream yang belum settled di setiap putaran.** Murah selama jumlahnya ratusan (satu multicall per 100). Kalau sudah ribuan, perlu dibatasi, misalnya hanya stream yang berubah menurut event `Withdrawn`/`StreamCanceled` terbaru.
 - **Akun juri tidak punya peran `worker` di DB.** Stream demo ada di chain dan di cache indexer, tapi tidak ada baris `Worker` atau perusahaan demo. Layar pekerja sebaiknya memakai `GET /users/me/streams` (stream demo muncul dengan `company: null`), bukan `roles` dari `/users/me`.
+- **Isi ulang gas mempercepat pemakaian treasury.** Satu akun bisa memakai sampai 5 × 0,05 MON per hari. Pantau `GET /gas-drips/status` lebih sering selama penjurian, dan turunkan `GAS_DRIP_ADDRESS_DAILY_LIMIT` di Railway kalau treasury menipis.
 - **Payout yang gagal setelah token diterima diselesaikan manual.** Belum ada endpoint refund atau retry; token tetap di `PAYOUT_ADDRESS`.
 - **Baru provider mock** (D5 belum diputuskan). Xendit/Flip tinggal menambah implementasi `PayoutProvider`.
 - **Belum ada rotasi kunci enkripsi.** Token sudah diberi versi (`v1.`), tapi re-enkripsi ke kunci baru belum dibuat.

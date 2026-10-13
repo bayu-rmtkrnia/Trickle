@@ -55,6 +55,14 @@ const EnvSchema = z.object({
   GAS_DRIP_DAILY_LIMIT: z.coerce.number().int().positive().default(200),
   /** Drips one IP may trigger per day, so one person cannot farm MON with many accounts. */
   GAS_DRIP_IP_DAILY_LIMIT: z.coerce.number().int().positive().default(5),
+  /**
+   * An address that was dripped before gets another drip once its balance is
+   * below this, e.g. an employer funding several streams. Keep it above the
+   * gas of one createStream (about 0.022 MON).
+   */
+  GAS_DRIP_REFILL_BELOW_MON: z.string().default('0.03'),
+  /** Drips one address may get per day, first drip and refills together. */
+  GAS_DRIP_ADDRESS_DAILY_LIMIT: z.coerce.number().int().positive().default(5),
 
   /**
    * 32 random bytes as hex (`openssl rand -hex 32`). Encrypts bank account
