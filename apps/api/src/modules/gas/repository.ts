@@ -1,7 +1,7 @@
 import { Prisma, type GasDrip } from '../../generated/prisma/client.js'
 import type { Db } from '../../lib/prisma.js'
 
-/** `taken`: another request claimed this address first; `drip` is its row. */
+/** `taken`: another request claimed this drip first; `drip` is its row. */
 export type ClaimResult = { status: 'claimed'; drip: GasDrip } | { status: 'taken'; drip: GasDrip }
 
 /** Failed drips do not count towards any limit. */
@@ -12,8 +12,9 @@ const active = (since: Date) => ({
 
 export function createGasRepository(db: Db) {
   return {
-    async findByAddress(address: string) {
-      return db.gasDrip.findUnique({ where: { address } })
+    /** The address's most recent drip (highest `seq`), or null if it never had one. */
+    async findLatest(address: string) {
+      return db.gasDrip.findFirst({ where: { address }, orderBy: { seq: 'desc' } })
     },
 
     /** Drips that were sent or are still in flight since `since`. */
@@ -21,29 +22,41 @@ export function createGasRepository(db: Db) {
       return db.gasDrip.count({ where: active(since) })
     },
 
-    async countActiveFromIpSince(ip: string, since: Date) {
-      return db.gasDrip.count({ where: { ip, ...active(since) } })
+    /** First drips only: the per-IP cap is about new accounts, not refills. */
+    async countFirstFromIpSince(ip: string, since: Date) {
+      return db.gasDrip.count({ where: { ip, seq: 0, ...active(since) } })
+    },
+
+    async countActiveForAddressSince(address: string, since: Date) {
+      return db.gasDrip.count({ where: { address, ...active(since) } })
     },
 
     /**
-     * Claims the address before sending anything: retries a FAILED row, or
-     * inserts a new one. The unique constraint makes concurrent calls safe.
+     * Claims the next drip before sending anything: retries `latest` when it
+     * FAILED, otherwise inserts the next `seq`. The (address, seq) unique
+     * constraint and the conditional retry make concurrent calls safe.
      */
     async claim(
-      previous: GasDrip | null,
+      latest: GasDrip | null,
       data: { address: string; amountWei: string; ip: string },
     ): Promise<ClaimResult> {
+      if (latest?.status === 'FAILED') {
+        const { count } = await db.gasDrip.updateMany({
+          where: { id: latest.id, status: 'FAILED' },
+          data: { status: 'PENDING', error: null, amountWei: data.amountWei, ip: data.ip },
+        })
+        const drip = await db.gasDrip.findUniqueOrThrow({ where: { id: latest.id } })
+        return { status: count === 1 ? 'claimed' : 'taken', drip }
+      }
+
+      const seq = latest ? latest.seq + 1 : 0
       try {
-        const drip = previous
-          ? await db.gasDrip.update({
-              where: { id: previous.id },
-              data: { status: 'PENDING', error: null, amountWei: data.amountWei, ip: data.ip },
-            })
-          : await db.gasDrip.create({ data })
-        return { status: 'claimed', drip }
+        return { status: 'claimed', drip: await db.gasDrip.create({ data: { ...data, seq } }) }
       } catch (err) {
         if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
-          const drip = await db.gasDrip.findUniqueOrThrow({ where: { address: data.address } })
+          const drip = await db.gasDrip.findUniqueOrThrow({
+            where: { address_seq: { address: data.address, seq } },
+          })
           return { status: 'taken', drip }
         }
         throw err

@@ -8,7 +8,9 @@ export const DripDto = z
     status: z.enum(['PENDING', 'SENT', 'FAILED']),
     amountMon: z.string(),
     txHash: z.string().nullable(),
-    alreadyDripped: z.boolean().describe('true when this address was funded by an earlier call'),
+    alreadyDripped: z
+      .boolean()
+      .describe('true when an earlier drip still covers this address; nothing was sent'),
     createdAt: z.string(),
   })
   .meta({ id: 'GasDrip' })
@@ -27,12 +29,15 @@ export const GasStatus = z.object({
 
 export const dripSchema = {
   tags: ['Gas'],
-  summary: "Fund the signed-in account's gas, once per address",
+  summary: "Fund the signed-in account's gas, and refill it when it runs low",
   description:
     'Called by the web app before the first transaction (e.g. a withdrawal), so users never hold or see MON. ' +
     'Open to any signed-in account, including brand-new judge mode accounts. ' +
-    'Idempotent: calling again returns the original drip (200). `SENT` means broadcast; wait for the receipt of `txHash` before relying on the balance.\n\n' +
-    'Errors: 429 `DRIP_IP_LIMIT` (per IP per day), `DRIP_DAILY_LIMIT` (all users), `RATE_LIMITED`; ' +
+    'Calling again returns the latest drip (200, `alreadyDripped: true`) while the account still has at least `GAS_DRIP_REFILL_BELOW_MON`. ' +
+    'Once it runs below that (e.g. an employer funding several streams), the next call sends a refill (201), at most `GAS_DRIP_ADDRESS_DAILY_LIMIT` drips per address per day. ' +
+    'A refill waits 30 seconds after the previous drip so its MON can land first. ' +
+    '`SENT` means broadcast; wait for the receipt of `txHash` before relying on the balance.\n\n' +
+    'Errors: 429 `DRIP_IP_LIMIT` (new accounts per IP per day; refills do not count), `DRIP_ADDRESS_LIMIT` (drips per address per day), `DRIP_DAILY_LIMIT` (all users), `RATE_LIMITED`; ' +
     '503 `DRIP_UNAVAILABLE` (no treasury configured), `DRIP_TREASURY_EMPTY`; 502 `DRIP_FAILED` (safe to retry).',
   security: [{ bearerAuth: [] }],
   response: { 200: DripDto, 201: DripDto, ...errors(401, 429, 502, 503) },

@@ -4,13 +4,20 @@ import type { Chain } from '../src/lib/chain.js'
 import type { GasRepository } from '../src/modules/gas/repository.js'
 import { createGasService } from '../src/modules/gas/service.js'
 
-const env = { GAS_DRIP_AMOUNT_MON: '0.05', GAS_DRIP_DAILY_LIMIT: 3, GAS_DRIP_IP_DAILY_LIMIT: 2 }
+const env = {
+  GAS_DRIP_AMOUNT_MON: '0.05',
+  GAS_DRIP_DAILY_LIMIT: 3,
+  GAS_DRIP_IP_DAILY_LIMIT: 2,
+  GAS_DRIP_REFILL_BELOW_MON: '0.03',
+  GAS_DRIP_ADDRESS_DAILY_LIMIT: 2,
+}
 const address = '0x00000000000000000000000000000000000000aa' as const
 const log = { error: vi.fn(), warn: vi.fn() }
 
 const row = (over: Partial<GasDrip> = {}): GasDrip => ({
   id: 'drip-1',
   address,
+  seq: 0,
   amountWei: '50000000000000000',
   status: 'PENDING',
   txHash: null,
@@ -34,10 +41,11 @@ function setup(repo: Partial<GasRepository>, chain: Partial<Chain> = {}) {
       ...chain,
     },
     repo: {
-      findByAddress: unexpected,
+      findLatest: unexpected,
       countActiveSince: unexpected,
-      // Most tests are not about the per-IP cap.
-      countActiveFromIpSince: async () => 0,
+      // Most tests are not about the per-IP or per-address caps.
+      countFirstFromIpSince: async () => 0,
+      countActiveForAddressSince: async () => 0,
       claim: unexpected,
       markSent: unexpected,
       markFailed: unexpected,
@@ -49,14 +57,14 @@ function setup(repo: Partial<GasRepository>, chain: Partial<Chain> = {}) {
 describe('gas service: drip', () => {
   it('returns the earlier drip without sending again', async () => {
     const sendNative = vi.fn()
-    const s = setup({ findByAddress: async () => row({ status: 'SENT' }) }, { sendNative })
+    const s = setup({ findLatest: async () => row({ status: 'SENT' }) }, { sendNative })
     const res = await s.drip(address, '1.1.1.1', log)
     expect(res).toMatchObject({ created: false, drip: { alreadyDripped: true, amountMon: '0.05' } })
     expect(sendNative).not.toHaveBeenCalled()
   })
 
   it('answers 503 when no treasury is configured', async () => {
-    const s = setup({ findByAddress: async () => null }, { treasuryAddress: undefined })
+    const s = setup({ findLatest: async () => null }, { treasuryAddress: undefined })
     await expect(s.drip(address, '1.1.1.1', log)).rejects.toMatchObject({
       statusCode: 503,
       code: 'DRIP_UNAVAILABLE',
@@ -64,7 +72,7 @@ describe('gas service: drip', () => {
   })
 
   it('answers 429 once the daily cap is reached', async () => {
-    const s = setup({ findByAddress: async () => null, countActiveSince: async () => 3 })
+    const s = setup({ findLatest: async () => null, countActiveSince: async () => 3 })
     await expect(s.drip(address, '1.1.1.1', log)).rejects.toMatchObject({
       statusCode: 429,
       code: 'DRIP_DAILY_LIMIT',
@@ -73,9 +81,9 @@ describe('gas service: drip', () => {
 
   it('answers 429 once one IP has funded too many accounts', async () => {
     const s = setup({
-      findByAddress: async () => null,
+      findLatest: async () => null,
       countActiveSince: async () => 0,
-      countActiveFromIpSince: async () => 2,
+      countFirstFromIpSince: async () => 2,
     })
     await expect(s.drip(address, '1.1.1.1', log)).rejects.toMatchObject({
       statusCode: 429,
@@ -86,7 +94,7 @@ describe('gas service: drip', () => {
   it('answers 503 without sending when the treasury is empty', async () => {
     const sendNative = vi.fn()
     const s = setup(
-      { findByAddress: async () => null, countActiveSince: async () => 0 },
+      { findLatest: async () => null, countActiveSince: async () => 0 },
       { getBalance: async () => 10n ** 16n, sendNative },
     )
     await expect(s.drip(address, '1.1.1.1', log)).rejects.toMatchObject({
@@ -99,7 +107,7 @@ describe('gas service: drip', () => {
   it('still tries to send when the balance cannot be read', async () => {
     const s = setup(
       {
-        findByAddress: async () => null,
+        findLatest: async () => null,
         countActiveSince: async () => 0,
         claim: async () => ({ status: 'claimed', drip: row() }),
         markSent: async (_id: string, txHash: string) => row({ status: 'SENT', txHash }),
@@ -113,7 +121,7 @@ describe('gas service: drip', () => {
     const sendNative = vi.fn()
     const s = setup(
       {
-        findByAddress: async () => null,
+        findLatest: async () => null,
         countActiveSince: async () => 0,
         claim: async () => ({ status: 'taken', drip: row() }),
       },
@@ -126,7 +134,7 @@ describe('gas service: drip', () => {
   it('sends MON and records the tx hash', async () => {
     const markSent = vi.fn(async (_id: string, txHash: string) => row({ status: 'SENT', txHash }))
     const s = setup({
-      findByAddress: async () => row({ status: 'FAILED' }),
+      findLatest: async () => row({ status: 'FAILED' }),
       countActiveSince: async () => 0,
       claim: async () => ({ status: 'claimed', drip: row() }),
       markSent,
@@ -140,7 +148,7 @@ describe('gas service: drip', () => {
     const markFailed = vi.fn(async () => {})
     const s = setup(
       {
-        findByAddress: async () => null,
+        findLatest: async () => null,
         countActiveSince: async () => 0,
         claim: async () => ({ status: 'claimed', drip: row() }),
         markFailed,
@@ -156,6 +164,78 @@ describe('gas service: drip', () => {
       code: 'DRIP_FAILED',
     })
     expect(markFailed).toHaveBeenCalledWith('drip-1', 'insufficient funds')
+  })
+})
+
+describe('gas service: refill', () => {
+  const treasury = '0x000000000000000000000000000000000000dEaD'
+  // The treasury is full; the account itself has 0.009 MON left (below the 0.03 threshold).
+  const balances = (account: bigint) => async (a: string) => (a === treasury ? 10n ** 18n : account)
+  const low = balances(9n * 10n ** 15n)
+  const lastDrip = row({ status: 'SENT', txHash: '0xold' })
+
+  it('sends another drip once the account runs low', async () => {
+    const claim = vi.fn<GasRepository['claim']>(async () => ({
+      status: 'claimed',
+      drip: row({ id: 'drip-2', seq: 1 }),
+    }))
+    const s = setup(
+      {
+        findLatest: async () => lastDrip,
+        countActiveSince: async () => 0,
+        // Refills never look at the per-IP cap.
+        countFirstFromIpSince: async () => Promise.reject(new Error('unexpected')),
+        claim,
+        markSent: async (_id: string, txHash: string) => row({ seq: 1, status: 'SENT', txHash }),
+      },
+      { getBalance: low },
+    )
+    await expect(s.drip(address, '1.1.1.1', log)).resolves.toMatchObject({
+      created: true,
+      drip: { alreadyDripped: false, txHash: '0xabc' },
+    })
+    expect(claim).toHaveBeenCalledWith(lastDrip, expect.objectContaining({ address }))
+  })
+
+  it('does not refill while the last drip is recent or still in flight', async () => {
+    const getBalance = vi.fn(low)
+    for (const latest of [row({ status: 'SENT', updatedAt: new Date() }), row()]) {
+      const s = setup({ findLatest: async () => latest }, { getBalance })
+      await expect(s.drip(address, '1.1.1.1', log)).resolves.toMatchObject({ created: false })
+    }
+    expect(getBalance).not.toHaveBeenCalled()
+  })
+
+  it('does not refill when the account balance cannot be read', async () => {
+    const s = setup(
+      { findLatest: async () => lastDrip },
+      { getBalance: async () => Promise.reject(new Error('rpc down')) },
+    )
+    await expect(s.drip(address, '1.1.1.1', log)).resolves.toMatchObject({ created: false })
+  })
+
+  it('answers 429 once the address had its daily drips', async () => {
+    const s = setup(
+      {
+        findLatest: async () => lastDrip,
+        countActiveSince: async () => 0,
+        countActiveForAddressSince: async () => 2,
+      },
+      { getBalance: low },
+    )
+    await expect(s.drip(address, '1.1.1.1', log)).rejects.toMatchObject({
+      statusCode: 429,
+      code: 'DRIP_ADDRESS_LIMIT',
+    })
+  })
+
+  it('still applies the per-IP cap when retrying a failed first drip', async () => {
+    const s = setup({
+      findLatest: async () => row({ status: 'FAILED' }),
+      countActiveSince: async () => 0,
+      countFirstFromIpSince: async () => 2,
+    })
+    await expect(s.drip(address, '1.1.1.1', log)).rejects.toMatchObject({ code: 'DRIP_IP_LIMIT' })
   })
 })
 

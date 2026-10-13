@@ -150,7 +150,8 @@ erDiagram
     }
     GasDrip {
         string id PK
-        string address UK "tanpa FK, lihat catatan"
+        string address "tanpa FK, lihat catatan"
+        int seq "0 = drip pertama, 1+ = isi ulang"
         string amountWei
         enum status "PENDING, SENT, FAILED"
         string txHash "nullable"
@@ -181,7 +182,7 @@ erDiagram
 
 `Stream` sengaja tidak punya foreign key: isinya salinan kontrak, dan alamat `employer`/`worker` belum tentu punya akun Trickle. API menautkannya ke `User` lewat `User.address` saat membaca.
 
-`GasDrip` sengaja tidak punya foreign key: batasnya "sekali per alamat wallet", dan alamat itulah yang menerima MON, jadi kuncinya `address` (unik), bukan user.
+`GasDrip` sengaja tidak punya foreign key: batasnya per alamat wallet, dan alamat itulah yang menerima MON, jadi kuncinya `address`, bukan user. Satu alamat bisa punya beberapa baris: `seq` 0 adalah drip pertama, berikutnya isi ulang saat saldonya hampir habis. Unique `(address, seq)` mencegah dua request bersamaan mengirim drip yang sama dua kali.
 
 ## Tabel
 
@@ -196,7 +197,7 @@ erDiagram
 | `BankAccount` | Rekening pencairan penerima | unik `(userId, numberFingerprint)` sebagai pencegah duplikat |
 | `Payout` | Pencairan: transfer on-chain → IDR lewat provider sandbox | `sourceTxHash` unik (satu payout per transfer), `providerRef` unik; index `userId`, `bankAccountId` |
 | `DemoStream` | Stream judge mode yang dibuat employer demo | `userId` unik; index `createdAt`, `(ip, createdAt)` untuk batas harian |
-| `GasDrip` | Log sponsor gas (MON testnet) | `address` unik; index `createdAt` |
+| `GasDrip` | Log sponsor gas (MON testnet), drip pertama dan isi ulang | `(address, seq)` unik; index `createdAt` |
 | `Stream` | Cache stream `TricklePayroll` dari indexer (`nextStreamId` + `getStream`) | PK = id on-chain (`BIGINT`, supaya urutan numerik benar); index `(employer, worker)`, `worker`, `settled` |
 
 ### Enum
@@ -235,5 +236,6 @@ Status yang bisa berubah karena dua proses bersamaan (undangan diterima vs dibat
 | `20261012120000_bank_accounts` | Tabel `BankAccount` |
 | `20261012130000_payouts` | `Payout` menunjuk ke `BankAccount`; kolom rekening teks biasa dihapus |
 | `20261013090000_streams` | Tabel `Stream` (cache indexer stream) |
+| `20261013100000_gas_drip_refills` | `GasDrip.seq`; unik `address` diganti unik `(address, seq)` supaya alamat bisa diisi ulang |
 
 Rename tabel dan kolom memakai `RENAME`, bukan drop dan create, supaya data yang ada tetap utuh.
