@@ -5,7 +5,8 @@ import { useId, useState } from 'react'
 import { Sheet } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
 import { Field, inputClass } from '@/components/ui/field'
-import { withdrawCopy as t } from '@/lib/copy/withdraw'
+import { withdrawCopy } from '@/lib/copy/withdraw'
+import { useLocale } from '@/lib/i18n/client'
 import { payrollConfig as config } from '@/lib/chain/config'
 import { previewSplit, type Split } from '@/lib/chain/split'
 import { availableAt } from '@/lib/chain/stream-math'
@@ -39,13 +40,16 @@ export function WithdrawSheet({
   resume,
   abandon,
 }: WithdrawSheetProps) {
+  const { locale } = useLocale()
+  const t = withdrawCopy[locale]
   const [recoveryHash, setRecoveryHash] = useState('')
   const inputId = useId()
   const recoveryWallet = walletAddress ?? streams[0]?.worker
   const stream = streams.find((s) => s.id === state.streamId)
   const gross = stream && timestamp !== null ? availableAt(stream, timestamp) : null
   const split = gross !== null ? previewSplit(gross, splits) : null
-  const token = (value: bigint) => `${formatToken(value, config.tokenDecimals)} ${tokenSymbol}`
+  const token = (value: bigint) =>
+    `${formatToken(value, config.tokenDecimals, locale)} ${tokenSymbol}`
   const busy = state.checking || state.phase === 'signing' || state.phase === 'pending'
   return (
     <Sheet

@@ -8,21 +8,25 @@ import { MoonIcon, SunIcon } from './icons'
 
 const DARK_QUERY = '(prefers-color-scheme: dark)'
 
+/** `null` di browser lama atau lingkungan test tanpa `matchMedia`: anggap tema terang. */
+const darkQuery = () =>
+  typeof window.matchMedia === 'function' ? window.matchMedia(DARK_QUERY) : null
+
 /** Tema yang sedang tampil: pilihan pengguna kalau ada, selain itu tema sistem. */
 function currentTheme(): Theme {
   const chosen = document.documentElement.dataset.theme
   if (chosen === 'light' || chosen === 'dark') return chosen
-  return window.matchMedia(DARK_QUERY).matches ? 'dark' : 'light'
+  return darkQuery()?.matches ? 'dark' : 'light'
 }
 
 function subscribe(onChange: () => void) {
   const observer = new MutationObserver(onChange)
   observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-  const media = window.matchMedia(DARK_QUERY)
-  media.addEventListener('change', onChange)
+  const media = darkQuery()
+  media?.addEventListener('change', onChange)
   return () => {
     observer.disconnect()
-    media.removeEventListener('change', onChange)
+    media?.removeEventListener('change', onChange)
   }
 }
 

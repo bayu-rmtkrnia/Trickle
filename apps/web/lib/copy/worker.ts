@@ -1,6 +1,7 @@
 import type { ApiError } from '@/lib/api/errors'
+import type { Locale } from '@/lib/i18n/config'
 
-export const invitationCopy = {
+const id = {
   title: 'Undangan bergabung',
   intro: 'Periksa informasi undangan sebelum bergabung dengan perusahaan.',
   loading: 'Memuat undangan…',
@@ -85,10 +86,99 @@ export const invitationCopy = {
     },
   },
 }
+export type WorkerInvitationCopy = typeof id
 
-export function invitationError(error: unknown, loading = false) {
+const en: WorkerInvitationCopy = {
+  title: 'Job invite',
+  intro: 'Check the invite details before joining the company.',
+  loading: 'Loading invite…',
+  companyFallback: 'Inviting company',
+  workerLabel: 'Invited as worker',
+  salaryLabel: 'Reference monthly salary',
+  salaryUnavailable: 'Not available',
+  salaryHint:
+    'Salary information from the company. Accepting the invite doesn’t start a pay stream yet.',
+  expiresLabel: 'Valid until',
+  pending: 'Waiting for acceptance',
+  login: 'Sign in to continue',
+  accountLoading: 'Loading account…',
+  sessionLoading: 'Preparing session…',
+  accept: 'Accept invite',
+  accepting: 'Accepting invite…',
+  retry: 'Try again',
+  checkStatus: 'Check invite status',
+  refreshProfile: 'Refresh profile',
+  refreshing: 'Refreshing profile…',
+  dashboard: 'Open dashboard',
+  family: 'Open family invite',
+  logout: 'Switch account',
+  loggingOut: 'Signing out…',
+  signedInAs: (name: string) => `Signed in as ${name}`,
+  success: 'Invite accepted, profile not refreshed yet',
+  successBody:
+    'Your job is connected. Refresh your profile to continue without accepting the invite again.',
+  errors: {
+    'not-found': {
+      title: 'Invite not found',
+      message: 'Check the link or ask the sender for a new invite.',
+    },
+    used: {
+      title: 'Invite already used',
+      message: 'This link can’t be accepted again. Open the dashboard to see your account status.',
+    },
+    revoked: { title: 'Invite canceled', message: 'Ask the sender for a new invite.' },
+    expired: { title: 'Invite expired', message: 'Ask the sender for a new invite.' },
+    family: {
+      title: 'This is a family invite',
+      message: 'Use the family invite page to continue.',
+    },
+    self: {
+      title: 'You can’t accept your own invite',
+      message: 'Sign in with the account the invite is for.',
+    },
+    'already-linked': {
+      title: 'Account already connected',
+      message: 'You already work with this company. Open the dashboard to continue.',
+    },
+    unauthorized: {
+      title: 'Your session needs a refresh',
+      message: 'Refresh your session, then tap Accept invite again.',
+    },
+    'rate-limited': {
+      title: 'Too many requests',
+      message: 'Wait a moment before trying again.',
+    },
+    configuration: {
+      title: 'Sign-in isn’t available yet',
+      message: 'The app isn’t set up yet. Contact the app team.',
+    },
+    login: { title: 'Sign-in couldn’t open', message: 'Try again in a moment.' },
+    session: {
+      title: 'Trickle session isn’t ready',
+      message: 'Wait for the wallet to be ready or try refreshing your session.',
+    },
+    logout: {
+      title: 'Sign-out didn’t finish',
+      message:
+        'Your local Trickle session was cleared. Tap Switch account again if the account is still shown.',
+    },
+    network: {
+      title: 'Acceptance not confirmed',
+      message: 'Check the invite status before trying to accept again.',
+    },
+    load: { title: 'Invite couldn’t load', message: 'Check your connection and try again.' },
+    server: {
+      title: 'Invite couldn’t be accepted',
+      message: 'Check the invite status before trying again.',
+    },
+  },
+}
+
+export const invitationCopy: Record<Locale, WorkerInvitationCopy> = { id: id, en: en }
+
+export function invitationError(error: unknown, loading = false, locale: Locale = 'id') {
   const api = error as Partial<ApiError> | null
-  const codes: Record<string, keyof typeof invitationCopy.errors> = {
+  const codes: Record<string, keyof WorkerInvitationCopy['errors']> = {
     INVITE_NOT_FOUND: 'not-found',
     INVITE_ALREADY_ACCEPTED: 'used',
     INVITE_REVOKED: 'revoked',
@@ -107,5 +197,5 @@ export function invitationError(error: unknown, loading = false) {
           : api?.kind === 'network'
             ? 'network'
             : 'server')
-  return invitationCopy.errors[key]
+  return invitationCopy[locale].errors[key]
 }

@@ -1,6 +1,7 @@
 import { ChainReadError } from '@/lib/chain/types'
+import type { Locale } from '@/lib/i18n/config'
 
-export const payrollCopy = {
+const id = {
   loading: 'Mencari payroll di jaringan...',
   loadingBody: 'Saldo ditampilkan setelah seluruh data payroll wallet berhasil dibaca.',
   unavailable: 'Saldo belum tersedia',
@@ -62,14 +63,79 @@ export const payrollCopy = {
     },
   },
 }
-export function payrollError(error: unknown, phase?: string) {
-  if (phase === 'unconfigured') return payrollCopy.errors.configuration
+export type PayrollCopy = typeof id
+
+const en: PayrollCopy = {
+  loading: 'Looking for your payroll on the network...',
+  loadingBody: 'Your balance appears once all payroll data for your wallet has been read.',
+  unavailable: 'Balance not available yet',
+  demo: 'Demo asset',
+  demoHint: 'Testnet token for testing, with no real money value.',
+  details: 'Details',
+  detailsTitle: 'Fund details',
+  viewPayroll: 'View payroll',
+  payrollCount: (count: number) => `${count} payroll${count === 1 ? '' : 's'}`,
+  payrollPending: 'Not loaded yet',
+  estimate: 'Estimate from the latest block',
+  stale: 'Payroll data is delayed',
+  staleHint:
+    'Showing the balance from the last block that was read. The number stops moving until the data is refreshed.',
+  empty: 'No payroll for this wallet yet',
+  emptyHint: 'Your company needs to fund payroll to your wallet before pay can flow.',
+  walletBalance: 'Token balance in wallet',
+  workerShare: 'Your estimated share',
+  familyShare: 'Family’s estimated share',
+  recipientShare: (index: number, address: string, percent: string) =>
+    `Recipient ${index} (${address.slice(0, 6)}…${address.slice(-4)}, ${percent}%)`,
+  noSplit: 'No family split yet.',
+  splitHint:
+    'The split happens when you withdraw. The final amount follows the confirmed transaction.',
+  streams: 'Your payroll',
+  stream: (id: string) => `Stream #${id}`,
+  unknownSender: 'Unknown sender',
+  sender: 'View sender in explorer',
+  period: 'Pay period',
+  available: 'Available',
+  retry: 'Refresh payroll',
+  refreshing: 'Refreshing payroll...',
+  withdrawStream: 'Withdraw stream',
+  statuses: {
+    scheduled: 'Not started',
+    active: 'Active',
+    ended: 'Ended, still withdrawable',
+    canceled: 'Canceled',
+    depleted: 'Already withdrawn',
+  },
+  errors: {
+    read: {
+      title: 'Couldn’t read payroll',
+      message: 'The network can’t be reached. Try refreshing payroll.',
+    },
+    configuration: {
+      title: 'Payroll setup doesn’t match',
+      message: 'The wallet or network setup can’t be used to read payroll.',
+    },
+    scan: {
+      title: 'Payroll search not finished',
+      message:
+        'Refresh payroll to continue the search. The balance isn’t shown because the data is incomplete.',
+    },
+    consistency: {
+      title: 'Payroll data needs a re-read',
+      message: 'Network data changed while loading. Refresh payroll to get consistent data.',
+    },
+  },
+}
+
+export const payrollCopy: Record<Locale, PayrollCopy> = { id: id, en: en }
+export function payrollError(error: unknown, phase?: string, locale: Locale = 'id') {
+  const errors = payrollCopy[locale].errors
+  if (phase === 'unconfigured') return errors.configuration
   if (error instanceof ChainReadError) {
-    if (['DEPLOYMENT_MISMATCH', 'INVALID_WALLET'].includes(error.code))
-      return payrollCopy.errors.configuration
-    if (error.code === 'SCAN_INCOMPLETE') return payrollCopy.errors.scan
+    if (['DEPLOYMENT_MISMATCH', 'INVALID_WALLET'].includes(error.code)) return errors.configuration
+    if (error.code === 'SCAN_INCOMPLETE') return errors.scan
     if (['CHAIN_CHANGED', 'SNAPSHOT_MISMATCH', 'STREAM_OWNERSHIP'].includes(error.code))
-      return payrollCopy.errors.consistency
+      return errors.consistency
   }
-  return payrollCopy.errors.read
+  return errors.read
 }

@@ -1,6 +1,7 @@
 import { StatusBadge } from '@/components/ui/status-badge'
 import { InlineError } from '@/components/ui/inline-error'
-import { withdrawCopy as t, withdrawalMessage } from '@/lib/copy/withdraw'
+import { withdrawCopy, withdrawalMessage } from '@/lib/copy/withdraw'
+import { useLocale } from '@/lib/i18n/client'
 import { payrollConfig as config } from '@/lib/chain/config'
 import { formatToken } from '@/lib/chain/format-token'
 import type { WithdrawalState } from '@/lib/chain/withdrawal-coordinator'
@@ -11,6 +12,8 @@ export function TransactionStatus({
   state: WithdrawalState
   tokenSymbol: string
 }) {
+  const { locale } = useLocale()
+  const t = withdrawCopy[locale]
   return (
     <div className="flex flex-col gap-3" role="status">
       <StatusBadge tone="neutral">{t.phases[state.phase]}</StatusBadge>
@@ -18,7 +21,7 @@ export function TransactionStatus({
       {state.phase === 'pending' && <p className="text-sm/6">{t.pending}</p>}
       {state.phase === 'unknown' && <p className="text-sm/6">{t.unknown}</p>}
       {!!state.error && (
-        <InlineError title={t.errorTitle} message={withdrawalMessage(state.error)} />
+        <InlineError title={t.errorTitle} message={withdrawalMessage(state.error, locale)} />
       )}
       {state.result && (
         <div>
@@ -27,13 +30,13 @@ export function TransactionStatus({
             <div>
               <dt>{t.worker}</dt>
               <dd className="break-all font-semibold tabular-nums">
-                {formatToken(state.result.toWorker, config.tokenDecimals)} {tokenSymbol}
+                {formatToken(state.result.toWorker, config.tokenDecimals, locale)} {tokenSymbol}
               </dd>
             </div>
             <div>
               <dt>{t.family}</dt>
               <dd className="break-all font-semibold tabular-nums">
-                {formatToken(state.result.toRecipients, config.tokenDecimals)} {tokenSymbol}
+                {formatToken(state.result.toRecipients, config.tokenDecimals, locale)} {tokenSymbol}
               </dd>
             </div>
             {state.result.paid.map((payment, index) => (
@@ -42,7 +45,7 @@ export function TransactionStatus({
                   {t.recipient(index + 1, payment.recipient)}
                 </dt>
                 <dd className="break-all tabular-nums">
-                  {formatToken(payment.amount, config.tokenDecimals)} {tokenSymbol}
+                  {formatToken(payment.amount, config.tokenDecimals, locale)} {tokenSymbol}
                 </dd>
               </div>
             ))}

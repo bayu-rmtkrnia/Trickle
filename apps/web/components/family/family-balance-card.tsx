@@ -11,11 +11,13 @@ import type { UsdIdrState } from '@/hooks/use-usd-idr'
 import { WAVE_SRC } from '@/lib/brand'
 import { payrollConfig } from '@/lib/chain/config'
 import { formatToken } from '@/lib/chain/format-token'
-import { familyBalanceError, familyDashboardCopy as t } from '@/lib/copy/family'
+import { familyBalanceError, familyDashboardCopy } from '@/lib/copy/family'
 import { estimateIdr, formatIdrUnits, formatRate } from '@/lib/family-money'
+import { useLocale } from '@/lib/i18n/client'
+import { INTL_LOCALE, type Locale } from '@/lib/i18n/config'
 
-const dateTime = (value: number | string) =>
-  new Intl.DateTimeFormat('id-ID', {
+const dateTime = (value: number | string, locale: Locale) =>
+  new Intl.DateTimeFormat(INTL_LOCALE[locale], {
     day: 'numeric',
     month: 'short',
     hour: '2-digit',
@@ -40,6 +42,8 @@ export function FamilyBalanceCard({
   onPayout: () => void
   onHistory: () => void
 }) {
+  const { locale } = useLocale()
+  const t = familyDashboardCopy[locale]
   const [detailsOpen, setDetailsOpen] = useState(false)
   const { phase, snapshot, error } = balance
   const quote = fx.quote
@@ -48,12 +52,12 @@ export function FamilyBalanceCard({
       ? estimateIdr(snapshot.balance, payrollConfig.tokenDecimals, quote.rate)
       : null
   const token = snapshot
-    ? `${formatToken(snapshot.balance, payrollConfig.tokenDecimals)} ${snapshot.tokenSymbol}`
+    ? `${formatToken(snapshot.balance, payrollConfig.tokenDecimals, locale)} ${snapshot.tokenSymbol}`
     : null
   const status = !snapshot
     ? phase === 'loading'
       ? t.balanceLoading
-      : familyBalanceError(error, phase).title
+      : familyBalanceError(error, phase, locale).title
     : phase === 'stale'
       ? t.balanceStale
       : snapshot.balance === BigInt(0)
@@ -90,7 +94,7 @@ export function FamilyBalanceCard({
                   data-testid="family-balance-idr"
                   className="mt-1 break-all font-display text-num-hero tabular-nums"
                 >
-                  {t.idrEstimate(formatIdrUnits(idr))}
+                  {t.idrEstimate(formatIdrUnits(idr, locale))}
                 </p>
                 <p
                   data-testid="family-balance-token"
@@ -166,12 +170,18 @@ export function FamilyBalanceCard({
                   [t.tokenAmount, token],
                   [
                     t.idrLabel,
-                    idr !== null ? t.idrEstimate(formatIdrUnits(idr)) : t.idrUnavailable,
+                    idr !== null ? t.idrEstimate(formatIdrUnits(idr, locale)) : t.idrUnavailable,
                   ],
-                  [t.rateLabel, quote ? formatRate(quote.rate) : t.idrUnavailable],
+                  [t.rateLabel, quote ? formatRate(quote.rate, locale) : t.idrUnavailable],
                   [t.rateSource, quote ? t.rateSources[quote.source] : t.idrUnavailable],
-                  [t.rateTime, quote?.rateTime ? dateTime(quote.rateTime) : t.rateTimeUnknown],
-                  [t.readTime, balance.readAt ? dateTime(balance.readAt) : t.rateTimeUnknown],
+                  [
+                    t.rateTime,
+                    quote?.rateTime ? dateTime(quote.rateTime, locale) : t.rateTimeUnknown,
+                  ],
+                  [
+                    t.readTime,
+                    balance.readAt ? dateTime(balance.readAt, locale) : t.rateTimeUnknown,
+                  ],
                   [t.block, snapshot.blockNumber.toString()],
                 ].map(([label, value]) => (
                   <div
@@ -197,7 +207,7 @@ export function FamilyBalanceCard({
           ) : phase === 'loading' ? (
             <p role="status">{t.balanceLoading}</p>
           ) : (
-            <InlineError {...familyBalanceError(error, phase)} />
+            <InlineError {...familyBalanceError(error, phase, locale)} />
           ))}
       </Sheet>
     </div>

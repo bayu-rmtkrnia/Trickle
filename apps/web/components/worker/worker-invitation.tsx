@@ -6,11 +6,14 @@ import { PersonCard } from '@/components/ui/person-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge, badgeIcons } from '@/components/ui/status-badge'
 import { isApiError } from '@/lib/api/errors'
-import { invitationCopy as t, invitationError } from '@/lib/copy/worker'
+import { invitationCopy, invitationError } from '@/lib/copy/worker'
+import { useLocale } from '@/lib/i18n/client'
 import { formatDateShort, formatUsd } from '@/lib/format'
 import { useWorkerInvitation } from './use-worker-invitation'
 
 export function WorkerInvitation({ code }: { code: string }) {
+  const { locale } = useLocale()
+  const t = invitationCopy[locale]
   const {
     account,
     session,
@@ -41,7 +44,7 @@ export function WorkerInvitation({ code }: { code: string }) {
       </div>
     )
   if (lookupError || !invite) {
-    const message = invitationError(lookupError, true)
+    const message = invitationError(lookupError, true, locale)
     return (
       <div className="flex flex-col gap-4">
         <InlineError variant="page" {...message} />
@@ -85,7 +88,7 @@ export function WorkerInvitation({ code }: { code: string }) {
   const terminalError = isApiError(actionError) && terminalCodes.includes(actionError.code ?? '')
   if (invite.status !== 'PENDING' || terminalError) {
     const message = terminalError
-      ? invitationError(actionError)
+      ? invitationError(actionError, false, locale)
       : invite.status === 'ACCEPTED'
         ? t.errors.used
         : invite.status === 'REVOKED'
@@ -111,7 +114,7 @@ export function WorkerInvitation({ code }: { code: string }) {
       ? t.errors.login
       : isApiError(error) && error.code === 'LOGOUT_FAILED'
         ? t.errors.logout
-        : invitationError(error)
+        : invitationError(error, false, locale)
   const sessionBusy = session.status === 'exchanging' || session.status === 'loading'
   const needsRecovery = isApiError(actionError) && actionError.status === 401
 
@@ -131,11 +134,11 @@ export function WorkerInvitation({ code }: { code: string }) {
         <p className="mt-1 text-2xl/8 font-bold text-brand-text tabular-nums">
           {invite.monthlySalaryUsd === null
             ? t.salaryUnavailable
-            : formatUsd(invite.monthlySalaryUsd)}
+            : formatUsd(invite.monthlySalaryUsd, locale)}
         </p>
         <p className="mt-2 text-label text-muted">{t.salaryHint}</p>
         <p className="mt-4 text-label">
-          {t.expiresLabel}: {formatDateShort(invite.expiresAt)}
+          {t.expiresLabel}: {formatDateShort(invite.expiresAt, locale)}
         </p>
       </div>
       {error && <InlineError {...errorCopy} />}
