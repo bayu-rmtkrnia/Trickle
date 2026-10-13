@@ -14,9 +14,9 @@ import {
   type UpdateBankAccountInput,
 } from '@/lib/api/bank-accounts'
 import { isApiError } from '@/lib/api/errors'
-import { bankCopy, bankError, bankNames } from '@/lib/copy/family'
+import { bankDictionary, bankError, bankNames } from '@/lib/copy/family'
+import { useDict, useLocale } from '@/lib/i18n/client'
 
-const t = bankCopy.form
 type Errors = { bank?: string; number?: string; name?: string; label?: string }
 
 /**
@@ -39,6 +39,9 @@ export function BankAccountSheet({
   onUpdate: (id: string, input: UpdateBankAccountInput) => Promise<unknown>
   onGone: (id: string) => void
 }) {
+  const copy = useDict(bankDictionary)
+  const t = copy.form
+  const { locale } = useLocale()
   const formId = useId()
   const bankId = useId()
   const numberId = useId()
@@ -122,7 +125,7 @@ export function BankAccountSheet({
       open={open}
       onClose={close}
       title={editing ? t.editTitle : t.addTitle}
-      description={editing ? t.editHint : bankCopy.body}
+      description={editing ? t.editHint : copy.body}
       footer={
         <Button type="submit" form={formId} block loading={submitting} loadingLabel={t.saving}>
           {t.save}
@@ -133,7 +136,7 @@ export function BankAccountSheet({
         {account ? (
           <p className="rounded-xl border-[1.5px] border-muted/50 bg-bg px-4 py-3 font-semibold">
             {bankNames[account.bankCode] ?? account.bankCode} ·{' '}
-            {bankCopy.masked(account.accountNumberLast4)}
+            {copy.masked(account.accountNumberLast4)}
           </p>
         ) : (
           <>
@@ -194,7 +197,7 @@ export function BankAccountSheet({
             className={inputClass(Boolean(errors.label))}
           />
         </Field>
-        {failure !== null && <InlineError {...bankError(failure)} />}
+        {failure !== null && <InlineError {...bankError(failure, 'mutation', locale)} />}
       </form>
     </Sheet>
   )

@@ -1,5 +1,6 @@
 import type { ApiError } from '@/lib/api/errors'
 import { ChainReadError } from '@/lib/chain/types'
+import type { Locale } from '@/lib/i18n/config'
 
 export const invitationCopy = {
   title: 'Undangan keluarga',
@@ -86,7 +87,7 @@ export const invitationCopy = {
   },
 }
 
-export function invitationError(error: unknown, loading = false) {
+export function invitationError(error: unknown, loading = false, locale: Locale = 'id') {
   const api = error as Partial<ApiError> | null
   const codes: Record<string, keyof typeof invitationCopy.errors> = {
     INVITE_NOT_FOUND: 'not-found',
@@ -107,7 +108,92 @@ export function invitationError(error: unknown, loading = false) {
           : api?.kind === 'network'
             ? 'network'
             : 'server')
-  return invitationCopy.errors[key]
+  return familyInvitationDictionary[locale].errors[key]
+}
+
+export const familyInvitationDictionary: Record<Locale, typeof invitationCopy> = {
+  id: invitationCopy,
+  en: {
+    ...invitationCopy,
+    title: 'Family invitation',
+    intro: 'Review the invitation before joining as family.',
+    loading: 'Loading invitation…',
+    inviterFallback: 'Inviting worker',
+    recipientLabel: 'Invited as family',
+    relationLabel: 'Relationship',
+    relationUnavailable: 'Not specified',
+    expiresLabel: 'Expires on',
+    pending: 'Awaiting acceptance',
+    login: 'Sign in to continue',
+    accountLoading: 'Loading account…',
+    sessionLoading: 'Preparing session…',
+    accept: 'Accept invitation',
+    accepting: 'Accepting invitation…',
+    retry: 'Try again',
+    checkStatus: 'Check invitation status',
+    refreshProfile: 'Refresh profile',
+    refreshing: 'Refreshing profile…',
+    dashboard: 'Open family dashboard',
+    worker: 'Open worker invitation',
+    logout: 'Switch account',
+    loggingOut: 'Signing out…',
+    signedInAs: (name) => `Signed in as ${name}`,
+    success: 'Invitation accepted, profile not yet refreshed',
+    successBody:
+      'Your family connection was created. Refresh your profile to continue without accepting again.',
+    errors: {
+      'not-found': {
+        title: 'Invitation not found',
+        message: 'Check the link or ask for a new invitation.',
+      },
+      used: {
+        title: 'Invitation already used',
+        message: 'This link cannot be accepted again. Open the dashboard to check your account.',
+      },
+      revoked: { title: 'Invitation revoked', message: 'Ask for a new invitation.' },
+      expired: { title: 'Invitation expired', message: 'Ask for a new invitation.' },
+      worker: {
+        title: 'This is a worker invitation',
+        message: 'Use the worker invitation page to continue.',
+      },
+      self: {
+        title: 'You cannot accept your own invitation',
+        message: 'Sign in with the invited account.',
+      },
+      'already-linked': {
+        title: 'Account already connected',
+        message: 'You are already connected to this worker. Open the dashboard to continue.',
+      },
+      unauthorized: {
+        title: 'Session needs refreshing',
+        message: 'Refresh your session, then accept the invitation again.',
+      },
+      'rate-limited': { title: 'Too many requests', message: 'Wait a moment before trying again.' },
+      configuration: {
+        title: 'Sign-in unavailable',
+        message: 'App configuration is not ready. Contact the app administrator.',
+      },
+      login: { title: 'Could not open sign-in', message: 'Try again in a moment.' },
+      session: {
+        title: 'Trickle session not ready',
+        message: 'Wait for your wallet or refresh your session.',
+      },
+      logout: {
+        title: 'Sign-out incomplete',
+        message:
+          'Your local Trickle session was cleared. Try switching accounts again if your account is still shown.',
+      },
+      network: {
+        title: 'Acceptance status unconfirmed',
+        message: 'Check the invitation status before accepting again.',
+      },
+      load: { title: 'Could not load invitation', message: 'Check your connection and try again.' },
+      server: {
+        title: 'Could not accept invitation',
+        message: 'Check its status before trying again.',
+      },
+    },
+  },
 }
 
 export const familyDashboardCopy = {
@@ -183,8 +269,84 @@ export const familyDashboardCopy = {
   },
 }
 
-export function familyBalanceError(error: unknown, phase?: string) {
-  const errors = familyDashboardCopy.errors
+/** Teks dashboard utama. Form rekening dan pencairan tetap memakai kamusnya sendiri. */
+export const familyDashboardDictionary: Record<Locale, typeof familyDashboardCopy> = {
+  id: familyDashboardCopy,
+  en: {
+    ...familyDashboardCopy,
+    title: 'Family dashboard',
+    greeting: (name) => `Hi, ${name}`,
+    fallbackName: 'Family',
+    loading: 'Loading dashboard',
+    loginTitle: 'View funds you have received',
+    loginBody: 'Sign in with the account you used to accept the family invitation.',
+    login: 'Sign in',
+    loginError: 'Could not open sign-in',
+    loginErrorBody: 'Please try to sign in again.',
+    configuration: 'Sign-in is unavailable',
+    configurationBody: 'Sign-in cannot be used right now. Please try again later.',
+    sessionError: 'Your session needs refreshing',
+    sessionErrorBody: 'Refresh your session to load the family dashboard again.',
+    recover: 'Refresh session',
+    recovering: 'Refreshing session…',
+    walletMismatch: 'Wallet does not match this session',
+    walletMismatchBody:
+      'The active wallet address differs from the account profile. Refresh your session or sign in again with the correct wallet.',
+    logout: 'Sign out',
+    notRecipientTitle: 'This account is not connected as family',
+    notRecipientBody:
+      'Open a family invitation from the worker, then accept it to enable this dashboard.',
+    balanceLabel: 'Funds received',
+    idrUnavailable: 'Rupiah estimate unavailable',
+    rateLoading: 'Loading exchange rate…',
+    balanceUnavailable: 'Balance unavailable',
+    demo: 'Demo asset',
+    demoHint: 'Testnet token for testing only. It has no real monetary value.',
+    balanceLoading: 'Reading balance from the network…',
+    balanceReady: 'Balance from the latest block',
+    balanceStale: 'Balance data is delayed',
+    balanceEmpty: 'No funds received yet',
+    details: 'Details',
+    detailsTitle: 'Fund details',
+    tokenAmount: 'Token amount',
+    idrLabel: 'Estimated rupiah',
+    rateLabel: 'USD/IDR rate',
+    rateSource: 'Rate source',
+    rateTime: 'Rate time',
+    rateTimeUnknown: 'Unknown',
+    readTime: 'Balance read',
+    block: 'Block',
+    rateSources: { live: 'Live', cache: 'Cached', fallback: 'Fallback' },
+    fallbackHint: 'A fallback rate is used because the rate provider is unavailable.',
+    estimateHint:
+      'Rupiah is only an estimate. The payout value is set when it is processed in test mode.',
+    emptyHint: 'Funds appear here after the worker withdraws salary shared to your wallet.',
+    staleHint: 'Showing the last successfully read block. Refresh to read again.',
+    refresh: 'Refresh balance',
+    refreshing: 'Refreshing balance…',
+    actionsTitle: 'Payout',
+    actionsPending: 'Payout is not available in this version.',
+    payout: 'Cash out',
+    history: 'History',
+    errors: {
+      read: {
+        title: 'Could not read balance',
+        message: 'The network is unavailable. Try refreshing your balance.',
+      },
+      configuration: {
+        title: 'Network configuration does not match',
+        message: 'The wallet or network configuration cannot read this balance.',
+      },
+      consistency: {
+        title: 'Balance must be read again',
+        message: 'Network data changed while loading. Refresh for a consistent result.',
+      },
+    },
+  },
+}
+
+export function familyBalanceError(error: unknown, phase?: string, locale: Locale = 'id') {
+  const errors = familyDashboardDictionary[locale].errors
   if (phase === 'unconfigured') return errors.configuration
   if (error instanceof ChainReadError) {
     if (['DEPLOYMENT_MISMATCH', 'INVALID_WALLET'].includes(error.code)) return errors.configuration
@@ -298,8 +460,101 @@ export const bankCopy = {
   },
 }
 
-export function bankError(error: unknown, context: 'load' | 'page' | 'mutation' = 'mutation') {
-  const e = bankCopy.errors
+export const bankDictionary: Record<Locale, typeof bankCopy> = {
+  id: bankCopy,
+  en: {
+    ...bankCopy,
+    title: 'Bank accounts',
+    body: 'Bank account for payouts. The full number is stored encrypted on the server.',
+    loading: 'Loading accounts…',
+    add: 'Add account',
+    limit: (max) => `Maximum ${max} accounts. Remove one to add another.`,
+    emptyTitle: 'No bank accounts yet',
+    emptyBody: 'Add a bank account to receive test-mode payouts.',
+    retry: 'Try again',
+    more: 'Load more accounts',
+    loadingMore: 'Loading accounts…',
+    edit: 'Edit',
+    remove: 'Remove',
+    editLabel: (bank, last4) => `Edit ${bank} account ${last4}`,
+    removeLabel: (bank, last4) => `Remove ${bank} account ${last4}`,
+    form: {
+      addTitle: 'Add bank account',
+      editTitle: 'Edit bank account',
+      editHint:
+        'Bank and account number cannot be changed. Add a new account for a different number.',
+      bank: 'Bank',
+      bankPlaceholder: 'Choose a bank',
+      number: 'Account number',
+      numberHint: '6–20 digits. Spaces and dashes are ignored.',
+      name: 'Account holder name',
+      label: 'Label (optional)',
+      labelHint: 'For example: Main account',
+      save: 'Save bank account',
+      saving: 'Saving…',
+      bankRequired: 'Choose a bank.',
+      numberInvalid: 'Account number must have 6–20 digits.',
+      nameInvalid: 'Account holder name must have 2–100 characters.',
+      labelInvalid: 'Label must have at most 40 characters.',
+    },
+    delete: {
+      title: 'Remove account?',
+      body: (bank, last4) =>
+        `${bank} account •••• ${last4} can no longer be selected for payouts. Payout history will remain available.`,
+      confirm: 'Remove account',
+      confirming: 'Removing…',
+      cancel: 'Cancel',
+    },
+    errors: {
+      exists: {
+        title: 'Account already added',
+        message: 'This bank and account number are already in the list.',
+      },
+      limit: {
+        title: 'Account limit reached',
+        message: 'Remove one account before adding another.',
+      },
+      unavailable: {
+        title: 'Bank accounts unavailable',
+        message: 'Bank-account storage is not configured on the server. Try again later.',
+      },
+      validation: {
+        title: 'Account details are invalid',
+        message: 'Check the account number, name, and label.',
+      },
+      session: {
+        title: 'Session needs refreshing',
+        message: 'Refresh your session, then save again. Changes are not resent automatically.',
+      },
+      forbidden: {
+        title: 'This account cannot manage bank accounts',
+        message: 'Accept a family invitation first.',
+      },
+      notFound: {
+        title: 'Account not found',
+        message: 'This account was removed. The list has been updated.',
+      },
+      rate: { title: 'Too many requests', message: 'Wait a moment before trying again.' },
+      network: {
+        title: 'Save status unconfirmed',
+        message: 'Reload the account list before trying again to avoid duplicates.',
+      },
+      load: { title: 'Could not load accounts', message: 'Check your connection and try again.' },
+      page: {
+        title: 'Could not load more accounts',
+        message: 'Previously loaded accounts remain visible.',
+      },
+      server: { title: 'Request unsuccessful', message: 'Try again in a moment.' },
+    },
+  },
+}
+
+export function bankError(
+  error: unknown,
+  context: 'load' | 'page' | 'mutation' = 'mutation',
+  locale: Locale = 'id',
+) {
+  const e = bankDictionary[locale].errors
   const api = error as Partial<ApiError> | null
   if (api?.code === 'BANK_ACCOUNT_EXISTS') return e.exists
   if (api?.code === 'BANK_ACCOUNT_LIMIT') return e.limit

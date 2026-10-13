@@ -11,8 +11,9 @@ import type { BankAccountDto } from '@/lib/api/bank-accounts'
 import type { FxQuoteDto } from '@/lib/api/fx'
 import { payrollConfig } from '@/lib/chain/config'
 import { formatToken } from '@/lib/chain/format-token'
-import { bankCopy, bankNames } from '@/lib/copy/family'
-import { payoutCopy as t, payoutMessage } from '@/lib/copy/family-payout'
+import { bankDictionary, bankNames } from '@/lib/copy/family'
+import { payoutDictionary, payoutMessage } from '@/lib/copy/family-payout'
+import { useDict, useLocale } from '@/lib/i18n/client'
 import { estimateIdr, formatIdrUnits, parseTokenAmount } from '@/lib/family-money'
 import { PayoutStatus as PayoutStatusBlock } from './payout-status'
 
@@ -29,6 +30,7 @@ function BankChoice({
   onChange: (id: string) => void
   name: string
 }) {
+  const bankCopy = useDict(bankDictionary)
   return (
     <div className="flex flex-col gap-2">
       {accounts.map((account) => (
@@ -78,6 +80,8 @@ export function PayoutSheet({
   quote: FxQuoteDto | null
   walletAddress: string | null
 }) {
+  const t = useDict(payoutDictionary)
+  const { locale } = useLocale()
   const amountId = useId()
   const bankGroup = useId()
   const recoveryId = useId()
@@ -92,7 +96,9 @@ export function PayoutSheet({
   const decimals = payrollConfig.tokenDecimals
   const parsed = parseTokenAmount(amount, decimals)
   const estimate =
-    parsed.ok && quote ? formatIdrUnits(estimateIdr(parsed.units, decimals, quote.rate)) : null
+    parsed.ok && quote
+      ? formatIdrUnits(estimateIdr(parsed.units, decimals, quote.rate), locale)
+      : null
   const busy = state.checking || state.phase === 'signing'
   const bankMissing =
     state.phase === 'registration-pending' &&
@@ -247,7 +253,7 @@ export function PayoutSheet({
               hint={
                 balance === null
                   ? undefined
-                  : t.amountHint(`${formatToken(balance, decimals)} ${tokenSymbol}`)
+                  : t.amountHint(`${formatToken(balance, decimals, locale)} ${tokenSymbol}`)
               }
               error={errors.amount}
             >
@@ -267,7 +273,13 @@ export function PayoutSheet({
                   variant="secondary"
                   disabled={balance === null || balance === BigInt(0) || busy}
                   onClick={() =>
-                    balance !== null && setAmount(formatToken(balance, decimals).replace(/\./g, ''))
+                    balance !== null &&
+                    setAmount(
+                      formatToken(balance, decimals, locale).replace(
+                        locale === 'id' ? /\./g : /,/g,
+                        '',
+                      ),
+                    )
                   }
                 >
                   {t.max}
@@ -374,5 +386,7 @@ export function PayoutSheet({
 }
 
 function PayoutStatusError({ error }: { error: unknown }) {
-  return <InlineError title={t.errorTitle} message={payoutMessage(error)} />
+  const t = useDict(payoutDictionary)
+  const { locale } = useLocale()
+  return <InlineError title={t.errorTitle} message={payoutMessage(error, locale)} />
 }

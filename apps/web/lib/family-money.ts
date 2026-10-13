@@ -1,6 +1,7 @@
 // Money helpers for the family dashboard. Token amounts stay bigint; the IDR
 // figure is a display estimate only (the payout amount comes from the backend).
 import { parseUnits } from 'viem'
+import { INTL_LOCALE, type Locale } from '@/lib/i18n/config'
 
 const RATE_SCALE = BigInt(1_000_000)
 
@@ -19,14 +20,14 @@ export function estimateIdr(units: bigint, decimals: number, rate: number): bigi
 }
 
 /** `Rp1.234.567` from whole rupiah as bigint, without converting to Number. */
-export function formatIdrUnits(rupiah: bigint) {
+export function formatIdrUnits(rupiah: bigint, locale: Locale = 'id') {
   if (rupiah < BigInt(0)) throw new RangeError('Invalid rupiah amount')
-  return `Rp${rupiah.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.')}`
+  return `Rp${rupiah.toString().replace(/\B(?=(\d{3})+(?!\d))/g, locale === 'id' ? '.' : ',')}`
 }
 
 /** `16.250,5` style rate for the detail sheet. */
-export function formatRate(rate: number) {
-  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(rate)
+export function formatRate(rate: number, locale: Locale = 'id') {
+  return new Intl.NumberFormat(INTL_LOCALE[locale], { maximumFractionDigits: 2 }).format(rate)
 }
 
 export type TokenAmountParse =

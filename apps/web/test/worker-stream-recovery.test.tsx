@@ -33,7 +33,7 @@ it('marks an unchanged chain head stale after 45 seconds of successful polls', a
   await act(async () => {
     await vi.advanceTimersByTimeAsync(45000)
   })
-  expect(deps.read).toHaveBeenCalledTimes(4)
+  expect(deps.read).toHaveBeenCalledTimes(10)
   expect(result.current.phase).toBe('stale')
 })
 it('queues an explicit post-settlement refresh while an older snapshot is in flight', async () => {

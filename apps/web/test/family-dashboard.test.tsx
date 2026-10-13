@@ -16,6 +16,15 @@ const deps = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/account', () => ({ useAccount: () => deps.account }))
 vi.mock('@/providers/session-provider', () => ({ useSession: () => deps.session }))
+vi.mock('@/components/auth/sign-out-button', () => ({
+  SignOutButton: () => <button type="button">Keluar</button>,
+}))
+vi.mock('@/components/ui/language-switcher', () => ({
+  LanguageSwitcher: () => <button type="button">Bahasa</button>,
+}))
+vi.mock('@/components/ui/theme-toggle', () => ({
+  ThemeToggle: () => <button type="button">Tema</button>,
+}))
 vi.mock('@/lib/chain/family-balance', () => ({ readFamilyBalance: deps.read }))
 vi.mock('@/lib/api/fx', () => ({ getUsdIdr: deps.fx }))
 vi.mock('@/components/family/bank-account-list', () => ({ BankAccountList: () => null }))
@@ -98,6 +107,9 @@ describe('family dashboard', () => {
     expect(screen.getByTestId('family-balance-token').textContent).toBe('12,5 mAUSD')
     expect(screen.getByText('Aset demo')).toBeTruthy()
     expect(screen.getByText('Halo, Ibu Sari')).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Keluar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Bahasa' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Tema' })).toBeTruthy()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(deps.read).toHaveBeenCalledWith(wallet, expect.any(AbortSignal))
     expect(deps.fx).toHaveBeenCalledWith('trickle-token', expect.anything())
@@ -220,12 +232,12 @@ function Harness({ address }: { address: string }) {
 }
 
 describe('family balance polling', () => {
-  it('polls every 15 seconds without a per-second ticker', async () => {
+  it('polls every 5 seconds without a per-second ticker', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     render(<Harness address={wallet} />)
     await waitFor(() => expect(screen.getByTestId('phase').textContent).toBe('ready'))
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(14000)
+      await vi.advanceTimersByTimeAsync(4000)
     })
     expect(deps.read).toHaveBeenCalledOnce()
     await act(async () => {

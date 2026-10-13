@@ -1,4 +1,6 @@
 import type { ApiError } from '@/lib/api/errors'
+import type { Locale } from '@/lib/i18n/config'
+import { familyInvitationDictionary } from './family'
 
 export const invitationCopy = {
   title: 'Undangan bergabung',
@@ -86,7 +88,54 @@ export const invitationCopy = {
   },
 }
 
-export function invitationError(error: unknown, loading = false) {
+export const workerInvitationDictionary: Record<Locale, typeof invitationCopy> = {
+  id: invitationCopy,
+  en: {
+    ...invitationCopy,
+    title: 'Join invitation',
+    intro: 'Review the invitation before joining the company.',
+    loading: 'Loading invitation…',
+    companyFallback: 'Inviting company',
+    workerLabel: 'Invited as worker',
+    salaryLabel: 'Reference monthly salary',
+    salaryUnavailable: 'Unavailable',
+    salaryHint:
+      'Salary information from the company. Accepting this invitation does not create a salary stream.',
+    expiresLabel: 'Expires on',
+    pending: 'Awaiting acceptance',
+    login: 'Sign in to continue',
+    accountLoading: 'Loading account…',
+    sessionLoading: 'Preparing session…',
+    accept: 'Accept invitation',
+    accepting: 'Accepting invitation…',
+    retry: 'Try again',
+    checkStatus: 'Check invitation status',
+    refreshProfile: 'Refresh profile',
+    refreshing: 'Refreshing profile…',
+    dashboard: 'Open dashboard',
+    family: 'Open family invitation',
+    logout: 'Switch account',
+    loggingOut: 'Signing out…',
+    signedInAs: (name) => `Signed in as ${name}`,
+    success: 'Invitation accepted, profile not yet refreshed',
+    successBody:
+      'Your employment connection was created. Refresh your profile to continue without accepting again.',
+    errors: {
+      ...familyInvitationDictionary.en.errors,
+      family: {
+        title: 'This is a family invitation',
+        message: 'Use the family invitation page to continue.',
+      },
+      'already-linked': {
+        title: 'Account already connected',
+        message:
+          'You already have an employment connection with this company. Open the dashboard to continue.',
+      },
+    },
+  },
+}
+
+export function invitationError(error: unknown, loading = false, locale: Locale = 'id') {
   const api = error as Partial<ApiError> | null
   const codes: Record<string, keyof typeof invitationCopy.errors> = {
     INVITE_NOT_FOUND: 'not-found',
@@ -107,5 +156,5 @@ export function invitationError(error: unknown, loading = false) {
           : api?.kind === 'network'
             ? 'network'
             : 'server')
-  return invitationCopy.errors[key]
+  return workerInvitationDictionary[locale].errors[key]
 }

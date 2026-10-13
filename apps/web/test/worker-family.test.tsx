@@ -17,6 +17,7 @@ const deps = vi.hoisted(() => ({
   createInvite: vi.fn(),
   cancelInvite: vi.fn(),
   settings: null as unknown as SplitSettings,
+  onSigning: undefined as (() => void | Promise<void>) | undefined,
 }))
 vi.mock('@/lib/api/recipients', () => ({
   listRecipients: deps.listRecipients,
@@ -27,7 +28,12 @@ vi.mock('@/lib/api/invitations', () => ({
   createFamilyInvitation: deps.createInvite,
   cancelInvitation: deps.cancelInvite,
 }))
-vi.mock('@/hooks/use-split-settings', () => ({ useSplitSettings: () => deps.settings }))
+vi.mock('@/hooks/use-split-settings', () => ({
+  useSplitSettings: (_address: string | null, _onSuccess: () => void, onSigning?: () => void) => {
+    deps.onSigning = onSigning
+    return deps.settings
+  },
+}))
 
 const worker = '0x2222222222222222222222222222222222222222'
 const ibu: RecipientDto = {
@@ -118,6 +124,7 @@ beforeEach(() => {
   }
   Object.assign(navigator, { clipboard: { writeText: vi.fn(async () => {}) } })
   deps.settings = settings()
+  deps.onSigning = undefined
   deps.listRecipients.mockResolvedValue({ data: [ibu, adik], nextCursor: null })
   deps.listInvites.mockResolvedValue({ data: [invite], nextCursor: null })
   deps.createInvite.mockImplementation(async (input) => ({
@@ -220,6 +227,25 @@ describe('worker family section', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Atur pembagian' }))
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Matikan pembagian' }))
     expect(deps.settings.save).toHaveBeenCalledWith([])
+  })
+
+  it('keeps the split sheet closed after the Privy approval handoff settles', async () => {
+    const view = show()
+    await screen.findByRole('button', { name: 'Hapus penerima Ibu Sari' })
+    fireEvent.click(screen.getByRole('button', { name: 'Atur pembagian' }))
+    expect(dialog()).toBeTruthy()
+
+    act(() => {
+      deps.onSigning?.()
+    })
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    deps.settings = settings({ phase: 'success', splits: [{ recipient: ibu.address, bps: 2000 }] })
+    view.rerender(
+      <WorkerFamilySection session={session} walletAddress={worker} streams={streams([])} />,
+    )
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
   })
 
   it('also saves an empty list when every row is removed', async () => {

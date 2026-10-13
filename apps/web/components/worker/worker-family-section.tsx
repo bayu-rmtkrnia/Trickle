@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { InlineError } from '@/components/ui/inline-error'
 import { PersonCard } from '@/components/ui/person-card'
@@ -11,14 +11,16 @@ import { useSplitSettings } from '@/hooks/use-split-settings'
 import { useWorkerFamily } from '@/hooks/use-worker-family'
 import type { RecipientDto } from '@/lib/api/recipients'
 import { bpsToPercent } from '@/lib/chain/split'
-import { familyApiMessage, workerFamilyCopy as t } from '@/lib/copy/worker-family'
+import { familyApiMessage, workerFamilyDictionary } from '@/lib/copy/worker-family'
+import { useDict, useLocale } from '@/lib/i18n/client'
 import { useCopy } from '@/lib/use-copy'
 import type { SessionContextValue } from '@/providers/session-provider'
 import { InviteFamilySheet } from './invite-family-sheet'
 import { RemoveRecipientSheet } from './remove-recipient-sheet'
 import { SplitSheet } from './split-sheet'
 
-const percent = (bps: number) => bpsToPercent(bps).replace('.', ',')
+const percent = (bps: number, locale: 'id' | 'en') =>
+  locale === 'id' ? bpsToPercent(bps).replace('.', ',') : bpsToPercent(bps)
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase()
 
 export function WorkerFamilySection({
@@ -30,9 +32,9 @@ export function WorkerFamilySection({
   walletAddress: string | null
   streams: WorkerStreamState
 }) {
+  const t = useDict(workerFamilyDictionary)
+  const { locale } = useLocale()
   const family = useWorkerFamily(session)
-  const rootRef = useRef<HTMLElement | null>(null)
-  const signingHandoff = useRef(false)
   const [splitOpen, setSplitOpen] = useState(false)
   const [splitKey, setSplitKey] = useState(0)
   const [inviteOpen, setInviteOpen] = useState(false)
@@ -42,27 +44,11 @@ export function WorkerFamilySection({
   const splitAfterRemove = useRef(false)
   const { copied, copy } = useCopy()
   const settings = useSplitSettings(walletAddress, streams.refresh, () => {
-    // Privy shows its own modal; close ours so it does not trap focus.
-    signingHandoff.current = true
-    Array.from(rootRef.current?.querySelectorAll<HTMLDialogElement>('dialog') ?? [])
-      .find((dialog) => dialog.open)
-      ?.close()
+    // Privy owns the approval surface. Keep this sheet closed afterwards: its
+    // status is reflected by the refreshed split card, not another modal.
     setSplitOpen(false)
   })
   const phase = settings.state.phase
-  useEffect(() => {
-    if (!signingHandoff.current || ['idle', 'preparing', 'signing'].includes(phase)) return
-    let active = true
-    queueMicrotask(() => {
-      if (active && signingHandoff.current) {
-        signingHandoff.current = false
-        setSplitOpen(true)
-      }
-    })
-    return () => {
-      active = false
-    }
-  }, [phase])
 
   const splits = streams.snapshot?.splits ?? null
   const recipients = family.recipients ?? []
@@ -82,7 +68,7 @@ export function WorkerFamilySection({
   }
 
   return (
-    <section ref={rootRef} aria-labelledby="worker-family-heading" className="flex flex-col gap-5">
+    <section aria-labelledby="worker-family-heading" className="flex flex-col gap-5">
       <div>
         <h2 id="worker-family-heading" className="text-section font-bold">
           {t.title}
@@ -110,11 +96,11 @@ export function WorkerFamilySection({
             {splits.map((split) => (
               <li key={split.recipient} className="flex justify-between gap-3">
                 <span className="min-w-0 truncate">{nameOf(split.recipient)}</span>
-                <span className="font-semibold tabular-nums">{percent(split.bps)}%</span>
+                <span className="font-semibold tabular-nums">{percent(split.bps, locale)}%</span>
               </li>
             ))}
             <li className="flex justify-between gap-3 text-muted">
-              <span>{t.splitWorker(percent(10_000 - totalBps))}</span>
+              <span>{t.splitWorker(percent(10_000 - totalBps, locale))}</span>
             </li>
           </ul>
         )}
@@ -147,7 +133,7 @@ export function WorkerFamilySection({
                       <PersonCard
                         name={recipient.displayName}
                         subtitle={`${recipient.relation ? `${recipient.relation} · ` : ''}${
-                          share ? t.share(percent(share.bps)) : t.noShare
+                          share ? t.share(percent(share.bps, locale)) : t.noShare
                         }`}
                         trailing={
                           <Button
@@ -179,7 +165,7 @@ export function WorkerFamilySection({
                 {t.invite}
               </Button>
             </div>
-            {inviteError !== null && <InlineError {...familyApiMessage(inviteError)} />}
+            {inviteError !== null && <InlineError {...familyApiMessage(inviteError, locale)} />}
             {(family.invites ?? []).length === 0 ? (
               <p className="text-label text-muted">{t.invitesEmpty}</p>
             ) : (

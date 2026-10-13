@@ -7,8 +7,8 @@ import { InlineError } from '@/components/ui/inline-error'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Sheet } from '@/components/ui/sheet'
 import { WAVE_SRC } from '@/lib/brand'
-import { workerDashboardCopy as t } from '@/lib/copy/worker-dashboard'
-import { payrollCopy as p, payrollError } from '@/lib/copy/payroll'
+import { workerDashboardCopy } from '@/lib/copy/worker-dashboard'
+import { payrollDictionary, payrollError } from '@/lib/copy/payroll'
 import { payrollConfig } from '@/lib/chain/config'
 import { previewSplit } from '@/lib/chain/split'
 import { availableAt, streamStatus } from '@/lib/chain/stream-math'
@@ -17,7 +17,9 @@ import { useWorkerStreams, type WorkerStreamState } from '@/hooks/use-worker-str
 import type { EmploymentDto } from '@/lib/api/worker'
 import { useWithdrawal } from '@/hooks/use-withdrawal'
 import { WithdrawSheet } from './withdraw-sheet'
-import { withdrawCopy as w } from '@/lib/copy/withdraw'
+import { withdrawDictionary } from '@/lib/copy/withdraw'
+import { useDict, useLocale } from '@/lib/i18n/client'
+import { INTL_LOCALE } from '@/lib/i18n/config'
 
 export function SalaryCard({
   walletAddress = null,
@@ -29,6 +31,10 @@ export function SalaryCard({
   /** Shared snapshot from the dashboard; without it the card reads its own. */
   streams?: WorkerStreamState
 }) {
+  const t = useDict(workerDashboardCopy)
+  const p = useDict(payrollDictionary)
+  const w = useDict(withdrawDictionary)
+  const { locale } = useLocale()
   const own = useWorkerStreams(streams ? null : walletAddress)
   const { phase, snapshot, timestamp, refresh, refreshing, error } = streams ?? own
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -98,10 +104,10 @@ export function SalaryCard({
           },
         )
       : null
-  const amount = (value: bigint) => formatToken(value, payrollConfig.tokenDecimals)
+  const amount = (value: bigint) => formatToken(value, payrollConfig.tokenDecimals, locale)
   const token = (value: bigint) => `${amount(value)} ${snapshot!.tokenSymbol}`
   const period = (value: bigint) =>
-    new Intl.DateTimeFormat('id-ID', {
+    new Intl.DateTimeFormat(INTL_LOCALE[locale], {
       day: 'numeric',
       month: 'short',
       year: 'numeric',
@@ -155,7 +161,7 @@ export function SalaryCard({
             {total === null
               ? phase === 'loading'
                 ? p.loading
-                : payrollError(error, phase).title
+                : payrollError(error, phase, locale).title
               : snapshot!.streams.length === 0
                 ? p.empty
                 : phase === 'stale'
@@ -238,7 +244,7 @@ export function SalaryCard({
           ) : phase === 'loading' ? (
             <p role="status">{p.loading}</p>
           ) : (
-            <InlineError {...payrollError(error, phase)} />
+            <InlineError {...payrollError(error, phase, locale)} />
           ))}
       </Sheet>
       <Sheet open={payrollOpen} onClose={() => setPayrollOpen(false)} title={p.streams}>
@@ -289,7 +295,7 @@ export function SalaryCard({
               </ul>
             )
           ) : (
-            <InlineError {...payrollError(error, phase)} />
+            <InlineError {...payrollError(error, phase, locale)} />
           ))}
       </Sheet>
       <WithdrawSheet

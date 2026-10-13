@@ -6,11 +6,14 @@ import { PersonCard } from '@/components/ui/person-card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge, badgeIcons } from '@/components/ui/status-badge'
 import { isApiError } from '@/lib/api/errors'
-import { invitationCopy as t, invitationError } from '@/lib/copy/family'
+import { familyInvitationDictionary, invitationError } from '@/lib/copy/family'
+import { useDict, useLocale } from '@/lib/i18n/client'
 import { formatDateShort } from '@/lib/format'
 import { useFamilyInvitation } from './use-family-invitation'
 
 export function FamilyInvitation({ code }: { code: string }) {
+  const t = useDict(familyInvitationDictionary)
+  const { locale } = useLocale()
   const {
     account,
     session,
@@ -41,7 +44,7 @@ export function FamilyInvitation({ code }: { code: string }) {
       </div>
     )
   if (lookupError || !invite) {
-    const message = invitationError(lookupError, true)
+    const message = invitationError(lookupError, true, locale)
     return (
       <div className="flex flex-col gap-4">
         <InlineError variant="page" {...message} />
@@ -85,7 +88,7 @@ export function FamilyInvitation({ code }: { code: string }) {
   const terminalError = isApiError(actionError) && terminalCodes.includes(actionError.code ?? '')
   if (invite.status !== 'PENDING' || terminalError) {
     const message = terminalError
-      ? invitationError(actionError)
+      ? invitationError(actionError, false, locale)
       : invite.status === 'ACCEPTED'
         ? t.errors.used
         : invite.status === 'REVOKED'
@@ -111,7 +114,7 @@ export function FamilyInvitation({ code }: { code: string }) {
       ? t.errors.login
       : isApiError(error) && error.code === 'LOGOUT_FAILED'
         ? t.errors.logout
-        : invitationError(error)
+        : invitationError(error, false, locale)
   const sessionBusy = session.status === 'exchanging' || session.status === 'loading'
   const needsRecovery = isApiError(actionError) && actionError.status === 401
 
@@ -132,7 +135,7 @@ export function FamilyInvitation({ code }: { code: string }) {
           {invite.relation ?? t.relationUnavailable}
         </p>
         <p className="mt-4 text-label">
-          {t.expiresLabel}: {formatDateShort(invite.expiresAt)}
+          {t.expiresLabel}: {formatDateShort(invite.expiresAt, locale)}
         </p>
       </div>
       {error && <InlineError {...errorCopy} />}

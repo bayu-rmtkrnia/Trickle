@@ -5,7 +5,7 @@ import { getAddress, isAddress } from 'viem'
 import { readFamilyBalance, type FamilyBalanceSnapshot } from '@/lib/chain/family-balance'
 import { STALE_AFTER_MS } from '@/lib/chain/stream-math'
 
-export const FAMILY_POLL_MS = 15000
+export const FAMILY_POLL_MS = 5000
 
 export interface FamilyBalanceState {
   phase: 'unconfigured' | 'loading' | 'ready' | 'stale' | 'error'
@@ -26,7 +26,7 @@ type Record = {
 }
 
 /**
- * Polls `balanceOf(wallet)` every 15 seconds while the page is visible. The
+ * Polls `balanceOf(wallet)` every 5 seconds while the page is visible. The
  * balance only changes on transfers, so there is no per-second ticker; the
  * poll interval also advances the clock that marks data stale after 30 s.
  */

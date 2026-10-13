@@ -35,17 +35,17 @@ afterEach(() => {
   vi.restoreAllMocks()
 })
 describe('account-scoped payroll polling', () => {
-  it('ticks locally each second but polls RPC only every 15 seconds', async () => {
+  it('ticks locally each second but polls RPC every 5 seconds', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     render(<Harness />)
     await screen.findByText('ready')
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(5000)
+      await vi.advanceTimersByTimeAsync(4000)
     })
     expect(deps.read).toHaveBeenCalledOnce()
-    expect(screen.getByTestId('now').textContent).toBe('105')
+    expect(screen.getByTestId('now').textContent).toBe('104')
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(10000)
+      await vi.advanceTimersByTimeAsync(1000)
     })
     expect(deps.read).toHaveBeenCalledTimes(2)
   })

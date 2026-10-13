@@ -9,6 +9,8 @@ import { estimateTimestamp, STALE_AFTER_MS } from '@/lib/chain/stream-math'
 import type { WorkerSnapshot } from '@/lib/chain/types'
 import type { SessionContextValue } from '@/providers/session-provider'
 
+export const WORKER_POLL_MS = 5000
+
 export interface WorkerStreamState {
   phase: 'unconfigured' | 'loading' | 'ready' | 'stale' | 'error'
   snapshot: WorkerSnapshot | null
@@ -123,7 +125,7 @@ export function useWorkerStreams(
     })
     const poll = setInterval(() => {
       void refresh()
-    }, 15000)
+    }, WORKER_POLL_MS)
     const ticker = setInterval(() => {
       if (document.visibilityState !== 'hidden') setClock(performance.now())
     }, 1000)

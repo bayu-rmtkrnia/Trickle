@@ -10,17 +10,19 @@ import type { FamilyPayoutsState } from '@/hooks/use-family-payouts'
 import type { PayoutDto } from '@/lib/api/payouts'
 import { payrollConfig } from '@/lib/chain/config'
 import { bankNames } from '@/lib/copy/family'
-import { payoutCopy as p, payoutMessage } from '@/lib/copy/family-payout'
+import { payoutDictionary, payoutMessage } from '@/lib/copy/family-payout'
 import { formatIdr } from '@/lib/format'
+import { INTL_LOCALE } from '@/lib/i18n/config'
+import { useDict, useLocale } from '@/lib/i18n/client'
 import { PayoutDetails } from './payout-status'
 
-const h = p.history
 const statusTone = (status: string): BadgeTone =>
   status === 'COMPLETED' ? 'success' : status === 'FAILED' ? 'danger' : 'warn'
 /** "12.5" -> "12,5" without converting the server decimal string to Number. */
-const tokenText = (amountUsd: string) => `${amountUsd.replace('.', ',')} mAUSD`
-const when = (iso: string) =>
-  new Intl.DateTimeFormat('id-ID', {
+const tokenText = (amountUsd: string, locale: 'id' | 'en') =>
+  `${locale === 'id' ? amountUsd.replace('.', ',') : amountUsd} mAUSD`
+const when = (iso: string, locale: 'id' | 'en') =>
+  new Intl.DateTimeFormat(INTL_LOCALE[locale], {
     day: 'numeric',
     month: 'short',
     year: 'numeric',
@@ -29,10 +31,12 @@ const when = (iso: string) =>
   }).format(new Date(iso))
 
 export function PayoutStatusBadge({ status }: { status: string }) {
+  const h = useDict(payoutDictionary).history
   return <StatusBadge tone={statusTone(status)}>{h.statuses[status] ?? status}</StatusBadge>
 }
 
 function Explorer({ hash }: { hash: string }) {
+  const p = useDict(payoutDictionary)
   return (
     <a
       href={`${payrollConfig.explorerUrl}/tx/${hash}`}
@@ -46,6 +50,8 @@ function Explorer({ hash }: { hash: string }) {
 }
 
 function Detail({ payout }: { payout: PayoutDto }) {
+  const p = useDict(payoutDictionary)
+  const h = p.history
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap gap-2">
@@ -74,6 +80,9 @@ export function PayoutHistory({
   onClose: () => void
   history: FamilyPayoutsState
 }) {
+  const p = useDict(payoutDictionary)
+  const h = p.history
+  const { locale } = useLocale()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const selected = history.find(selectedId ?? undefined)
   const rows = history.page?.data ?? []
@@ -132,16 +141,18 @@ export function PayoutHistory({
                 <button
                   type="button"
                   onClick={() => setSelectedId(payout.id)}
-                  aria-label={h.detail(when(payout.createdAt))}
+                  aria-label={h.detail(when(payout.createdAt, locale))}
                   className="flex w-full flex-col gap-2 rounded-xl border-[1.5px] border-brand-text bg-surface p-4 text-left active:scale-[0.99]"
                 >
                   <span className="flex w-full flex-wrap items-start justify-between gap-2">
                     <span className="min-w-0">
                       <span className="block font-bold tabular-nums">
-                        {payout.amountIdr === null ? h.idrPending : formatIdr(payout.amountIdr)}
+                        {payout.amountIdr === null
+                          ? h.idrPending
+                          : formatIdr(payout.amountIdr, locale)}
                       </span>
                       <span className="block text-label text-muted tabular-nums">
-                        {tokenText(payout.amountUsd)}
+                        {tokenText(payout.amountUsd, locale)}
                       </span>
                     </span>
                     <PayoutStatusBadge status={payout.status} />
@@ -149,7 +160,7 @@ export function PayoutHistory({
                   <span className="text-label text-muted">
                     {bankNames[payout.bankAccount.bankCode] ?? payout.bankAccount.bankCode} ••••{' '}
                     {payout.bankAccount.accountNumberLast4} ·{' '}
-                    <time dateTime={payout.createdAt}>{when(payout.createdAt)}</time>
+                    <time dateTime={payout.createdAt}>{when(payout.createdAt, locale)}</time>
                   </span>
                   <StatusBadge tone="neutral">{p.testMode}</StatusBadge>
                 </button>
@@ -157,7 +168,7 @@ export function PayoutHistory({
             ))}
           </ul>
           {history.pageError !== null && (
-            <InlineError title={h.pageError} message={payoutMessage(history.pageError)} />
+            <InlineError title={h.pageError} message={payoutMessage(history.pageError, locale)} />
           )}
           {history.page?.nextCursor && (
             <Button

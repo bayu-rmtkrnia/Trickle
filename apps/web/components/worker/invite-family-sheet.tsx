@@ -7,10 +7,9 @@ import { CheckIcon, CopyIcon } from '@/components/ui/icons'
 import { InlineError } from '@/components/ui/inline-error'
 import { Sheet } from '@/components/ui/sheet'
 import type { Invite } from '@/lib/api/types'
-import { familyApiMessage, workerFamilyCopy } from '@/lib/copy/worker-family'
+import { familyApiMessage, workerFamilyDictionary } from '@/lib/copy/worker-family'
+import { useDict, useLocale } from '@/lib/i18n/client'
 import { useCopy } from '@/lib/use-copy'
-
-const t = workerFamilyCopy.inviteSheet
 
 /** Creates a RECIPIENT invite and shows its link. Mount with a key per opening. */
 export function InviteFamilySheet({
@@ -22,6 +21,9 @@ export function InviteFamilySheet({
   onClose: () => void
   onCreate: (input: { inviteeName: string; relation?: string }) => Promise<Invite>
 }) {
+  const strings = useDict(workerFamilyDictionary)
+  const t = strings.inviteSheet
+  const { locale } = useLocale()
   const formId = useId()
   const nameId = useId()
   const relationId = useId()
@@ -76,7 +78,7 @@ export function InviteFamilySheet({
           <>
             <Button block onClick={() => copy(created.url)}>
               {copied ? <CheckIcon /> : <CopyIcon />}
-              {copied ? workerFamilyCopy.copied : workerFamilyCopy.copyLink}
+              {copied ? strings.copied : strings.copyLink}
             </Button>
             <Button variant="text" block onClick={reset}>
               {t.another}
@@ -122,7 +124,7 @@ export function InviteFamilySheet({
               className={inputClass(Boolean(errors.relation))}
             />
           </Field>
-          {failure !== null && <InlineError {...familyApiMessage(failure)} />}
+          {failure !== null && <InlineError {...familyApiMessage(failure, locale)} />}
         </form>
       )}
     </Sheet>

@@ -14,6 +14,15 @@ const deps = vi.hoisted(() => ({
 }))
 vi.mock('@/lib/account', () => ({ useAccount: () => deps.account }))
 vi.mock('@/providers/session-provider', () => ({ useSession: () => deps.session }))
+vi.mock('@/components/auth/sign-out-button', () => ({
+  SignOutButton: () => <button type="button">Keluar</button>,
+}))
+vi.mock('@/components/ui/language-switcher', () => ({
+  LanguageSwitcher: () => <button type="button">Bahasa</button>,
+}))
+vi.mock('@/components/ui/theme-toggle', () => ({
+  ThemeToggle: () => <button type="button">Tema</button>,
+}))
 vi.mock('@/lib/api/worker', () => ({ listMyEmployments: deps.list }))
 vi.mock('@/lib/api/recipients', () => ({
   listRecipients: vi.fn(async () => ({ data: [], nextCursor: null })),
@@ -83,6 +92,9 @@ describe('worker dashboard', () => {
     expect(screen.queryByText('Rp0')).toBeNull()
     expect(screen.queryByText('0x1111')).toBeNull()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Keluar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Bahasa' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Tema' })).toBeTruthy()
   })
   it('asks signed-out users to log in without fetching protected data', () => {
     deps.account = { ...deps.account, authenticated: false, user: null }

@@ -11,8 +11,9 @@ import { useFamilyPayouts } from '@/hooks/use-family-payouts'
 import { useUsdIdr } from '@/hooks/use-usd-idr'
 import { useAccount } from '@/lib/account'
 import { statusPhase } from '@/lib/chain/payout-coordinator'
-import { familyDashboardCopy as t } from '@/lib/copy/family'
-import { payoutCopy as p } from '@/lib/copy/family-payout'
+import { familyDashboardDictionary } from '@/lib/copy/family'
+import { useDict } from '@/lib/i18n/client'
+import { payoutDictionary } from '@/lib/copy/family-payout'
 import { useSession, type SessionContextValue } from '@/providers/session-provider'
 import { BankAccountList } from './bank-account-list'
 import { FamilyBalanceCard } from './family-balance-card'
@@ -21,6 +22,7 @@ import { PayoutHistory } from './payout-history'
 import { PayoutSheet } from './payout-sheet'
 
 export function FamilyDashboard() {
+  const t = useDict(familyDashboardDictionary)
   const account = useAccount()
   const session = useSession()
   const [recovering, setRecovering] = useState(false)
@@ -142,6 +144,8 @@ function FamilyOverview({
   wallet: string
   identity: string
 }) {
+  const t = useDict(familyDashboardDictionary)
+  const p = useDict(payoutDictionary)
   const balance = useFamilyBalance(wallet)
   const fx = useUsdIdr(identity, session.ensureSession)
   const bank = useBankAccounts(session)
@@ -237,6 +241,7 @@ function FamilyOverview({
 }
 
 function DashboardSkeleton() {
+  const t = useDict(familyDashboardDictionary)
   return (
     <FamilyShell>
       <div role="status" aria-label={t.loading} className="flex flex-col gap-4">

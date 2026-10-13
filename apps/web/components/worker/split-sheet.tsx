@@ -10,11 +10,12 @@ import type { SplitSettings } from '@/hooks/use-split-settings'
 import type { RecipientDto } from '@/lib/api/recipients'
 import { payrollConfig as config } from '@/lib/chain/config'
 import { MAX_RECIPIENTS, bpsToPercent, type Split } from '@/lib/chain/split'
-import { splitTxMessage, workerFamilyCopy } from '@/lib/copy/worker-family'
+import { splitTxMessage, workerFamilyDictionary } from '@/lib/copy/worker-family'
+import { useDict, useLocale } from '@/lib/i18n/client'
 import { buildSplitDraft, type SplitRow } from '@/lib/split-form'
 
-const t = workerFamilyCopy.splitSheet
-const percentText = (bps: number) => bpsToPercent(bps).replace('.', ',')
+const percentText = (bps: number, locale: 'id' | 'en') =>
+  locale === 'id' ? bpsToPercent(bps).replace('.', ',') : bpsToPercent(bps)
 
 export function SplitSheet({
   open,
@@ -32,10 +33,13 @@ export function SplitSheet({
   settings: SplitSettings
   worker: string | null
 }) {
+  const copy = useDict(workerFamilyDictionary)
+  const t = copy.splitSheet
+  const { locale } = useLocale()
   const formId = useId()
   const baseId = useId()
   const [rows, setRows] = useState<SplitRow[]>(() =>
-    current.map(({ recipient, bps }) => ({ recipient, percent: percentText(bps) })),
+    current.map(({ recipient, bps }) => ({ recipient, percent: percentText(bps, locale) })),
   )
   const [submitted, setSubmitted] = useState(false)
   const { state } = settings
@@ -102,7 +106,7 @@ export function SplitSheet({
               {t.reset}
             </Button>
           </>
-        ) : (
+        ) : state.phase === 'success' ? null : (
           <Button
             variant="secondary"
             block
@@ -158,11 +162,7 @@ export function SplitSheet({
                     {row.recipient &&
                       !recipients.some(
                         (r) => r.address.toLowerCase() === row.recipient.toLowerCase(),
-                      ) && (
-                        <option value={row.recipient}>
-                          {workerFamilyCopy.unnamed(row.recipient)}
-                        </option>
-                      )}
+                      ) && <option value={row.recipient}>{copy.unnamed(row.recipient)}</option>}
                   </select>
                 </Field>
                 <Field id={percentId} label={t.percent} hint={t.percentHint} error={percentError}>
@@ -195,12 +195,12 @@ export function SplitSheet({
             </Button>
           )}
           <div className="text-label">
-            <p className="font-semibold">{t.total(percentText(draft.totalBps))}</p>
-            <p className="text-muted">{t.worker(percentText(workerBps))}</p>
+            <p className="font-semibold">{t.total(percentText(draft.totalBps, locale))}</p>
+            <p className="text-muted">{t.worker(percentText(workerBps, locale))}</p>
           </div>
           {general && <InlineError title={general} />}
           {state.phase === 'failed' && state.error !== null && (
-            <InlineError title={t.phases.failed!} message={splitTxMessage(state.error)} />
+            <InlineError title={t.phases.failed!} message={splitTxMessage(state.error, locale)} />
           )}
         </form>
       ) : (
@@ -210,7 +210,7 @@ export function SplitSheet({
           </StatusBadge>
           {state.phase === 'unknown' && <p className="text-label">{t.unknownBody}</p>}
           {state.phase === 'unknown' && state.error !== null && (
-            <InlineError title={t.phases.unknown!} message={splitTxMessage(state.error)} />
+            <InlineError title={t.phases.unknown!} message={splitTxMessage(state.error, locale)} />
           )}
           {state.hash && (
             <a

@@ -6,12 +6,14 @@ import { useAccount } from '@/lib/account'
 import { ApiError, isApiError } from '@/lib/api/errors'
 import { acceptInvitation, getInvitation } from '@/lib/api/invitations'
 import type { Invite } from '@/lib/api/types'
-import { invitationCopy as t } from '@/lib/copy/family'
+import { familyInvitationDictionary } from '@/lib/copy/family'
+import { useDict } from '@/lib/i18n/client'
 import { useSession } from '@/providers/session-provider'
 
 type Phase = 'idle' | 'accepting' | 'refreshing' | 'refresh-error' | 'unknown'
 
 export function useFamilyInvitation(code: string) {
+  const t = useDict(familyInvitationDictionary)
   const account = useAccount()
   const session = useSession()
   const router = useRouter()
