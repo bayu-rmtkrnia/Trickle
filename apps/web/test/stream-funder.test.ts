@@ -7,6 +7,8 @@ import type { WithdrawalReceipt } from '@/lib/chain/payroll-writer'
 import {
   createStreamFunder,
   encodeCall,
+  fundingPlan,
+  TEST_TOP_UP_UNITS,
   type FundingCall,
   type FundingPort,
 } from '@/lib/chain/stream-funder'
@@ -232,5 +234,40 @@ describe('createStreamFunder.confirmCancel', () => {
       hash,
       refunded: b(400),
     })
+  })
+})
+
+describe('fundingPlan', () => {
+  const units = b(280_000_000)
+
+  it('needs only createStream when balance and allowance already cover it', () => {
+    expect(fundingPlan(units, units, units, true)).toEqual({ mint: null, approve: null })
+  })
+
+  it('in test mode tops up and approves in bulk so later fundings skip both', () => {
+    const plan = fundingPlan(units, b(1_000_000), b(0), true)
+    expect(plan.mint).toBe(TEST_TOP_UP_UNITS - b(1_000_000))
+    expect(plan.approve).toBe(TEST_TOP_UP_UNITS)
+    const next = fundingPlan(units, TEST_TOP_UP_UNITS - units, TEST_TOP_UP_UNITS - units, true)
+    expect(next).toEqual({ mint: null, approve: null })
+  })
+
+  it('mints the full amount when one period is larger than the bulk top-up', () => {
+    const big = TEST_TOP_UP_UNITS * b(2)
+    expect(fundingPlan(big, b(0), b(0), true)).toEqual({ mint: big, approve: big })
+  })
+
+  it('approves the whole balance in test mode when only the allowance is short', () => {
+    expect(fundingPlan(units, b(500_000_000), b(0), true)).toEqual({
+      mint: null,
+      approve: b(500_000_000),
+    })
+  })
+
+  it('with a real token approves only the funded amount and never mints', () => {
+    expect(fundingPlan(units, b(500_000_000), b(0), false)).toEqual({ mint: null, approve: units })
+    expect(() => fundingPlan(units, b(0), b(0), false)).toThrow(
+      expect.objectContaining({ code: 'INSUFFICIENT_FUNDS' }),
+    )
   })
 })

@@ -95,6 +95,36 @@ export function encodeCall(call: FundingCall): { to: Address; data: Hex } {
   }
 }
 
+/**
+ * Mode uji: sekali mint, isi saldo sampai cukup untuk banyak periode, supaya pendanaan
+ * berikutnya tidak perlu mint lagi. Token uji bisa di-mint bebas, jadi tidak ada risiko.
+ */
+export const TEST_TOP_UP_UNITS = BigInt(10_000) * BigInt(1_000_000)
+
+/**
+ * Transaksi persiapan sebelum `createStream`, dihitung dari saldo dan izin yang sudah ada.
+ * Di mode uji, mint dan approve dibuat sekaligus dalam jumlah besar supaya pendanaan
+ * berikutnya cukup satu transaksi (gas akun perusahaan terbatas). Dengan token sungguhan,
+ * izin hanya sebesar yang didanai.
+ */
+export function fundingPlan(
+  units: bigint,
+  balance: bigint,
+  allowance: bigint,
+  testMode: boolean,
+): { mint: bigint | null; approve: bigint | null } {
+  const mint =
+    balance >= units
+      ? null
+      : testMode
+        ? (units > TEST_TOP_UP_UNITS ? units : TEST_TOP_UP_UNITS) - balance
+        : null
+  if (balance < units && !testMode) throw new WithdrawalError('INSUFFICIENT_FUNDS')
+  const after = balance + (mint ?? ZERO)
+  const approve = allowance >= units ? null : testMode ? after : units
+  return { mint, approve }
+}
+
 function insufficientGas(error: unknown) {
   let value = error as { name?: string; shortMessage?: string; cause?: unknown } | null
   for (let n = 0; value && n < 10; n++, value = value.cause as typeof value)

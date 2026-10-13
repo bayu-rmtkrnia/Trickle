@@ -10,6 +10,7 @@ import { WithdrawalError } from '@/lib/chain/payroll-writer'
 import {
   createFundingPort,
   createStreamFunder,
+  fundingPlan,
   type FundingCall,
   type StreamFunder,
 } from '@/lib/chain/stream-funder'
@@ -136,9 +137,10 @@ export function useStreamFunding(onDone: () => void) {
     return run(async (sent) => {
       if (mock) {
         set({ phase: 'working', step: 'preparing' })
-        if ((await mockFunding.walletUnits()) < units) {
+        const plan = fundingPlan(units, await mockFunding.walletUnits(), BigInt(0), true)
+        if (plan.mint !== null) {
           set({ phase: 'working', step: 'minting' })
-          await mockFunding.mint(units)
+          await mockFunding.mint(plan.mint)
         }
         set({ phase: 'working', step: 'approving' })
         await new Promise((r) => setTimeout(r, 500))
@@ -152,15 +154,19 @@ export function useStreamFunding(onDone: () => void) {
       const f = funder()
       set({ phase: 'working', step: 'preparing' })
       await f.verify()
-      if ((await f.tokenBalance(employer)) < units) {
-        if (!payrollConfig.isMock) throw new WithdrawalError('INSUFFICIENT_FUNDS')
+      const [balance, allowance] = await Promise.all([
+        f.tokenBalance(employer),
+        f.allowance(employer),
+      ])
+      const plan = fundingPlan(units, balance, allowance, payrollConfig.isMock)
+      if (plan.mint !== null) {
         set({ phase: 'working', step: 'minting' })
-        const call = { kind: 'mint', employer, units } as const
+        const call = { kind: 'mint', employer, units: plan.mint } as const
         await f.confirm(call, await send(f, call, sent))
       }
-      if ((await f.allowance(employer)) < units) {
+      if (plan.approve !== null) {
         set({ phase: 'working', step: 'approving' })
-        const call = { kind: 'approve', employer, units } as const
+        const call = { kind: 'approve', employer, units: plan.approve } as const
         await f.confirm(call, await send(f, call, sent))
       }
       set({ phase: 'working', step: 'creating' })
