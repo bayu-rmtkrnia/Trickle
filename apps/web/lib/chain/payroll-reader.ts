@@ -203,6 +203,51 @@ export function createPayrollReader(
       throw error
     }
   }
+  async function snapshot(
+    port: ChainPort,
+    head: ChainBlock,
+    symbol: string,
+    worker: Address,
+    ids: readonly bigint[],
+    signal?: AbortSignal,
+  ): Promise<WorkerSnapshot> {
+    const streams: StreamSnapshot[] = []
+    // Limit simultaneous calls independently of the number of discovered streams.
+    for (let offset = 0; offset < ids.length; offset += 4) {
+      abort(signal)
+      const batch = await Promise.all(
+        ids.slice(offset, offset + 4).map(async (id) => {
+          const [stream, available] = await Promise.all([
+            port.stream(id, head.number),
+            port.withdrawable(id, head.number),
+          ])
+          abort(signal)
+          if (!matches(stream.worker, worker)) throw new ChainReadError('STREAM_OWNERSHIP')
+          if (availableAt(stream, head.timestamp) !== available)
+            throw new ChainReadError('SNAPSHOT_MISMATCH')
+          return stream
+        }),
+      )
+      streams.push(...batch)
+    }
+    const [splits, walletBalance] = await Promise.all([
+      port.splits(worker, head.number),
+      port.balance(worker, head.number),
+    ])
+    abort(signal)
+    if (validateSplits(splits) !== null || walletBalance < BigInt(0))
+      throw new ChainReadError('SNAPSHOT_MISMATCH')
+    await stable(port, head, signal)
+    return {
+      streams,
+      splits,
+      walletBalance,
+      blockNumber: head.number,
+      blockTimestamp: head.timestamp,
+      blockHash: head.hash,
+      tokenSymbol: symbol,
+    }
+  }
   return {
     async listWorkerStreamIds(worker: Address, signal?: AbortSignal) {
       return withSafeCache(worker, async () => {
@@ -214,42 +259,23 @@ export function createPayrollReader(
     async readWorkerSnapshot(worker: Address, signal?: AbortSignal): Promise<WorkerSnapshot> {
       return withSafeCache(worker, async () => {
         const { port, head, symbol, ids } = await start(worker, signal)
-        const streams: StreamSnapshot[] = []
-        // Limit simultaneous calls independently of the number of discovered streams.
-        for (let offset = 0; offset < ids.length; offset += 4) {
-          abort(signal)
-          const batch = await Promise.all(
-            ids.slice(offset, offset + 4).map(async (id) => {
-              const [stream, available] = await Promise.all([
-                port.stream(id, head.number),
-                port.withdrawable(id, head.number),
-              ])
-              abort(signal)
-              if (!matches(stream.worker, worker)) throw new ChainReadError('STREAM_OWNERSHIP')
-              if (availableAt(stream, head.timestamp) !== available)
-                throw new ChainReadError('SNAPSHOT_MISMATCH')
-              return stream
-            }),
-          )
-          streams.push(...batch)
-        }
-        const [splits, walletBalance] = await Promise.all([
-          port.splits(worker, head.number),
-          port.balance(worker, head.number),
-        ])
+        return snapshot(port, head, symbol, worker, ids, signal)
+      })
+    },
+    async readWorkerSnapshotForIds(
+      worker: Address,
+      indexedIds: readonly bigint[],
+      signal?: AbortSignal,
+    ): Promise<WorkerSnapshot> {
+      return withSafeCache(worker, async () => {
         abort(signal)
-        if (validateSplits(splits) !== null || walletBalance < BigInt(0))
-          throw new ChainReadError('SNAPSHOT_MISMATCH')
-        await stable(port, head, signal)
-        return {
-          streams,
-          splits,
-          walletBalance,
-          blockNumber: head.number,
-          blockTimestamp: head.timestamp,
-          blockHash: head.hash,
-          tokenSymbol: symbol,
-        }
+        if (!isAddress(worker)) throw new ChainReadError('INVALID_WALLET')
+        const ids = [...new Set(indexedIds)]
+        if (ids.some((id) => id < one)) throw new ChainReadError('SNAPSHOT_MISMATCH')
+        const port = factory(signal)
+        const head = await port.block()
+        const symbol = await verified(port, head, signal)
+        return snapshot(port, head, symbol, getAddress(worker), ids, signal)
       })
     },
     clear(worker: Address) {

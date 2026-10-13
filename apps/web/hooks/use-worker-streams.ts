@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { getAddress, isAddress } from 'viem'
+import { ApiError, isApiError } from '@/lib/api/errors'
+import { listAllMyStreamIds } from '@/lib/api/streams'
 import { payrollReader } from '@/lib/chain/viem-port'
 import { estimateTimestamp, STALE_AFTER_MS } from '@/lib/chain/stream-math'
 import type { WorkerSnapshot } from '@/lib/chain/types'
+import type { SessionContextValue } from '@/providers/session-provider'
 
 export interface WorkerStreamState {
   phase: 'unconfigured' | 'loading' | 'ready' | 'stale' | 'error'
@@ -21,11 +24,19 @@ type Record = {
   error: unknown
   refreshing: boolean
 }
-export function useWorkerStreams(address: string | null): WorkerStreamState {
+export function useWorkerStreams(
+  address: string | null,
+  session?: Pick<SessionContextValue, 'ensureSession' | 'refreshMe'>,
+): WorkerStreamState {
   const wallet = address && isAddress(address) ? getAddress(address) : null
+  const indexed = session !== undefined
+  const currentSession = useRef(session)
   const [record, setRecord] = useState<Record | null>(null)
   const [clock, setClock] = useState(0)
   const retry = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    currentSession.current = session
+  }, [session])
   useEffect(() => {
     if (!wallet) return
     let active = true,
@@ -44,7 +55,28 @@ export function useWorkerStreams(address: string | null): WorkerStreamState {
           : { wallet: wallet!, snapshot: null, observedAt, error: null, refreshing: true },
       )
       try {
-        const snapshot = await payrollReader.readWorkerSnapshot(wallet!, signal)
+        let snapshot: WorkerSnapshot
+        const api = currentSession.current
+        if (indexed && api) {
+          const discover = async () => {
+            const token = await api.ensureSession()
+            if (signal.aborted) return null
+            if (!token) throw new ApiError('unauthorized', 'Sesi tidak tersedia', { status: 401 })
+            return listAllMyStreamIds(token, { signal })
+          }
+          let ids: bigint[] | null
+          try {
+            ids = await discover()
+          } catch (problem) {
+            if (signal.aborted || !isApiError(problem) || problem.status !== 401) throw problem
+            await api.refreshMe()
+            ids = await discover()
+          }
+          if (!ids || signal.aborted) return
+          snapshot = await payrollReader.readWorkerSnapshotForIds(wallet!, ids, signal)
+        } else {
+          snapshot = await payrollReader.readWorkerSnapshot(wallet!, signal)
+        }
         if (!active || signal.aborted || rerun) return
         setClock(performance.now())
         setRecord((previous) => ({
@@ -104,7 +136,7 @@ export function useWorkerStreams(address: string | null): WorkerStreamState {
       clearInterval(ticker)
       document.removeEventListener('visibilitychange', visible)
     }
-  }, [wallet])
+  }, [indexed, wallet])
   const current = record?.wallet === wallet ? record : null
   const snapshot = current?.snapshot ?? null
   const elapsed = current ? Math.max(0, clock - current.observedAt) : 0
