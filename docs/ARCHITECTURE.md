@@ -4,7 +4,7 @@ Isinya keadaan aplikasi **saat ini**: apa saja yang sudah ada, di mana letaknya,
 
 > **Aturan:** setiap PR yang menambah atau mengubah fitur, endpoint, tabel, env var, atau keputusan desain **wajib memperbarui file ini** di PR yang sama. Kalau ada isi file ini yang tidak lagi sesuai dengan kode, berarti file ini yang salah, jadi perbaiki.
 
-Terakhir diperbarui: 12 Okt 2026 (panduan integrasi FE).
+Terakhir diperbarui: 13 Okt 2026 (sinkron dengan integrasi FE dan `.env.example`).
 
 ---
 
@@ -24,7 +24,7 @@ Ada tiga peran, dan perannya **kontekstual**: satu akun bisa sekaligus employer,
 
 ```
 apps/api/        Backend (Fastify + Prisma + Postgres). Pemilik: BE
-apps/web/        Frontend Next.js + Privy (rute /employer, /w, /f). Pemilik: FE. Belum memanggil API (masih data mock)
+apps/web/        Frontend Next.js + Privy (rute /employer, /w, /f). Pemilik: FE. Memanggil API lewat lib/api/real.ts (mock.ts sebagai fallback)
 contracts/       Smart contract TricklePayroll (Foundry), ter-deploy di Monad testnet. Pemilik: SC
 packages/shared/ ABI + alamat kontrak (deployments/testnet.json) untuk FE/BE
 docs/            PLAN.md (sumber kebenaran scope), ARCHITECTURE.md (file ini), erd.md (database), backend/api-changes-fe.md (panduan integrasi FE), roadmap BE, dokumen kuliah
@@ -46,6 +46,7 @@ src/plugins/rbac.ts      app.requireRole, app.requireOwnership (403/404)
 src/plugins/errors.ts    Format error seragam, 400 vs 422
 src/lib/                 Klien infrastruktur dan helper bersama:
   prisma.ts  chain.ts (viem)  privy.ts  fx.ts  streams.ts (StreamReader: stream + split on-chain)
+  stream-indexer.ts (putaran sinkron)  stream-store.ts (cache tabel Stream)
   transfers.ts (TransferVerifier)  payout-provider.ts (PayoutProvider + mock)  demo.ts (DemoSigner)
   crypto.ts (AES-256-GCM)  errors.ts  pagination.ts  roles.ts  tokens.ts  money.ts  codes.ts  schemas.ts
   http.ts (Handler, idParam, deprecatedAlias)
@@ -125,7 +126,7 @@ error di mana pun → plugins/errors.ts → { error: { code, message, details? }
 
 **Kenapa:** service bisa diuji tanpa database dengan memberinya repository palsu (lihat `test/sessions.test.ts`). Prisma juga tidak bocor ke mana-mana, dan setiap lapisan mudah dijelaskan saat tanya jawab kuliah. Modul tanpa DB (fx) tidak punya repository.
 
-**Dependency injection lewat factory.** `buildApp({ env, db, chain, fx, privy, streams })` menerima semua klien eksternal, jadi test bisa mengganti chain, Privy, FX, dan pembaca stream dengan versi palsu. Klien infrastruktur ada di `src/lib/`, bukan di dalam modul.
+**Dependency injection lewat factory.** `buildApp({ env, db, chain, fx, privy, streams, demo, transfers, payoutProvider })` menerima semua klien eksternal, jadi test bisa mengganti chain, Privy, FX, pembaca stream, signer judge mode, verifikasi transfer, dan provider payout dengan versi palsu. Klien infrastruktur ada di `src/lib/`, bukan di dalam modul.
 
 ## 5. Keputusan desain
 
@@ -276,9 +277,10 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 | Env | Untuk |
 | --- | ----- |
 | `DATABASE_URL` | Wajib |
-| `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_VERIFICATION_KEY` | Login. Tanpa `PRIVY_APP_ID`, `/sessions` menjawab 503 |
+| `PRIVY_APP_ID`, `PRIVY_APP_SECRET`, `PRIVY_VERIFICATION_KEY` | Login. Tanpa `PRIVY_APP_ID`, `/sessions` menjawab 503 `PRIVY_NOT_CONFIGURED`; tanpa `PRIVY_APP_SECRET`, login pertama (mengambil alamat wallet) juga 503 |
 | `SESSION_TTL_DAYS` | Masa berlaku sesi (default 7) |
-| `WEB_URL`, `CORS_ORIGINS` | Link undangan dan origin web yang diizinkan |
+| `WEB_URL`, `CORS_ORIGINS` | Link undangan dan origin web yang diizinkan (dipisah koma). Keduanya origin persis, tanpa `/` di akhir. Di production diisi domain FE (Vercel) |
+| `INVITE_TTL_DAYS` | Masa berlaku undangan (default 14) |
 | `CHAIN_ID`, `RPC_URL`, `GAS_TREASURY_PRIVATE_KEY`, `GAS_DRIP_*` | Gas drip: key treasury (testnet), jumlah per drip, batas harian total (`GAS_DRIP_DAILY_LIMIT`) dan per IP (`GAS_DRIP_IP_DAILY_LIMIT`) |
 | `PAYROLL_ADDRESS` | Kontrak `TricklePayroll` v2, untuk cek split saat menghapus penerima, indexer stream, dan judge mode. Kosong = cek split dan cek stream dilewati (dicatat di log), indexer mati, judge mode menjawab 503 |
 | `STREAM_SYNC_SECONDS` | Jeda antar-putaran indexer stream (default 15). `0` mematikan loop; pengecekan `STREAM_ACTIVE` tetap menyinkronkan sendiri |
@@ -286,22 +288,22 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 | `BANK_ENCRYPTION_KEY` | Kunci enkripsi nomor rekening (`openssl rand -hex 32`). Kosong = tambah rekening menjawab 503. Jangan diganti setelah ada data: nomor lama tidak bisa dibaca lagi |
 | `DEMO_EMPLOYER_PRIVATE_KEY`, `DEMO_STREAM_*` | Judge mode: key employer demo (butuh MON untuk gas), jumlah, durasi, batas harian total dan per IP |
 | `FX_*` | Kurs |
+| `TEST_DATABASE_URL` | Hanya untuk integration test, tidak dibaca server |
 
 ## 8. Test, CI, deploy
 
 - **Unit test**: service dengan repository palsu, tanpa DB.
 - **Integrasi**: `test/api.test.ts` dengan Postgres sungguhan. Hanya jalan kalau `TEST_DATABASE_URL` diisi (`docker compose up -d db`). Privy dan chain diganti versi palsu.
 - **CI** (`.github/workflows/ci.yml`): format, lint, typecheck, test dengan Postgres, cek bahwa `openapi.json` sinkron, dan secret scan (gitleaks).
-- **Deploy**: Railway (`railway.json`), build `prisma generate && tsc`, healthcheck `/health`. Setiap merge ke `main` otomatis masuk production.
+- **Deploy**: Railway (`railway.json`), build `prisma generate && tsc`, start menjalankan migrasi (`db:deploy`) lalu server, healthcheck `/health`. Setiap merge ke `main` otomatis masuk production. Env production diisi di dashboard Railway, bukan dari `.env` lokal.
 
 ## 9. Masalah yang diketahui / utang
 
-- **FE pekerja masih memindai log `StreamCreated` sendiri di browser** (`apps/web/lib/chain/payroll-reader.ts`), sehingga terkena batas 100 blok. Bisa diganti `GET /users/me/streams`.
+- **FE pekerja masih memindai log `StreamCreated` sendiri di browser** (`apps/web/lib/chain/viem-port.ts`, dipakai `payroll-reader.ts`), sehingga terkena batas 100 blok. Bisa diganti `GET /users/me/streams`.
 - **Indexer membaca ulang semua stream yang belum settled di setiap putaran.** Murah selama jumlahnya ratusan (satu multicall per 100). Kalau sudah ribuan, perlu dibatasi, misalnya hanya stream yang berubah menurut event `Withdrawn`/`StreamCanceled` terbaru.
-- **Akun juri tidak punya peran `worker` di DB.** Stream demo hanya ada di chain; tidak ada baris `Worker` atau perusahaan demo. Kalau layar pekerja di FE bergantung pada `roles` dari `/users/me`, FE perlu memakai respons `POST /demo-streams` (`streamId`), atau nanti kita tambahkan perusahaan demo.
+- **Akun juri tidak punya peran `worker` di DB.** Stream demo ada di chain dan di cache indexer, tapi tidak ada baris `Worker` atau perusahaan demo. Layar pekerja sebaiknya memakai `GET /users/me/streams` (stream demo muncul dengan `company: null`), bukan `roles` dari `/users/me`.
 - **Payout yang gagal setelah token diterima diselesaikan manual.** Belum ada endpoint refund atau retry; token tetap di `PAYOUT_ADDRESS`.
 - **Baru provider mock** (D5 belum diputuskan). Xendit/Flip tinggal menambah implementasi `PayoutProvider`.
 - **Belum ada rotasi kunci enkripsi.** Token sudah diberi versi (`v1.`), tapi re-enkripsi ke kunci baru belum dibuat.
-- **Path lama `POST /gas/drip`, `GET /gas/status`, `GET /fx/usd-idr` masih ada** sebagai alias deprecated, karena `apps/web` (branch `feat/frontend`) masih memanggil `/fx/usd-idr` tanpa login. Hapus setelah FE pindah ke `/fx-rates/usd-idr` dan `/gas-drips`.
-- `apps/web` di `main` belum memanggil API (masih data mock). Saat integrasi, FE perlu memakai `POST /sessions` + `Authorization: Bearer`, dan `/users/me` untuk peran.
+- **Path lama `POST /gas/drip`, `GET /gas/status`, `GET /fx/usd-idr` masih ada** sebagai alias deprecated. `apps/web` di `main` sudah memakai `/fx-rates/usd-idr` dan `/gas-drips`, jadi alias ini siap dihapus (Fitur 13) setelah FE production dipastikan memakai versi itu.
 - D10 (login tanpa kata sandi untuk rubrik K4) masih Open di koordinator.
