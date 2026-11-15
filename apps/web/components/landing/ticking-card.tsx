@@ -75,13 +75,6 @@ export function TickingCard() {
             </span>
           ))}
         </p>
-        <p className="mt-1 flex items-center gap-2 text-label font-semibold text-success">
-          <span className="relative flex size-2.5">
-            <span className="absolute inset-0 animate-ping rounded-full bg-success opacity-60" />
-            <span className="relative size-2.5 rounded-full bg-success" />
-          </span>
-          {t.cardRate(`Rp${Math.round(PER_SECOND)}`)}
-        </p>
 
         <div className="mt-5 border-t border-dashed border-muted/50 pt-4">
           <p className="text-label text-muted">{t.cardSplitTitle}</p>
