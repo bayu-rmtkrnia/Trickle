@@ -1,163 +1,263 @@
 # Trickle
 
-Real-time payroll streaming + instant cross-border remittance for migrant workers, built on Monad.
-
-## Problem
-
-Migrant workers get paid monthly, but emergencies don't wait for payday. Traditional remittance also eats ~6.5% in fees and takes days to settle.
-
-## What it does
-
-Wages stream continuously (per-second accrual) inside a smart contract on Monad instead of paying out once a month. Workers claim whenever they need to, and can auto-forward a % straight to their family back home in local currency — no crypto knowledge needed on either end.
-
-## Why Monad
-
-Near-zero fees + sub-second finality make frequent small claims economically viable, and parallel execution handles the bursty claim volume that clusters around pay periods.
-
-## How it works
-
-Employer tops up payroll (fiat → AUSD via Agora) → contract streams wages per second → worker claims → auto-remit redeems AUSD back to fiat → family receives IDR via Xendit/Flip.
+Trickle is a payroll and remittance web app for Indonesian migrant workers and their families. Employers pay wages through a smart contract on Monad, so a worker's pay builds up every second and can be withdrawn at any time instead of once a month. Part of each withdrawal can go straight to family members in Indonesia, who cash it out to a local bank account.
 
 ## Team
 
-**Group:** Trickle
+Final project for the Web Application Development (Pengembangan Aplikasi Web) course at Universitas Gadjah Mada.
 
 | Name | Student ID | Role |
 | ---- | ---------- | ---- |
 | Muhammad Affandi Argya Bagaskara | 24/538984/TK/59778 | Backend |
 | Razaqi Alkautsar | 24/544958/TK/60570 | Smart contract |
-| Bayu Rahmat Kurnia | 24/533736/TK/59139 | Frontend: worker & family |
-| Raka Bagus Samudra | 24/543213/TK/60349 | Frontend: employer & design |
+| Bayu Rahmat Kurnia | 24/533736/TK/59139 | Frontend for workers and families |
+| Raka Bagus Samudra | 24/543213/TK/60349 | Frontend for employers, UI design |
 
-**Milestone 1 report (PDF):** https://drive.google.com/file/d/1QpE0x27FLanq6SFl48sUJyDhbVktgnzW/view?usp=sharing
+## Links
+
+| Resource | Link |
+| --- | --- |
+| Web app | https://trickle-one.vercel.app |
+| Demo video | _To be added_ |
+| API | https://trickle-production-ff1f.up.railway.app (interactive docs at [`/docs`](https://trickle-production-ff1f.up.railway.app/docs)) |
+| Milestone 1 report (initial plan) | [Google Drive (PDF)](https://drive.google.com/file/d/1QpE0x27FLanq6SFl48sUJyDhbVktgnzW/view?usp=sharing) |
+
+## About the app
+
+### Problem
+
+Migrant workers are usually paid once a month. When something urgent comes up in the middle of the month, they cannot use the money they have already earned. Sending part of their salary home also means going through remittance services that charge fees and can take days to arrive.
+
+### How Trickle works
+
+Trickle has three roles. Everyone signs in with an email or Google account, and a wallet is created for them in the background. The app also pays the gas fees for new accounts, so nobody needs to own crypto or understand blockchain to use it.
+
+1. **Employer** creates a company profile, invites workers with a link, and funds each worker's pay for a period. Funding starts a salary stream in the `TricklePayroll` contract, and the employer can stop a stream early.
+2. **Worker** accepts the invite and sees their earned balance grow in real time. They can withdraw whenever they need to, invite family members, and choose what percentage of every withdrawal goes to each family member automatically.
+3. **Family** accepts the worker's invite, sees how much they have received with an estimate in rupiah, saves a bank account, and requests a cash-out. The backend checks the transfer on-chain before paying out in rupiah, and the family can follow the payout status in the app.
+
+Amounts are shown in US dollars with a rupiah estimate, and the interface is available in Indonesian and English.
+
+### Pages
+
+| Page | Path |
+| --- | --- |
+| Landing page for workers, with a worker or company chooser | [`/`](https://trickle-one.vercel.app/) |
+| Landing page for companies | [`/perusahaan`](https://trickle-one.vercel.app/perusahaan) |
+| Company setup | `/employer/setup` |
+| Employer dashboard | `/employer` |
+| Worker dashboard | `/w` |
+| Worker invitation | `/w/invite/<code>` |
+| Family dashboard | `/f` |
+| Family invitation | `/f/invite/<code>` |
+
+Dashboards need a signed-in account. Invitation pages open from the link the employer or worker shares.
+
+### Current scope
+
+Trickle runs on Monad testnet with a test stablecoin (mock AUSD), so no real money moves. Bank payouts go through a simulated provider. The backend keeps the provider behind an interface, so a real one such as Xendit or Flip can be added later.
+
+### Why Monad
+
+Low fees and fast finality make it practical for workers to withdraw small amounts often, which is what being paid in real time depends on.
 
 ## Tech stack
 
-| Layer | Technology |
-| ----- | ---------- |
-| Backend API | Node.js 22, TypeScript, [Fastify 5](https://fastify.dev) |
-| Validation & API docs | Zod 4, `fastify-type-provider-zod`, OpenAPI 3 via `@fastify/swagger` (served at `/docs`) |
-| Database | PostgreSQL 16, Prisma 7 ORM + migrations. ERD: [`docs/erd.md`](docs/erd.md) |
-| Auth | [Privy](https://privy.io) embedded wallets; the API exchanges the Privy access token for its own revocable session token. Roles derived from DB relations (RBAC guards) |
-| Chain access | [viem](https://viem.sh) on Monad testnet (chain id 10143) |
-| Testing | Vitest (unit + integration against Postgres), Postman collection |
-| Tooling | pnpm workspaces, ESLint, Prettier, GitHub Actions CI, gitleaks secret scanning, Docker Compose |
-| Smart contract | Solidity + Foundry, `TricklePayroll` on Monad testnet (`0xE7292E797009E9D53102ec132Ef4Ae549cDD652e`) |
-| Web app (in progress) | Next.js + Privy (`apps/web`) |
-| Integrations | Mock AUSD (testnet token, 6 decimals); payouts through a mock sandbox provider behind a `PayoutProvider` interface (Xendit/Flip pluggable) |
+| Part | Technology |
+| ---- | ---------- |
+| Frontend | Next.js 16, React 19, Tailwind CSS 4 |
+| Sign-in and wallets | [Privy](https://privy.io) |
+| Backend | Node.js 22, TypeScript, Fastify 5, Zod 4 |
+| Database | PostgreSQL with Prisma 7 ([ERD](docs/erd.md)) |
+| Smart contract | Solidity and Foundry, `TricklePayroll` on Monad testnet (`0xE7292E797009E9D53102ec132Ef4Ae549cDD652e`) |
+| Blockchain access | viem |
+| API documentation | OpenAPI with Swagger UI, Postman collection |
+| Testing and CI | Vitest, Foundry tests, GitHub Actions |
+| Hosting | Vercel for the web app, Railway for the API and database |
 
 ## Project structure
 
 ```
 Trickle/
-├── .github/workflows/ci.yml        # Lint, typecheck, tests, OpenAPI drift check, secret scan
+├── .github/workflows/      CI pipeline
 ├── apps/
-│   ├── api/                        # Backend API
-│       ├── prisma/
-│       │   ├── schema.prisma       # Database schema (metadata only; money lives on-chain)
-│       │   └── migrations/         # SQL migrations
-│       ├── postman/
-│       │   └── Trickle.postman_collection.json
-│       ├── scripts/
-│       │   ├── dev-session.ts      # Dev helper: mint a session token for Postman
-│       │   ├── export-openapi.ts   # Writes openapi.json
-│       │   └── gen-postman.ts      # Writes the Postman collection
-│       ├── src/
-│       │   ├── index.ts            # Server entry point
-│       │   ├── app.ts              # Fastify app: plugins, Swagger, routes
-│       │   ├── env.ts              # Environment variable validation
-│       │   ├── types.ts            # Fastify type augmentation
-│       │   ├── lib/                # chain (viem), streams, transfers, demo signer, payout provider, crypto (AES-256-GCM), fx, privy, prisma, errors, pagination, roles, tokens
-│       │   ├── plugins/            # auth (session tokens), rbac (requireRole / requireOwnership), uniform error handling
-│       │   └── modules/            # health, sessions, users, companies, workers, recipients, bank-accounts, payouts, invites, gas, demo-streams, fx; each one has:
-│       │       └── <resource>/     #   routes → controller → service → repository, plus schemas (Zod)
-│       ├── test/                   # Vitest unit + integration tests
-│       ├── openapi.json            # Generated API spec (import into Postman / FE codegen)
-│       └── .env.example
-│   └── web/                        # Next.js web app (Privy login)
-├── contracts/                      # TricklePayroll (Foundry): streams, withdraw + split, cancel
-├── packages/shared/                # Contract ABIs + deployed addresses for the web app and API
-├── docs/                           # PLAN, ARCHITECTURE.md, erd.md (database), backend roadmap
-├── docker-compose.yml              # Local Postgres
-├── LICENSE                         # MIT
-└── package.json / pnpm-workspace.yaml
+│   ├── api/                Backend API
+│   │   ├── prisma/         Database schema and migrations
+│   │   ├── src/            Source code
+│   │   ├── test/           Tests
+│   │   ├── postman/        Postman collection
+│   │   ├── openapi.json    API spec
+│   │   └── .env.example    Environment variables
+│   └── web/                Web app
+│       ├── app/            Pages
+│       ├── components/     Components for each role
+│       ├── lib/            API calls, contract calls, UI text
+│       └── providers/      Sign-in and session
+├── contracts/              Smart contract
+│   ├── src/                Contract source
+│   ├── test/               Contract tests
+│   └── script/             Deploy scripts
+├── packages/shared/        Contract ABI and deployed addresses
+└── docs/                   Architecture notes and database diagram
 ```
 
-## API (v1)
+Important files deeper in the tree:
 
-Interactive docs: `http://localhost:4000/docs`. Frontend integration guide (what changed from the old API and the mocks, per-screen flows, error codes): [`docs/backend/api-changes-fe.md`](docs/backend/api-changes-fe.md). All errors use `{ "error": { "code": "...", "message": "...", "details": ... } }`. Schema validation failures return 422 with one `details` entry per invalid field; unreadable bodies (e.g. broken JSON) return 400.
+| What | Where |
+| --- | --- |
+| Endpoints, one folder per resource | [`apps/api/src/modules/`](apps/api/src/modules) |
+| Server setup | [`apps/api/src/app.ts`](apps/api/src/app.ts) |
+| Database schema | [`apps/api/prisma/schema.prisma`](apps/api/prisma/schema.prisma) |
+| API calls from the web app | [`apps/web/lib/api/`](apps/web/lib/api) |
+| Contract calls from the web app | [`apps/web/lib/chain/`](apps/web/lib/chain) |
+| Indonesian and English text | [`apps/web/lib/copy/`](apps/web/lib/copy) |
+| Payroll contract | [`contracts/src/TricklePayroll.sol`](contracts/src/TricklePayroll.sol) |
+| Deployed contract addresses | [`packages/shared/deployments/testnet.json`](packages/shared/deployments/testnet.json) |
+| Architecture notes | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) |
+| Database diagram | [`docs/erd.md`](docs/erd.md) |
 
-**Auth** column: – public; ✓ any signed-in account, no role needed; *Employer*, *Worker*, *Recipient* that role; *Owner* only the account that owns that resource; *Signed* an HMAC signature instead of a session. Other roles and other owners get 403, which the integration tests check for every sensitive endpoint. Roles come from data, not a stored field: see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). The database schema is in [`docs/erd.md`](docs/erd.md).
+## API
 
-Resource endpoints below are relative to the `/api/v1` prefix, e.g. `GET /api/v1/users/me`. Only `/health` and `/docs` live at the root. List endpoints (marked *paged*) take `?limit=` (1–100, default 20) and `?cursor=`, and return `{ "data": [...], "nextCursor": "..." }`; pass `nextCursor` back as `cursor` until it is `null`.
+All endpoints start with this base URL:
 
-| Method | Endpoint | Auth | Description |
-| ------ | -------- | ---- | ----------- |
-| GET | `/health` (root) | – | Service + database status |
-| POST | `/sessions` | – | Exchange a Privy access token for a session token |
-| DELETE | `/sessions/current` | ✓ | Sign out (revoke this session token) |
-| GET | `/users/me` | ✓ | Current user, roles (employer / worker / recipient) and `companyId` |
-| PATCH | `/users/me` | ✓ | Update my display name |
-| GET | `/users/me/employments` | ✓ | Companies I work for, with employer details (paged; empty if not a worker) |
-| GET | `/users/me/streams` | ✓ | Salary streams paying my wallet, from the stream indexer (paged; includes judge-mode streams) |
-| POST | `/companies` | ✓ | Create a company (one active per account); makes you an employer |
-| GET, PATCH | `/companies/:id` | Owner | Read / update a company |
-| DELETE | `/companies/:id` | Owner | Soft delete; 409 while workers are linked |
-| POST | `/companies/:id/workers` | Owner | Add a worker by wallet address (restores a removed one) |
-| GET | `/companies/:id/workers` | Owner | Active workers (paged) |
-| GET | `/companies/:id/streams` | Owner | Streams funded by the owner's wallet, from the stream indexer (paged) |
-| GET | `/workers/:id` | Owner or the worker | Read a worker |
-| PATCH | `/workers/:id` | Owner | Update name, position, reference salary |
-| DELETE | `/workers/:id` | Owner | Soft delete; 409 while their salary stream is active |
-| POST | `/recipients` | Worker | Add a family recipient by wallet address (restores a removed one) |
-| GET | `/recipients` | Worker | My active recipients (paged) |
-| GET | `/recipients/:id` | Owner or the recipient | Read a recipient |
-| PATCH | `/recipients/:id` | Owner | Update name and relation |
-| DELETE | `/recipients/:id` | Owner | Soft delete; 409 while the on-chain split still pays them |
-| POST | `/bank-accounts` | Recipient | Add a payout bank account; the number is encrypted (AES-256-GCM) |
-| GET | `/bank-accounts` | Recipient | My bank accounts (paged), last 4 digits only |
-| GET | `/bank-accounts/:id` | Owner | Read one, last 4 digits only |
-| PATCH | `/bank-accounts/:id` | Owner | Update name and label |
-| DELETE | `/bank-accounts/:id` | Owner | Soft delete |
-| POST | `/payouts` | Recipient | Cash out an on-chain transfer to `PAYOUT_ADDRESS` into one of my bank accounts (sandbox) |
-| GET | `/payouts` | Recipient | My payouts (paged) |
-| GET | `/payouts/:id` | Owner | One payout, with its latest status |
-| POST | `/webhooks/payout-provider` | Signed | Disbursement status from the provider (HMAC signature) |
-| POST | `/invites` | Employer or worker | Worker invite (employer) or recipient invite (worker) |
-| GET | `/invites` | Employer or worker | Invites I created (paged) |
-| DELETE | `/invites/:id` | Creator | Cancel a pending invite; 409 once accepted |
-| GET | `/invites/:code` | – | Public invite details |
-| POST | `/invites/:code/acceptance` | ✓ | Accept an invite |
-| POST | `/gas-drips` | ✓ | Sponsor gas for an account, once per address; capped per IP and per day |
-| GET | `/gas-drips/status` | – | Treasury balance and daily usage |
-| POST | `/demo-streams` | ✓ | Judge mode: real testnet stream from the demo employer to me, once per account |
-| GET | `/demo-streams/status` | – | Demo employer gas and daily usage |
-| GET | `/fx-rates/usd-idr` | ✓ | USD→IDR rate with cache, fallback and rate time |
+```
+https://trickle-production-ff1f.up.railway.app/api/v1
+```
 
-Deprecated, kept until the web app moves over: `POST /gas/drip`, `GET /gas/status`, `GET /fx/usd-idr` (public). They answer like their successors, with `Deprecation` and `Link` headers.
+Every endpoint, with its request and response format, can be tried in the interactive docs at [`/docs`](https://trickle-production-ff1f.up.railway.app/docs).
+
+### Signing in
+
+1. The web app signs the user in with Privy and gets a Privy access token.
+2. The web app sends that token to `POST /sessions`.
+3. The API answers with its own session token, valid for 7 days.
+4. Every request that needs a signed-in user sends the session token in a header:
+
+```
+Authorization: Bearer <session token>
+```
+
+### Errors
+
+Every error has the same shape, so the web app can show a clear message for each `code`:
+
+```json
+{ "error": { "code": "COMPANY_NOT_FOUND", "message": "Company not found" } }
+```
+
+| Status | Meaning |
+| --- | --- |
+| 401 | Not signed in, or the session has expired |
+| 403 | Signed in, but not allowed to do this |
+| 404 | The item does not exist |
+| 409 | Conflicts with existing data, for example a company that already exists |
+| 422 | Invalid input. `details` lists each invalid field |
+| 429 | Too many requests, try again shortly |
+
+### Lists
+
+Endpoints that return a list send 20 items at a time. To get the next page, pass the `nextCursor` value back as `?cursor=` until it becomes `null`.
+
+```json
+{ "data": [], "nextCursor": "..." }
+```
+
+### Endpoints
+
+In the **Access** column, _Owner_ means only the account that owns that item.
+
+#### Account
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| POST | `/sessions` | Public | Sign in with a Privy access token |
+| DELETE | `/sessions/current` | Signed in | Sign out |
+| GET | `/users/me` | Signed in | My profile and roles |
+| PATCH | `/users/me` | Signed in | Change my display name |
+| GET | `/users/me/employments` | Signed in | Companies I work for |
+| GET | `/users/me/streams` | Signed in | Salary streams paying me |
+
+#### Companies and workers
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| POST | `/companies` | Signed in | Create a company and become an employer |
+| GET, PATCH | `/companies/:id` | Owner | View or edit a company |
+| DELETE | `/companies/:id` | Owner | Delete a company (not allowed while it has workers) |
+| POST | `/companies/:id/workers` | Owner | Add a worker by wallet address |
+| GET | `/companies/:id/workers` | Owner | List workers |
+| GET | `/companies/:id/streams` | Owner | List salary streams the company funds |
+| GET | `/workers/:id` | Owner or the worker | View a worker |
+| PATCH | `/workers/:id` | Owner | Edit a worker |
+| DELETE | `/workers/:id` | Owner | Remove a worker (not allowed while their stream is active) |
+
+#### Family, bank accounts, and payouts
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| POST | `/recipients` | Worker | Add a family member by wallet address |
+| GET | `/recipients` | Worker | List my family members |
+| GET | `/recipients/:id` | Owner or the family member | View a family member |
+| PATCH | `/recipients/:id` | Owner | Edit a family member |
+| DELETE | `/recipients/:id` | Owner | Remove a family member (not allowed while they still get a share) |
+| POST | `/bank-accounts` | Family | Add a bank account (the number is stored encrypted) |
+| GET | `/bank-accounts` | Family | List my bank accounts |
+| GET, PATCH, DELETE | `/bank-accounts/:id` | Owner | View, edit, or remove a bank account |
+| POST | `/payouts` | Family | Cash out to a bank account |
+| GET | `/payouts` | Family | List my payouts |
+| GET | `/payouts/:id` | Owner | View a payout and its latest status |
+| POST | `/webhooks/payout-provider` | Provider signature | Payout status updates from the provider |
+
+#### Invites
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| POST | `/invites` | Employer or worker | Invite a worker (employer) or a family member (worker) |
+| GET | `/invites` | Employer or worker | List invites I created |
+| DELETE | `/invites/:id` | Owner | Cancel an invite that has not been accepted |
+| GET | `/invites/:code` | Public | View an invite before signing in |
+| POST | `/invites/:code/acceptance` | Signed in | Accept an invite |
+
+#### Gas, exchange rate, and system
+
+| Method | Endpoint | Access | Description |
+| --- | --- | --- | --- |
+| POST | `/gas-drips` | Signed in | Send gas to my wallet when it runs low |
+| GET | `/gas-drips/status` | Public | Gas treasury balance and daily usage |
+| POST | `/demo-streams` | Signed in | Start a test salary stream from a demo employer |
+| GET | `/demo-streams/status` | Public | Demo employer balance and daily usage |
+| GET | `/fx-rates/usd-idr` | Signed in | USD to IDR rate for display |
+| GET | `/health` | Public | Server and database status (at the root, without `/api/v1`) |
+
 
 ## Running locally
 
-Requirements: Node.js 22+, pnpm 10, Docker.
+You need Node.js 22 or newer, pnpm 10, and Docker.
+
+### API
 
 ```bash
 pnpm install
-pnpm db:up                                   # Postgres on localhost:5433
-cp apps/api/.env.example apps/api/.env       # then set PRIVY_APP_ID and PRIVY_APP_SECRET
-pnpm db:migrate
-pnpm dev                                     # API on http://localhost:4000
+pnpm db:up                                # start Postgres in Docker
+cp apps/api/.env.example apps/api/.env    # fill in PRIVY_APP_ID and PRIVY_APP_SECRET
+pnpm db:migrate                           # create the tables
+pnpm dev                                  # API at http://localhost:4000
 ```
 
-Optional features answer 503 until their settings are filled in `apps/api/.env` (all testnet; never commit real keys):
+Gas sponsorship, bank accounts, and payouts stay switched off until their settings are filled in. Each setting is explained in [`apps/api/.env.example`](apps/api/.env.example).
 
-| Feature | Settings |
-| ------- | -------- |
-| Bank accounts, payouts | `BANK_ENCRYPTION_KEY` (`openssl rand -hex 32`) |
-| Payouts | `PAYROLL_ADDRESS`, `PAYOUT_ADDRESS`, `PAYOUT_WEBHOOK_SECRET` |
-| Gas sponsorship | `GAS_TREASURY_PRIVATE_KEY`, funded with testnet MON |
-| Judge mode | `DEMO_EMPLOYER_PRIVATE_KEY` (funded with testnet MON), `PAYROLL_ADDRESS` |
+### Web app
 
-Tests (integration tests need a separate database):
+```bash
+cp apps/web/.env.example apps/web/.env.local   # fill in NEXT_PUBLIC_PRIVY_APP_ID
+pnpm --filter @trickle/web dev                 # web app at http://localhost:3000
+```
+
+`NEXT_PUBLIC_API_URL` already points to the local API.
+
+### Tests
+
+The integration tests use a separate database:
 
 ```bash
 docker compose exec db psql -U trickle -c "CREATE DATABASE trickle_test"
@@ -166,22 +266,13 @@ TEST_DATABASE_URL=postgresql://trickle:trickle@localhost:5433/trickle_test pnpm 
 
 ### Testing with Postman
 
-1. Import `apps/api/postman/Trickle.postman_collection.json` and set `baseUrl`.
-2. Postman cannot log in to Privy, so mint session tokens from the CLI (needs the local database):
-   ```bash
-   cd apps/api
-   pnpm session employer   # also: worker, family
-   ```
-   Paste each printed token into the `employerToken`, `workerToken` and `familyToken` collection variables.
-   To try the real sign-in, put an access token from the web app (`getAccessToken()`) into `privyAccessToken`.
-3. Run the folders top to bottom. They follow the flow employer → worker invite → recipient invite → bank account → payout, and end with sign-out.
-   The payout folder needs a real transfer of mock AUSD to `PAYOUT_ADDRESS` (put its hash in `payoutTxHash`), and the signed webhook needs `payoutWebhookSecret`.
-
-`pnpm session <name>` always maps a name to the same throwaway address and refuses to run with `NODE_ENV=production`.
+1. Import [`apps/api/postman/Trickle.postman_collection.json`](apps/api/postman/Trickle.postman_collection.json) and set `baseUrl`.
+2. Postman cannot sign in through Privy, so create test sessions from the local database with `pnpm --filter @trickle/api session employer` (also `worker` and `family`). Paste each token into `employerToken`, `workerToken`, and `familyToken`.
+3. Run the folders from top to bottom. They follow the app flow from employer to worker to family, and end by signing out.
 
 ## Status
 
-Hackathon prototype, built for Monad Metropolis. Not licensed financial infrastructure; nothing here is legal or financial advice.
+Built as the final project for the Web Application Development course and for the Monad Metropolis hackathon. Trickle is a prototype on Monad testnet. It is not a licensed financial service, and nothing here is financial or legal advice.
 
 ## License
 
