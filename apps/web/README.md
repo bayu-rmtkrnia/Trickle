@@ -43,7 +43,6 @@ Add `services/` and `types/` when integrations or shared types need their own fo
 | `/w/invite/[code]` | Worker Invitation |
 | `/f` | Family Dashboard |
 | `/f/invite/[code]` | Family Invitation |
-| `/auth-test` | Authentication Test |
 
 Dashboard and invitation routes remain public placeholders. Invitation pages only
 display the URL code. No API integration, business data, or contract integration
@@ -59,11 +58,10 @@ Copy `.env.example` to `.env.local` inside `apps/web`, and set
 `NEXT_PUBLIC_PRIVY_APP_ID` to your real Privy App ID. Restart development or rebuild
 production after changing it; Next.js embeds public environment variables at build
 time. Enable email and Google login, embedded Ethereum wallets, and the appropriate
-app origins in the Privy dashboard. Then visit http://localhost:3000/auth-test.
+app origins in the Privy dashboard. Then visit http://localhost:3000 and sign in.
 
 When the App ID is missing, empty, or whitespace, the provider does not mount Privy
-or its hooks. The authentication test page displays `Privy not configured`; all
-other scaffold routes remain usable. No dummy credentials are used. A nonempty
+or its hooks, so sign-in is unavailable while the other routes still render. No dummy credentials are used. A nonempty
 App ID must be valid and configured in Privy before live login can work.
 
 Never put a Privy App Secret in this frontend, especially in a `NEXT_PUBLIC_`
