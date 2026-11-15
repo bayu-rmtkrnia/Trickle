@@ -16,6 +16,9 @@ const jakarta = Plus_Jakarta_Sans({ subsets: ['latin'], variable: '--font-jakart
 export const metadata: Metadata = {
   title: 'Trickle',
   description: 'Gaji mengalir tiap detik. Tarik kapan saja.',
+  // iOS ignores most of the web manifest, so it needs these to open full screen from the home screen.
+  // 'default' keeps content below the status bar; not every page pads for the top safe area.
+  appleWebApp: { capable: true, title: 'Trickle', statusBarStyle: 'default' },
 }
 
 // Warna bar status per tema (DESIGN.md 11.2). Nilainya sama dengan token `bg`.
