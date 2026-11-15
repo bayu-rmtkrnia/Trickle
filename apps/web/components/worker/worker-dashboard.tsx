@@ -8,6 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { useWorkerStreams } from '@/hooks/use-worker-streams'
 import { useAccount } from '@/lib/account'
+import { employerPayrollStatus } from '@/lib/chain/employer-status'
+import { payrollDictionary } from '@/lib/copy/payroll'
 import { workerDashboardCopy, workerDashboardError } from '@/lib/copy/worker-dashboard'
 import { formatDateShort, formatUsd } from '@/lib/format'
 import { useSession, type SessionContextValue } from '@/providers/session-provider'
@@ -130,6 +132,7 @@ function DashboardSkeleton() {
 
 function EmploymentDashboard({ session }: { session: SessionContextValue }) {
   const t = useDict(workerDashboardCopy)
+  const p = useDict(payrollDictionary)
   const { locale } = useLocale()
   const { page, loading, loadingMore, error, pageError, retryUntil, reload, loadMore } =
     useWorkerEmployments(session)
@@ -189,7 +192,20 @@ function EmploymentDashboard({ session }: { session: SessionContextValue }) {
                           </dd>
                         </div>
                       </dl>
-                      <StatusBadge tone="neutral">{t.payrollUnknown}</StatusBadge>
+                      {(() => {
+                        const status = employerPayrollStatus(
+                          streams.snapshot,
+                          streams.timestamp,
+                          job.employer.ownerAddress,
+                        )
+                        if (status === null)
+                          return <StatusBadge tone="neutral">{t.payrollUnknown}</StatusBadge>
+                        return (
+                          <StatusBadge tone={status === 'active' ? 'success' : 'neutral'}>
+                            {status === 'none' ? p.noStream : p.statuses[status]}
+                          </StatusBadge>
+                        )
+                      })()}
                     </li>
                   ))}
                 </ul>
