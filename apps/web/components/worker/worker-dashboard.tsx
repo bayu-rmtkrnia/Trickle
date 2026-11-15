@@ -14,6 +14,7 @@ import { workerDashboardCopy, workerDashboardError } from '@/lib/copy/worker-das
 import { useDict, useLocale } from '@/lib/i18n/client'
 import { formatDateShort, formatUsd } from '@/lib/format'
 import { useSession, type SessionContextValue } from '@/providers/session-provider'
+import { DemoStreamCard } from './demo-stream-card'
 import { SalaryCard } from './salary-card'
 import { WorkerShell } from './worker-shell'
 import { WorkerFamilySection } from './worker-family-section'
@@ -163,10 +164,20 @@ function EmploymentDashboard({ session }: { session: SessionContextValue }) {
                 </Button>
               </>
             ) : page?.data.length === 0 ? (
-              <div className="rounded-xl border-[1.5px] border-brand-text bg-surface p-4">
-                <h3 className="font-bold">{t.emptyTitle}</h3>
-                <p className="mt-2 text-label text-muted">{t.emptyBody}</p>
-              </div>
+              <>
+                <div className="rounded-xl border-[1.5px] border-brand-text bg-surface p-4">
+                  <h3 className="font-bold">{t.emptyTitle}</h3>
+                  <p className="mt-2 text-label text-muted">{t.emptyBody}</p>
+                </div>
+                {/* Only once the chain read confirms no stream pays this wallet yet. */}
+                {wallet && streams.snapshot?.streams.length === 0 && (
+                  <DemoStreamCard
+                    session={session}
+                    walletAddress={wallet}
+                    onStarted={streams.refresh}
+                  />
+                )}
+              </>
             ) : (
               <>
                 <ul className="flex flex-col gap-5">

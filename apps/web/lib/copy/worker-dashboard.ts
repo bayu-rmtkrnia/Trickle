@@ -40,6 +40,27 @@ const id = {
   emptyTitle: 'Belum ada pekerjaan terhubung',
   emptyBody:
     'Buka link undangan dari perusahaan dan terima undangannya untuk menghubungkan pekerjaanmu.',
+  demo: {
+    title: 'Ingin mencoba dulu?',
+    body: 'Mulai gaji percobaan dari perusahaan demo. Gajinya berupa token uji yang langsung mengalir, dan bisa kamu tarik serta bagikan ke keluarga seperti gaji sungguhan.',
+    start: 'Coba gaji demo',
+    starting: 'Memulai gaji demo...',
+    started: 'Gaji demo sudah dimulai. Saldo akan muncul dalam beberapa detik.',
+    errors: {
+      limit: {
+        title: 'Batas demo hari ini tercapai',
+        message: 'Silakan coba lagi besok.',
+      },
+      unavailable: {
+        title: 'Demo belum tersedia',
+        message: 'Mode demo sedang tidak aktif. Silakan coba lagi nanti.',
+      },
+      failed: {
+        title: 'Gaji demo belum berhasil dimulai',
+        message: 'Silakan coba lagi dalam beberapa saat.',
+      },
+    },
+  },
   errors: {
     load: {
       title: 'Belum dapat memuat pekerjaan',
@@ -99,6 +120,27 @@ const en: WorkerDashboardCopy = {
   payrollUnknown: 'Payroll status not available yet',
   emptyTitle: 'No jobs connected yet',
   emptyBody: 'Open the invite link from your company and accept it to connect your job.',
+  demo: {
+    title: 'Want to try it first?',
+    body: 'Start a trial salary from a demo company. It pays test tokens that start flowing right away, and you can withdraw them and share them with your family like a real salary.',
+    start: 'Try a demo salary',
+    starting: 'Starting demo salary...',
+    started: 'Your demo salary has started. Your balance will appear in a few seconds.',
+    errors: {
+      limit: {
+        title: 'Today’s demo limit is reached',
+        message: 'Please try again tomorrow.',
+      },
+      unavailable: {
+        title: 'Demo isn’t available',
+        message: 'Demo mode is switched off right now. Please try again later.',
+      },
+      failed: {
+        title: 'Couldn’t start the demo salary',
+        message: 'Please try again in a moment.',
+      },
+    },
+  },
   errors: {
     load: {
       title: 'Couldn’t load your jobs',
@@ -128,4 +170,13 @@ export function workerDashboardError(error: unknown, pagination = false, locale:
   if (isApiError(error) && error.status === 429) return t.errors.limit
   if (isApiError(error) && error.code === 'INVALID_RESPONSE') return t.errors.invalid
   return pagination ? t.errors.page : t.errors.load
+}
+
+export function demoStreamError(error: unknown, locale: Locale = 'id') {
+  const t = workerDashboardCopy[locale]
+  if (isApiError(error) && error.status === 401)
+    return { title: t.sessionError, message: t.sessionErrorBody }
+  if (isApiError(error) && error.status === 429) return t.demo.errors.limit
+  if (isApiError(error) && error.status === 503) return t.demo.errors.unavailable
+  return t.demo.errors.failed
 }
