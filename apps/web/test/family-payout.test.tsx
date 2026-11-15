@@ -114,7 +114,7 @@ describe('family payout sheet', () => {
   it('submits bigint units and the chosen bank account, labelled as test mode', () => {
     const payout = controller()
     const sheet = show(payout)
-    expect(within(sheet).getByText(/bukan transfer bank nyata/)).toBeTruthy()
+    expect(within(sheet).getByText(/tidak ada rupiah yang masuk ke rekening bank/)).toBeTruthy()
     fireEvent.click(within(sheet).getByLabelText(/BNI/))
     fireEvent.change(within(sheet).getByLabelText('Jumlah mAUSD'), { target: { value: '5,25' } })
     expect(within(sheet).getByText('≈ Rp85.312')).toBeTruthy()
