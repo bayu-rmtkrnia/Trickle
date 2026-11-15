@@ -35,6 +35,7 @@ const id = {
   retry: 'Perbarui payroll',
   refreshing: 'Memperbarui payroll...',
   withdrawStream: 'Tarik stream',
+  noStream: 'Belum ada aliran gaji',
   statuses: {
     scheduled: 'Belum mulai',
     active: 'Aktif',
@@ -99,6 +100,7 @@ const en: PayrollCopy = {
   retry: 'Refresh payroll',
   refreshing: 'Refreshing payroll...',
   withdrawStream: 'Withdraw stream',
+  noStream: 'No salary stream yet',
   statuses: {
     scheduled: 'Not started',
     active: 'Active',

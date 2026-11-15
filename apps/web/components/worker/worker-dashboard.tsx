@@ -8,6 +8,8 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { useWorkerStreams } from '@/hooks/use-worker-streams'
 import { useAccount } from '@/lib/account'
+import { employerPayrollStatus } from '@/lib/chain/employer-status'
+import { payrollCopy } from '@/lib/copy/payroll'
 import { workerDashboardCopy, workerDashboardError } from '@/lib/copy/worker-dashboard'
 import { useDict, useLocale } from '@/lib/i18n/client'
 import { formatDateShort, formatUsd } from '@/lib/format'
@@ -131,6 +133,7 @@ function DashboardSkeleton() {
 function EmploymentDashboard({ session }: { session: SessionContextValue }) {
   const { locale } = useLocale()
   const t = workerDashboardCopy[locale]
+  const p = payrollCopy[locale]
   const { page, loading, loadingMore, error, pageError, retryUntil, reload, loadMore } =
     useWorkerEmployments(session)
   const wallet = session.user?.address ?? null
@@ -189,7 +192,21 @@ function EmploymentDashboard({ session }: { session: SessionContextValue }) {
                           </dd>
                         </div>
                       </dl>
-                      <StatusBadge tone="neutral">{t.payrollUnknown}</StatusBadge>
+                      {(() => {
+                        const status = employerPayrollStatus(
+                          streams.snapshot,
+                          streams.timestamp,
+                          job.employer.ownerAddress,
+                        )
+                        if (status === null) {
+                          return <StatusBadge tone="neutral">{t.payrollUnknown}</StatusBadge>
+                        }
+                        return (
+                          <StatusBadge tone={status === 'active' ? 'success' : 'neutral'}>
+                            {status === 'none' ? p.noStream : p.statuses[status]}
+                          </StatusBadge>
+                        )
+                      })()}
                     </li>
                   ))}
                 </ul>
