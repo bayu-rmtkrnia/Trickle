@@ -1,4 +1,5 @@
 import { StatusBadge } from '@/components/ui/status-badge'
+import { DetailGrid } from '@/components/ui/detail-grid'
 import { InlineError } from '@/components/ui/inline-error'
 import { withdrawCopy, withdrawalMessage } from '@/lib/copy/withdraw'
 import { useLocale } from '@/lib/i18n/client'
@@ -26,30 +27,27 @@ export function TransactionStatus({
       {state.result && (
         <div>
           <p className="font-semibold">{t.actual}</p>
-          <dl className="mt-2 flex flex-col gap-3">
-            <div>
-              <dt>{t.worker}</dt>
-              <dd className="break-all font-semibold tabular-nums">
-                {formatToken(state.result.toWorker, config.tokenDecimals, locale)} {tokenSymbol}
-              </dd>
-            </div>
-            <div>
-              <dt>{t.family}</dt>
-              <dd className="break-all font-semibold tabular-nums">
-                {formatToken(state.result.toRecipients, config.tokenDecimals, locale)} {tokenSymbol}
-              </dd>
-            </div>
-            {state.result.paid.map((payment, index) => (
-              <div key={`${payment.recipient}:${index}`}>
-                <dt className="text-label text-muted">
-                  {t.recipient(index + 1, payment.recipient)}
-                </dt>
-                <dd className="break-all tabular-nums">
-                  {formatToken(payment.amount, config.tokenDecimals, locale)} {tokenSymbol}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <div className="mt-2">
+            <DetailGrid
+              items={[
+                {
+                  label: t.worker,
+                  value: `${formatToken(state.result.toWorker, config.tokenDecimals, locale)} ${tokenSymbol}`,
+                  wide: true,
+                },
+                {
+                  label: t.family,
+                  value: `${formatToken(state.result.toRecipients, config.tokenDecimals, locale)} ${tokenSymbol}`,
+                  wide: true,
+                },
+                ...state.result.paid.map((payment, index) => ({
+                  label: t.recipient(index + 1, payment.recipient),
+                  value: `${formatToken(payment.amount, config.tokenDecimals, locale)} ${tokenSymbol}`,
+                  wide: true,
+                })),
+              ]}
+            />
+          </div>
         </div>
       )}
       {state.hash && (

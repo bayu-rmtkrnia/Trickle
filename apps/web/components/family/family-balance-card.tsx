@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { DetailGrid } from '@/components/ui/detail-grid'
 import { InlineError } from '@/components/ui/inline-error'
 import { Sheet } from '@/components/ui/sheet'
 import { StatusBadge } from '@/components/ui/status-badge'
@@ -165,34 +166,35 @@ export function FamilyBalanceCard({
         {detailsOpen &&
           (snapshot ? (
             <div className="flex flex-col gap-4">
-              <dl className="flex flex-col gap-4">
-                {[
-                  [t.tokenAmount, token],
-                  [
-                    t.idrLabel,
-                    idr !== null ? t.idrEstimate(formatIdrUnits(idr, locale)) : t.idrUnavailable,
-                  ],
-                  [t.rateLabel, quote ? formatRate(quote.rate, locale) : t.idrUnavailable],
-                  [t.rateSource, quote ? t.rateSources[quote.source] : t.idrUnavailable],
-                  [
-                    t.rateTime,
-                    quote?.rateTime ? dateTime(quote.rateTime, locale) : t.rateTimeUnknown,
-                  ],
-                  [
-                    t.readTime,
-                    balance.readAt ? dateTime(balance.readAt, locale) : t.rateTimeUnknown,
-                  ],
-                  [t.block, snapshot.blockNumber.toString()],
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-muted/20 pb-3 last:border-0"
-                  >
-                    <dt className="text-label text-muted">{label}</dt>
-                    <dd className="break-all font-semibold tabular-nums">{value}</dd>
-                  </div>
-                ))}
-              </dl>
+              <DetailGrid
+                items={[
+                  { label: t.tokenAmount, value: token },
+                  {
+                    label: t.idrLabel,
+                    value:
+                      idr !== null ? t.idrEstimate(formatIdrUnits(idr, locale)) : t.idrUnavailable,
+                  },
+                  {
+                    label: t.rateLabel,
+                    value: quote ? formatRate(quote.rate, locale) : t.idrUnavailable,
+                  },
+                  {
+                    label: t.rateSource,
+                    value: quote ? t.rateSources[quote.source] : t.idrUnavailable,
+                  },
+                  {
+                    label: t.rateTime,
+                    value: quote?.rateTime ? dateTime(quote.rateTime, locale) : t.rateTimeUnknown,
+                    wide: true,
+                  },
+                  {
+                    label: t.readTime,
+                    value: balance.readAt ? dateTime(balance.readAt, locale) : t.rateTimeUnknown,
+                    wide: true,
+                  },
+                  { label: t.block, value: snapshot.blockNumber.toString() },
+                ]}
+              />
               {quote?.source === 'fallback' && (
                 <p className="text-label text-muted">{t.fallbackHint}</p>
               )}

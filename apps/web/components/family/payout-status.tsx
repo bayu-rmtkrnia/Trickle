@@ -1,3 +1,4 @@
+import { DetailGrid } from '@/components/ui/detail-grid'
 import { InlineError } from '@/components/ui/inline-error'
 import { StatusBadge, type BadgeTone } from '@/components/ui/status-badge'
 import type { PayoutDto } from '@/lib/api/payouts'
@@ -33,19 +34,7 @@ export function PayoutDetails({ payout }: { payout: PayoutDto }) {
   if (payout.fxRate !== null) rows.splice(2, 0, [t.rate, String(payout.fxRate)])
   if (payout.providerRef) rows.push([t.reference, payout.providerRef])
   if (payout.failureReason) rows.push([t.failureReason, payout.failureReason])
-  return (
-    <dl className="flex flex-col gap-3">
-      {rows.map(([label, value]) => (
-        <div
-          key={label}
-          className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-muted/20 pb-2 last:border-0"
-        >
-          <dt className="text-label text-muted">{label}</dt>
-          <dd className="break-all font-semibold tabular-nums">{value}</dd>
-        </div>
-      ))}
-    </dl>
-  )
+  return <DetailGrid items={rows.map(([label, value]) => ({ label, value }))} />
 }
 
 export function PayoutStatus({ state }: { state: FamilyPayoutState }) {

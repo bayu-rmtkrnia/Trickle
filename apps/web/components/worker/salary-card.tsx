@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '@/components/ui/button'
+import { DetailGrid } from '@/components/ui/detail-grid'
 import { InlineError } from '@/components/ui/inline-error'
 import { StatusBadge } from '@/components/ui/status-badge'
 import { Sheet } from '@/components/ui/sheet'
@@ -214,25 +215,18 @@ export function SalaryCard({
         {detailsOpen &&
           (snapshot && split ? (
             <div className="flex flex-col gap-4">
-              <dl className="flex flex-col gap-4">
-                {[
-                  [p.walletBalance, token(snapshot.walletBalance)],
-                  [p.workerShare, token(split.worker)],
-                  [p.familyShare, token(split.family)],
-                  ...snapshot.splits.map(({ recipient, bps }, index) => [
-                    p.recipientShare(index + 1, recipient, (bps / 100).toString()),
-                    token(split.shares[index]!),
-                  ]),
-                ].map(([label, value]) => (
-                  <div
-                    key={label}
-                    className="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-muted/20 pb-3 last:border-0"
-                  >
-                    <dt className="text-label text-muted">{label}</dt>
-                    <dd className="break-all font-semibold tabular-nums">{value}</dd>
-                  </div>
-                ))}
-              </dl>
+              <DetailGrid
+                items={[
+                  { label: p.walletBalance, value: token(snapshot.walletBalance), wide: true },
+                  { label: p.workerShare, value: token(split.worker) },
+                  { label: p.familyShare, value: token(split.family) },
+                  ...snapshot.splits.map(({ recipient, bps }, index) => ({
+                    label: p.recipientShare(index + 1, recipient, (bps / 100).toString()),
+                    value: token(split.shares[index]!),
+                    wide: true,
+                  })),
+                ]}
+              />
               <p className="text-label text-muted">
                 {phase === 'stale'
                   ? p.staleHint
