@@ -239,6 +239,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Employer demo mengisi saldonya sendiri** lewat `mint` terbuka milik MockAUSD, dan `approve` hanya dipanggil sekali (`maxUint256`). Jadi selama penjurian (14–27 Okt) yang perlu dipantau hanya MON untuk gas, lewat `GET /demo-streams/status`. Kalau token diganti AUSD asli, mint akan gagal dan endpoint menjawab 502.
 - **Transaksi signer diantrekan satu per satu** di dalam proses, karena semuanya memakai nonce yang sama. Ini cukup untuk satu instance Railway. Kalau di-scale ke beberapa instance, perlu antrean bersama.
 - **Signer ada di belakang interface `DemoSigner`** (`lib/demo.ts`) dan di-inject lewat `buildApp({ demo })`. Test memakai versi palsu, jadi tidak ada yang dikirim ke chain. Tanpa key, endpoint menjawab 503 `DEMO_UNAVAILABLE`.
+- **Di web, tombol "Coba gaji demo" ada di dashboard pekerja (`/w`)** (`components/worker/demo-stream-card.tsx`). Tombol hanya muncul kalau akun belum punya pekerjaan dan pembacaan chain memastikan belum ada stream ke wallet ini. Kenapa: dosen atau pengunjung bisa mencoba alur pekerja tanpa harus membuat employer, mendanai gaji, dan mengundang akun kedua. Setelah berhasil, dashboard memuat ulang `GET /users/me/streams`, yang menarik stream baru dari chain, sehingga saldo langsung muncul. Gas untuk menarik gaji tetap diurus alur penarikan yang sudah ada (`POST /gas-drips`).
 
 ### Bentuk API
 - **Prefix `/api/v1` dan nama resource berupa kata benda jamak** (rubrik K1).
@@ -301,9 +302,8 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 
 ## 9. Masalah yang diketahui / utang
 
-- **FE pekerja masih memindai log `StreamCreated` sendiri di browser** (`apps/web/lib/chain/viem-port.ts`, dipakai `payroll-reader.ts`), sehingga terkena batas 100 blok. Bisa diganti `GET /users/me/streams`.
 - **Indexer membaca ulang semua stream yang belum settled di setiap putaran.** Murah selama jumlahnya ratusan (satu multicall per 100). Kalau sudah ribuan, perlu dibatasi, misalnya hanya stream yang berubah menurut event `Withdrawn`/`StreamCanceled` terbaru.
-- **Akun juri tidak punya peran `worker` di DB.** Stream demo ada di chain dan di cache indexer, tapi tidak ada baris `Worker` atau perusahaan demo. Layar pekerja sebaiknya memakai `GET /users/me/streams` (stream demo muncul dengan `company: null`), bukan `roles` dari `/users/me`.
+- **Akun juri tidak punya peran `worker` di DB.** Stream demo ada di chain dan di cache indexer, tapi tidak ada baris `Worker` atau perusahaan demo. Dashboard pekerja di web sudah memakai `GET /users/me/streams` (stream demo muncul dengan `company: null`), jadi saldo demo tetap tampil walau daftar employer kosong.
 - **Isi ulang gas mempercepat pemakaian treasury.** Satu akun bisa memakai sampai 5 × 0,05 MON per hari. Pantau `GET /gas-drips/status` lebih sering selama penjurian, dan turunkan `GAS_DRIP_ADDRESS_DAILY_LIMIT` di Railway kalau treasury menipis.
 - **Payout yang gagal setelah token diterima diselesaikan manual.** Belum ada endpoint refund atau retry; token tetap di `PAYOUT_ADDRESS`.
 - **Baru provider mock** (D5 belum diputuskan). Xendit/Flip tinggal menambah implementasi `PayoutProvider`.
