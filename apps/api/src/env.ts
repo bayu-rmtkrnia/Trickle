@@ -49,6 +49,16 @@ const EnvSchema = z.object({
 
   /** Seconds between stream indexer rounds (needs PAYROLL_ADDRESS). 0 turns the loop off. */
   STREAM_SYNC_SECONDS: z.coerce.number().int().min(0).default(15),
+  /**
+   * How far back the split indexer fills family incoming transfers on its first run, in blocks.
+   * Monad testnet makes about 3.2 blocks a second, so the default is about 3 days.
+   */
+  SPLIT_BACKFILL_BLOCKS: z.coerce.number().int().min(0).default(840_000),
+  /**
+   * `eth_getLogs` requests (100 blocks each) the split indexer may send per round.
+   * Following the head needs about one per 30 seconds; the rest goes to the backfill.
+   */
+  SPLIT_SYNC_REQUESTS_PER_ROUND: z.coerce.number().int().positive().default(40),
 
   GAS_TREASURY_PRIVATE_KEY: hexKey.optional().or(z.literal('').transform(() => undefined)),
   GAS_DRIP_AMOUNT_MON: z.string().default('0.05'),

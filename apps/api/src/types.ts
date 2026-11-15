@@ -8,6 +8,7 @@ import type { Privy } from './lib/privy.js'
 import type { Db } from './lib/prisma.js'
 import type { Role, Roles } from './lib/roles.js'
 import type { PayoutProvider } from './lib/payout-provider.js'
+import type { SplitIndexer } from './lib/split-indexer.js'
 import type { StreamReader } from './lib/streams.js'
 import type { TransferVerifier } from './lib/transfers.js'
 
@@ -29,6 +30,8 @@ declare module 'fastify' {
     chain: Chain
     privy: Privy
     streams: StreamReader
+    /** Catch-up for family incoming transfers, or `null` when PAYROLL_ADDRESS is unset. */
+    splits: Pick<SplitIndexer, 'catchUp'> | null
     demo: DemoSigner
     transfers: TransferVerifier
     payoutProvider: PayoutProvider

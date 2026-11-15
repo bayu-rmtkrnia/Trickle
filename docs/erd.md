@@ -6,7 +6,7 @@ Terakhir diperbarui: 13 Okt 2026 (indexer stream).
 
 ## Prinsip
 
-- **Uang tidak disimpan di database.** Saldo, jumlah yang sudah mengalir, dan penarikan selalu dibaca dari kontrak `TricklePayroll` di Monad testnet (PLAN §4.2). Postgres hanya menyimpan metadata: siapa bekerja di mana, siapa penerima siapa, undangan, rekening bank, dan log operasional. Satu-satunya pengecualian adalah `Stream`, yaitu **cache** stream on-chain yang diisi indexer supaya API bisa mencari stream per employer/pekerja. Isinya selalu disalin dari kontrak, tidak pernah ditulis dari input pengguna. Pengecekan yang memblokir aksi (hapus pekerja) membaca ulang stream kandidat langsung dari chain.
+- **Uang tidak disimpan di database.** Saldo, jumlah yang sudah mengalir, dan penarikan selalu dibaca dari kontrak `TricklePayroll` di Monad testnet (PLAN §4.2). Postgres hanya menyimpan metadata: siapa bekerja di mana, siapa penerima siapa, undangan, rekening bank, dan log operasional. Pengecualiannya adalah `Stream` dan `SplitPayment`, yaitu **cache** data on-chain yang diisi indexer: `Stream` supaya API bisa mencari stream per employer/pekerja, `SplitPayment` supaya keluarga bisa melihat daftar kiriman masuk. Isinya selalu disalin dari kontrak, tidak pernah ditulis dari input pengguna. Pengecekan yang memblokir aksi (hapus pekerja) membaca ulang stream kandidat langsung dari chain.
 - **Peran tidak disimpan sebagai kolom.** Employer, pekerja, dan penerima diturunkan dari relasi (`Company`, `Worker`, `Recipient`), jadi peran tidak bisa berbeda dengan datanya.
 - **Data sensitif tidak pernah disimpan sebagai teks biasa.** Token sesi disimpan hash-nya, nomor rekening dienkripsi (lihat [Data sensitif](#data-sensitif)).
 - **Hapus = soft delete** (`deletedAt`) untuk data yang dikelola pengguna, supaya riwayat dan relasi tetap utuh. Menambah ulang data yang sama memulihkan baris lama.
@@ -148,6 +148,25 @@ erDiagram
         boolean settled "withdrawn + refunded = amount"
         datetime syncedAt
     }
+    SplitPayment {
+        string id PK
+        string txHash "transaksi penarikan"
+        int logIndex
+        bigint blockNumber
+        datetime paidAt "waktu blok"
+        bigint streamId
+        string worker "alamat lowercase"
+        string recipient "alamat lowercase"
+        string amountUnits
+        datetime createdAt
+    }
+    IndexerCursor {
+        string name PK "split-paid"
+        bigint forwardBlock "terakhir dibaca ke arah head"
+        bigint backfillBlock "terendah yang sudah diisi"
+        bigint floorBlock "batas pengisian riwayat"
+        datetime updatedAt
+    }
     GasDrip {
         string id PK
         string address "tanpa FK, lihat catatan"
@@ -180,7 +199,7 @@ erDiagram
 | User → Payout | 1 : N | `Payout.userId` | RESTRICT | Penerima yang mencairkan |
 | User → DemoStream | 1 : 0..1 | `DemoStream.userId` (unik) | CASCADE | Judge mode: satu stream demo per akun |
 
-`Stream` sengaja tidak punya foreign key: isinya salinan kontrak, dan alamat `employer`/`worker` belum tentu punya akun Trickle. API menautkannya ke `User` lewat `User.address` saat membaca.
+`Stream` dan `SplitPayment` sengaja tidak punya foreign key: isinya salinan kontrak, dan alamatnya (`employer`, `worker`, `recipient`) belum tentu punya akun Trickle. API menautkannya ke `User` lewat `User.address` saat membaca.
 
 `GasDrip` sengaja tidak punya foreign key: batasnya per alamat wallet, dan alamat itulah yang menerima MON, jadi kuncinya `address`, bukan user. Satu alamat bisa punya beberapa baris: `seq` 0 adalah drip pertama, berikutnya isi ulang saat saldonya hampir habis. Unique `(address, seq)` mencegah dua request bersamaan mengirim drip yang sama dua kali.
 
@@ -199,6 +218,8 @@ erDiagram
 | `DemoStream` | Stream judge mode yang dibuat employer demo | `userId` unik; index `createdAt`, `(ip, createdAt)` untuk batas harian |
 | `GasDrip` | Log sponsor gas (MON testnet), drip pertama dan isi ulang | `(address, seq)` unik; index `createdAt` |
 | `Stream` | Cache stream `TricklePayroll` dari indexer (`nextStreamId` + `getStream`) | PK = id on-chain (`BIGINT`, supaya urutan numerik benar); index `(employer, worker)`, `worker`, `settled` |
+| `SplitPayment` | Event `SplitPaid`: bagian penarikan pekerja yang langsung terkirim ke keluarga (kiriman masuk) | unik `(txHash, logIndex)` supaya log yang terbaca dua kali tetap satu baris; index `(recipient, blockNumber)` |
+| `IndexerCursor` | Posisi pemindaian log indexer split (maju ke head, mundur sekali untuk riwayat) | PK `name` |
 
 ### Enum
 
@@ -237,5 +258,6 @@ Status yang bisa berubah karena dua proses bersamaan (undangan diterima vs dibat
 | `20261012130000_payouts` | `Payout` menunjuk ke `BankAccount`; kolom rekening teks biasa dihapus |
 | `20261013090000_streams` | Tabel `Stream` (cache indexer stream) |
 | `20261013100000_gas_drip_refills` | `GasDrip.seq`; unik `address` diganti unik `(address, seq)` supaya alamat bisa diisi ulang |
+| `20261115120000_split_payments` | Tabel `SplitPayment` (kiriman masuk keluarga) dan `IndexerCursor` |
 
 Rename tabel dan kolom memakai `RENAME`, bukan drop dan create, supaya data yang ada tetap utuh.

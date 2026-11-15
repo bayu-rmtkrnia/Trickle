@@ -71,6 +71,7 @@ Semua endpoint resource ada di bawah `/api/v1`, kecuali `/health` dan `/docs` (S
 | | `GET /users/me/employments` | ✓ | Perusahaan tempat saya bekerja (dashboard pekerja), paged, beserta data employer |
 | streams | `GET /companies/:id/streams` | Pemilik perusahaan | Stream dari wallet pemilik, dari indexer; `worker` ditautkan ke baris `Worker` |
 | | `GET /users/me/streams` | ✓ | Stream yang membayar wallet saya; `company` ditautkan lewat alamat employer, termasuk stream judge mode (`company: null`) |
+| incoming-transfers | `GET /users/me/incoming-transfers` | ✓ (tanpa peran) | Kiriman masuk keluarga: event `SplitPaid` ke wallet saya dari indexer split, beserta nama pengirim |
 | companies | `POST /companies` | ✓ | Satu perusahaan aktif per akun |
 | | `GET/PATCH/DELETE /companies/:id` | Pemilik | Peran lain dan employer lain mendapat 403. DELETE = soft delete |
 | workers | `POST/GET /companies/:id/workers` | Pemilik perusahaan | POST lewat alamat wallet; memulihkan pekerja yang pernah dihapus |
@@ -183,6 +184,15 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Pekerja melihat pekerjaannya lewat `GET /users/me/employments`**, bukan `GET /workers?userId=`. Kenapa: datanya selalu milik pemanggil, jadi tidak perlu cek kepemilikan, dan FE tidak perlu tahu id pekerjanya dulu. Tanpa cek peran: akun yang bukan pekerja mendapat `data: []`, bukan 403, supaya dashboard cukup satu panggilan. `employer` memakai bentuk `Company` yang sama (termasuk `ownerAddress`, alamat pengirim stream).
 - **`GET /workers/:id` boleh diakses pekerja itu sendiri**, tapi `PATCH`/`DELETE` hanya employer (PLAN §6.3: "W hanya GET dirinya sendiri"). `requireOwnership` menerima beberapa pemilik untuk kasus seperti ini.
 
+### Indexer split (kiriman masuk keluarga)
+- **Memindai event `SplitPaid`, bukan membaca state.** Berbeda dengan stream, kontrak tidak menyimpan riwayat pembayaran split; satu-satunya jejaknya adalah event `SplitPaid(streamId, worker, recipient, amount)` di setiap penarikan. Karena RPC publik membatasi `eth_getLogs` ke 100 blok, pemindaian berjalan per 100 blok dengan cursor tersimpan (`IndexerCursor`).
+- **Dua arah.** `forwardBlock` mengikuti head (sekitar 48 blok per putaran 15 detik, jadi biasanya cukup satu request), lalu sisa jatah putaran (`SPLIT_SYNC_REQUESTS_PER_ROUND`, default 40) dipakai `backfillBlock` untuk mundur sekali sampai `floorBlock` = `SPLIT_BACKFILL_BLOCKS` sebelum head saat pertama jalan (default 840.000 blok ≈ 3 hari, selesai sekitar 50 menit setelah deploy). Kenapa tidak dari blok deploy: sekitar 9,6 juta blok = 96 ribu request, terlalu berat untuk RPC publik, dan riwayat lama tidak dibutuhkan demo.
+- **Kenapa tidak dari web atau laporan FE.** Web tidak bisa memindai log sendiri karena batas 100 blok (seminggu ≈ 19.500 request). Web yang melaporkan hash penarikan ke API juga ditolak: kiriman hilang kalau tab ditutup sebelum laporan terkirim. Pemindai di backend tidak bergantung pada browser.
+- **Hanya blok final.** Pemindaian berhenti 2 blok di bawah head. Baris dan cursor disimpan dalam satu transaksi, jadi crash tidak melewatkan rentang; unik `(txHash, logIndex)` membuat rentang yang terbaca dua kali tetap satu baris.
+- **Satu pemindaian dalam satu waktu per proses.** Loop (`startSplitSync`, interval sama dengan `STREAM_SYNC_SECONDS`) dan catch-up saat request diantrikan, supaya cursor tidak mundur. Railway menjalankan satu instance; kalau nanti lebih dari satu, cursor perlu dikunci di database (`SELECT ... FOR UPDATE`).
+- **Daftar membaca blok terbaru dulu** (`catchUp`, maksimal 3 request, tanpa backfill), jadi kiriman dari penarikan beberapa detik lalu langsung muncul. Kalau RPC gagal, daftar tetap dijawab dari cache.
+- **Nama pengirim ditautkan saat dibaca** lewat `User.address`: `displayName` akun, atau nama pekerja dari employer kalau kosong. `sender: null` kalau alamatnya belum punya akun. Tanpa cek peran, sama seperti `/users/me/streams`, supaya penerima yang sudah dihapus tetap melihat riwayatnya.
+
 ### Penerima (Fitur 7)
 - **`FamilyLink` di-rename jadi `Recipient`** (resource `recipients` di PLAN §6.3), kolom `workerId` jadi `ownerId` (pekerja pemilik) dan `relativeId` jadi `userId` (akun penerima). Pola sama dengan `Worker`: unik per (pemilik, user), soft delete, dan dipulihkan kalau ditambah atau diundang lagi.
 - **Peran `family` di-rename jadi `recipient`** di `/users/me` dan `requireRole`, mengikuti PLAN K5. Aman karena FE belum memanggil API. Jenis undangan ikut di-rename jadi `RECIPIENT` di Fitur 8.
@@ -286,7 +296,8 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 | `INVITE_TTL_DAYS` | Masa berlaku undangan (default 14) |
 | `CHAIN_ID`, `RPC_URL`, `GAS_TREASURY_PRIVATE_KEY`, `GAS_DRIP_*` | Gas drip: key treasury (testnet), jumlah per drip, batas harian total (`GAS_DRIP_DAILY_LIMIT`), per IP untuk akun baru (`GAS_DRIP_IP_DAILY_LIMIT`), ambang isi ulang (`GAS_DRIP_REFILL_BELOW_MON`, default 0,03) dan batas per alamat (`GAS_DRIP_ADDRESS_DAILY_LIMIT`, default 5) |
 | `PAYROLL_ADDRESS` | Kontrak `TricklePayroll` v2, untuk cek split saat menghapus penerima, indexer stream, dan judge mode. Kosong = cek split dan cek stream dilewati (dicatat di log), indexer mati, judge mode menjawab 503 |
-| `STREAM_SYNC_SECONDS` | Jeda antar-putaran indexer stream (default 15). `0` mematikan loop; pengecekan `STREAM_ACTIVE` tetap menyinkronkan sendiri |
+| `STREAM_SYNC_SECONDS` | Jeda antar-putaran indexer stream dan indexer split (default 15). `0` mematikan kedua loop; pengecekan `STREAM_ACTIVE` dan daftar kiriman masuk tetap menyinkronkan sendiri |
+| `SPLIT_BACKFILL_BLOCKS`, `SPLIT_SYNC_REQUESTS_PER_ROUND` | Indexer split: riwayat yang diisi saat pertama jalan (default 840.000 blok ≈ 3 hari) dan jatah `eth_getLogs` per putaran (default 40). Mengubah `SPLIT_BACKFILL_BLOCKS` setelah cursor ada tidak berpengaruh; hapus baris `IndexerCursor` untuk mengulang |
 | `PAYOUT_ADDRESS`, `PAYOUT_WEBHOOK_SECRET`, `MOCK_PAYOUT_SECONDS` | Payouts: alamat tujuan transfer penerima, secret signature webhook, dan lama provider mock memproses. Tanpa `PAYOUT_ADDRESS` (atau `PAYROLL_ADDRESS`/`BANK_ENCRYPTION_KEY`), `POST /payouts` menjawab 503; tanpa secret, webhook 503 |
 | `BANK_ENCRYPTION_KEY` | Kunci enkripsi nomor rekening (`openssl rand -hex 32`). Kosong = tambah rekening menjawab 503. Jangan diganti setelah ada data: nomor lama tidak bisa dibaca lagi |
 | `DEMO_EMPLOYER_PRIVATE_KEY`, `DEMO_STREAM_*` | Judge mode: key employer demo (butuh MON untuk gas), jumlah, durasi, batas harian total dan per IP |

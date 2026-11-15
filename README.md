@@ -202,6 +202,7 @@ In the **Access** column, _Owner_ means only the account that owns that item.
 | GET | `/recipients/:id` | Owner or the family member | View a family member |
 | PATCH | `/recipients/:id` | Owner | Edit a family member |
 | DELETE | `/recipients/:id` | Owner | Remove a family member (not allowed while they still get a share) |
+| GET | `/users/me/incoming-transfers` | Signed in | Money my family members sent me from their salary |
 | POST | `/bank-accounts` | Family | Add a bank account (the number is stored encrypted) |
 | GET | `/bank-accounts` | Family | List my bank accounts |
 | GET, PATCH, DELETE | `/bank-accounts/:id` | Owner | View, edit, or remove a bank account |

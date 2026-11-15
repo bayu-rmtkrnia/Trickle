@@ -2772,6 +2772,38 @@
           ]
         },
         {
+          "name": "Incoming transfers (family)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/users/me/incoming-transfers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "users", "me", "incoming-transfers"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "description": "SplitPaid events paying this wallet, newest first, with the sender name. Filled by the split indexer; empty until a worker with a split to this family member withdraws."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": ["pm.test('status 200', () => pm.response.to.have.status(200));"]
+              }
+            }
+          ]
+        },
+        {
           "name": "List my payouts",
           "request": {
             "method": "GET",
