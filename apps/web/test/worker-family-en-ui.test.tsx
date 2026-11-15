@@ -100,7 +100,7 @@ describe('English worker and family forms', () => {
       />,
     )
     expect(screen.getByText('Tokens sent')).toBeTruthy()
-    expect(screen.getByText('Received (from server)')).toBeTruthy()
+    expect(screen.getByText('Simulated rupiah (from server)')).toBeTruthy()
     expect(screen.getByText('Rp125,000')).toBeTruthy()
   })
 })

@@ -243,7 +243,7 @@ export const familyDashboardCopy = {
   rateSources: { live: 'Langsung', cache: 'Tersimpan', fallback: 'Cadangan' },
   fallbackHint: 'Kurs cadangan dipakai karena penyedia kurs belum dapat dihubungi.',
   estimateHint:
-    'Rupiah hanya perkiraan. Nilai pencairan ditentukan saat pencairan diproses (mode uji).',
+    'Rupiah hanya perkiraan. Nilai pencairan ditentukan saat diproses, dan pencairan ke rekening hanyalah simulasi (mode uji).',
   emptyHint: 'Dana muncul di sini setelah pekerja menarik gaji yang dibagikan ke wallet kamu.',
   staleHint:
     'Menampilkan saldo pada block terakhir yang berhasil dibaca. Perbarui untuk membaca ulang.',
@@ -319,7 +319,7 @@ export const familyDashboardDictionary: Record<Locale, typeof familyDashboardCop
     rateSources: { live: 'Live', cache: 'Cached', fallback: 'Fallback' },
     fallbackHint: 'A fallback rate is used because the rate provider is unavailable.',
     estimateHint:
-      'Rupiah is only an estimate. The payout value is set when it is processed in test mode.',
+      'Rupiah is only an estimate. The value is set when processed, and the bank payout is only a simulation (test mode).',
     emptyHint: 'Funds appear here after the worker withdraws salary shared to your wallet.',
     staleHint: 'Showing the last successfully read block. Refresh to read again.',
     refresh: 'Refresh balance',
@@ -371,7 +371,7 @@ export const bankNames: Record<string, string> = {
 
 export const bankCopy = {
   title: 'Rekening bank',
-  body: 'Rekening tujuan pencairan. Nomor lengkap hanya disimpan terenkripsi di server.',
+  body: 'Rekening tujuan pencairan simulasi (tidak ada uang yang dikirim). Nomor lengkap hanya disimpan terenkripsi di server.',
   loading: 'Memuat rekening...',
   add: 'Tambah rekening',
   limit: (max: number) => `Maksimal ${max} rekening. Hapus salah satu untuk menambah.`,
@@ -465,7 +465,7 @@ export const bankDictionary: Record<Locale, typeof bankCopy> = {
   en: {
     ...bankCopy,
     title: 'Bank accounts',
-    body: 'Bank account for payouts. The full number is stored encrypted on the server.',
+    body: 'Destination for simulated payouts (no money is sent). The full number is stored encrypted on the server.',
     loading: 'Loading accounts…',
     add: 'Add account',
     limit: (max) => `Maximum ${max} accounts. Remove one to add another.`,
