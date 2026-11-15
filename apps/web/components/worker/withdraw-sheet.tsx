@@ -99,9 +99,11 @@ export function WithdrawSheet({
               {t.verifyUnsent}
             </Button>
           )}
-          <Button block variant="secondary" onClick={onClose}>
-            {t.close}
-          </Button>
+          {state.phase !== 'success' && (
+            <Button block variant="secondary" onClick={onClose}>
+              {t.close}
+            </Button>
+          )}
         </>
       }
     >
@@ -131,31 +133,42 @@ export function WithdrawSheet({
             </p>
             {gross !== null && split ? (
               <>
-                <dl className="flex flex-col gap-3">
-                  <div>
-                    <dt>{t.gross}</dt>
-                    <dd className="break-all font-semibold tabular-nums">{token(gross)}</dd>
-                  </div>
-                  <div>
-                    <dt>{t.worker}</dt>
-                    <dd className="break-all font-semibold tabular-nums">
-                      {token(split.toWorker)}
+                <dl className="flex flex-col gap-4">
+                  <div className="rounded-xl bg-brand-fill/10 p-4">
+                    <dt className="text-label text-muted">{t.gross}</dt>
+                    <dd className="mt-1 break-all text-2xl/8 font-bold tabular-nums">
+                      {token(gross)}
                     </dd>
                   </div>
-                  <div>
-                    <dt>{t.family}</dt>
-                    <dd className="break-all font-semibold tabular-nums">
-                      {token(split.toRecipients)}
-                    </dd>
-                  </div>
-                  {split.shares.map((share, index) => (
-                    <div key={share.recipient}>
-                      <dt className="text-label text-muted">
-                        {t.recipient(index + 1, share.recipient)}
-                      </dt>
-                      <dd className="break-all tabular-nums">{token(share.amount)}</dd>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="min-w-0 rounded-xl border-[1.5px] border-brand-text p-3">
+                      <dt className="text-label text-muted">{t.worker}</dt>
+                      <dd className="mt-1 break-all font-semibold tabular-nums">
+                        {token(split.toWorker)}
+                      </dd>
                     </div>
-                  ))}
+                    <div className="min-w-0 rounded-xl border-[1.5px] border-brand-text p-3">
+                      <dt className="text-label text-muted">{t.family}</dt>
+                      <dd className="mt-1 break-all font-semibold tabular-nums">
+                        {token(split.toRecipients)}
+                      </dd>
+                    </div>
+                  </div>
+                  {split.shares.length > 0 && (
+                    <div className="flex flex-col divide-y divide-muted/20 rounded-xl border border-muted/30">
+                      {split.shares.map((share, index) => (
+                        <div
+                          key={share.recipient}
+                          className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 px-3 py-2.5"
+                        >
+                          <dt className="min-w-0 break-all text-label text-muted">
+                            {t.recipient(index + 1, share.recipient)}
+                          </dt>
+                          <dd className="text-right tabular-nums">{token(share.amount)}</dd>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </dl>
                 <p className="text-sm/6 text-muted">{t.estimate}</p>
               </>
