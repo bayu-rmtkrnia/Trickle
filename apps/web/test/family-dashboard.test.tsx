@@ -27,6 +27,10 @@ vi.mock('@/lib/api/payouts', async (actual) => ({
   ...(await actual<typeof import('@/lib/api/payouts')>()),
   listPayouts: vi.fn(async () => ({ data: [], nextCursor: null })),
 }))
+vi.mock('@/lib/api/incoming-transfers', async (actual) => ({
+  ...(await actual<typeof import('@/lib/api/incoming-transfers')>()),
+  listIncomingTransfers: vi.fn(async () => ({ data: [], nextCursor: null })),
+}))
 
 const b = BigInt
 const wallet = '0x2222222222222222222222222222222222222222'
