@@ -55,6 +55,8 @@ Amounts are shown in US dollars with a rupiah estimate, and the interface is ava
 
 Dashboards need a signed-in account. Invitation pages open from the link the employer or worker shares.
 
+On a phone, the web app can be added to the home screen and opens like a regular app, without the browser bar.
+
 ### Current scope
 
 Trickle runs on Monad testnet with a test stablecoin (mock AUSD), so no real money moves. Bank payouts go through a simulated provider. The backend keeps the provider behind an interface, so a real one such as Xendit or Flip can be added later.

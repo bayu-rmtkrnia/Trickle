@@ -24,7 +24,7 @@ Ada tiga peran, dan perannya **kontekstual**: satu akun bisa sekaligus employer,
 
 ```
 apps/api/        Backend (Fastify + Prisma + Postgres). Pemilik: BE
-apps/web/        Frontend Next.js + Privy (rute /employer, /w, /f). Pemilik: FE. Memanggil API lewat lib/api/real.ts (mock.ts sebagai fallback)
+apps/web/        Frontend Next.js + Privy (rute /employer, /w, /f). Pemilik: FE. Memanggil API lewat lib/api/real.ts (mock.ts sebagai fallback). Bisa dipasang ke layar utama HP (app/manifest.ts + ikon di public/icons)
 contracts/       Smart contract TricklePayroll (Foundry), ter-deploy di Monad testnet. Pemilik: SC
 packages/shared/ ABI + alamat kontrak (deployments/testnet.json) untuk FE/BE
 docs/            PLAN.md (sumber kebenaran scope), ARCHITECTURE.md (file ini), erd.md (database), backend/api-changes-fe.md (panduan integrasi FE), roadmap BE, dokumen kuliah
@@ -309,4 +309,5 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 - **Baru provider mock** (D5 belum diputuskan). Xendit/Flip tinggal menambah implementasi `PayoutProvider`.
 - **Belum ada rotasi kunci enkripsi.** Token sudah diberi versi (`v1.`), tapi re-enkripsi ke kunci baru belum dibuat.
 - **Path lama `POST /gas/drip`, `GET /gas/status`, `GET /fx/usd-idr` masih ada** sebagai alias deprecated. `apps/web` di `main` sudah memakai `/fx-rates/usd-idr` dan `/gas-drips`, jadi alias ini siap dihapus (Fitur 13) setelah FE production dipastikan memakai versi itu.
+- **PWA baru sebatas bisa dipasang.** Ada manifest dan ikon, jadi Trickle bisa ditambahkan ke layar utama dan terbuka tanpa bilah browser. Belum ada service worker, jadi belum bisa dibuka offline dan belum ada notifikasi push.
 - D10 (login tanpa kata sandi untuk rubrik K4) masih Open di koordinator.
