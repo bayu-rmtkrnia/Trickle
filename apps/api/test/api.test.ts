@@ -1080,6 +1080,38 @@ describe.skipIf(!url)('api (integration)', () => {
         payload: { bankCode: 'BCA', accountNumber, accountName: 'Aminah', label: 'Utama' },
       })
 
+    it('saves an e-wallet by its phone number, normalized so it cannot be added twice', async () => {
+      const { ibu } = await recipientIbu()
+      const add = (accountNumber: string) =>
+        app.inject({
+          method: 'POST',
+          url: '/api/v1/bank-accounts',
+          headers: as(ibu.token),
+          payload: { bankCode: 'DANA', accountNumber, accountName: 'Aminah' },
+        })
+      const res = await add('+62 812-3456-7890')
+      expect(res.statusCode).toBe(201)
+      expect(res.json()).toMatchObject({
+        bankCode: 'DANA',
+        type: 'EWALLET',
+        accountNumberLast4: '7890',
+      })
+      const row = await db.bankAccount.findUniqueOrThrow({ where: { id: res.json().id } })
+      const cipher = createFieldCipher(env.BANK_ENCRYPTION_KEY!)
+      expect(cipher.decrypt(row.numberEncrypted, row.userId)).toBe('081234567890')
+
+      const again = await add('0812 3456 7890')
+      expect(again.statusCode).toBe(409)
+      expect(again.json().error.code).toBe('BANK_ACCOUNT_EXISTS')
+
+      const bad = await add('1234567890')
+      expect(bad.statusCode).toBe(422)
+      expect(bad.json().error.details).toEqual([
+        expect.objectContaining({ field: 'body.accountNumber' }),
+      ])
+      expect((await addBca(ibu.token)).json().type).toBe('BANK')
+    })
+
     it('stores the number encrypted and only ever returns the last 4 digits', async () => {
       const { ibu } = await recipientIbu()
       const res = await addBca(ibu.token)

@@ -21,12 +21,28 @@ export const BANK_CODES = [
   'OCBC',
 ] as const
 
+/**
+ * E-wallets the payout sandbox can send to (KF-17). Their "account number" is
+ * the phone number registered with the wallet. Same simulated provider as banks.
+ */
+export const EWALLET_CODES = ['GOPAY', 'OVO', 'DANA', 'SHOPEEPAY', 'LINKAJA'] as const
+
+/** Every destination a payout can go to: banks and e-wallets share one table. */
+export const PAYOUT_CODES = [...BANK_CODES, ...EWALLET_CODES] as const
+export type PayoutCode = (typeof PAYOUT_CODES)[number]
+
+export const isEwallet = (code: string) => (EWALLET_CODES as readonly string[]).includes(code)
+export const accountType = (code: string): 'BANK' | 'EWALLET' =>
+  isEwallet(code) ? 'EWALLET' : 'BANK'
+
 const AccountNumber = z
   .string()
-  .regex(/^[0-9 -]+$/, 'must contain digits only')
-  .transform((s) => s.replace(/[ -]/g, ''))
+  .regex(/^\+?[0-9 -]+$/, 'must contain digits only')
+  .transform((s) => s.replace(/[ +-]/g, ''))
   .refine((s) => s.length >= 6 && s.length <= 20, 'must be 6–20 digits')
-  .describe('Digits; spaces and dashes are ignored. Stored encrypted, never returned')
+  .describe(
+    'Bank account number, or the phone number for an e-wallet (`08…` or `628…`). Spaces, dashes and a leading + are ignored. Stored encrypted, never returned',
+  )
 
 const BankAccountFields = z.object({
   accountName: z.string().trim().min(2).max(100).describe('Name on the account'),
@@ -40,10 +56,29 @@ const BankAccountFields = z.object({
     .describe('Optional nickname, e.g. "Rekening utama"'),
 })
 
+/** Indonesian mobile number, normalized to `08…` so `0812…` and `62812…` are the same wallet. */
+const PHONE = /^08\d{8,11}$/
+const toLocalPhone = (digits: string) => (digits.startsWith('62') ? `0${digits.slice(2)}` : digits)
+
 export const CreateBankAccountInput = BankAccountFields.extend({
-  bankCode: z.enum(BANK_CODES),
+  bankCode: z
+    .enum(PAYOUT_CODES)
+    .describe('A bank, or an e-wallet (GOPAY, OVO, DANA, SHOPEEPAY, LINKAJA)'),
   accountNumber: AccountNumber,
 })
+  .superRefine((input, ctx) => {
+    if (isEwallet(input.bankCode) && !PHONE.test(toLocalPhone(input.accountNumber)))
+      ctx.addIssue({
+        code: 'custom',
+        path: ['accountNumber'],
+        message: 'must be the phone number of the e-wallet, e.g. 0812xxxxxxxx',
+      })
+  })
+  .transform((input) =>
+    isEwallet(input.bankCode)
+      ? { ...input, accountNumber: toLocalPhone(input.accountNumber) }
+      : input,
+  )
 
 export type CreateBankAccountInput = z.infer<typeof CreateBankAccountInput>
 export type UpdateBankAccountInput = Partial<z.infer<typeof BankAccountFields>>
@@ -51,7 +86,8 @@ export type UpdateBankAccountInput = Partial<z.infer<typeof BankAccountFields>>
 export const BankAccountDto = z
   .object({
     id: z.string(),
-    bankCode: z.enum(BANK_CODES),
+    bankCode: z.enum(PAYOUT_CODES),
+    type: z.enum(['BANK', 'EWALLET']).describe('`EWALLET` when `bankCode` is an e-wallet'),
     accountName: z.string(),
     label: z.string().nullable(),
     accountNumberLast4: z.string().describe('The full number never leaves the server'),
@@ -62,7 +98,8 @@ export const BankAccountDto = z
 
 export const toBankAccountDto = (b: BankAccount) => ({
   id: b.id,
-  bankCode: b.bankCode as (typeof BANK_CODES)[number],
+  bankCode: b.bankCode as PayoutCode,
+  type: accountType(b.bankCode),
   accountName: b.accountName,
   label: b.label,
   accountNumberLast4: b.numberLast4,
@@ -72,8 +109,9 @@ export const toBankAccountDto = (b: BankAccount) => ({
 
 export const createBankAccountSchema = {
   tags,
-  summary: 'Add a bank account to cash out to (recipient)',
+  summary: 'Add a bank account or e-wallet to cash out to (recipient)',
   description:
+    'For an e-wallet (GOPAY, OVO, DANA, SHOPEEPAY, LINKAJA), `accountNumber` is its phone number, stored as `08…`; payouts to it go through the same sandbox provider as banks. ' +
     'The number is encrypted before it is stored; responses only show the last 4 digits. ' +
     'Re-adding a removed account restores it. 409 `BANK_ACCOUNT_EXISTS` if already added, ' +
     '`BANK_ACCOUNT_LIMIT` past 5 accounts. 503 `BANK_ACCOUNTS_UNAVAILABLE` if encryption is not configured.',
@@ -84,7 +122,7 @@ export const createBankAccountSchema = {
 
 export const listBankAccountsSchema = {
   tags,
-  summary: 'My bank accounts (recipient)',
+  summary: 'My bank accounts and e-wallets (recipient)',
   security,
   querystring: PageQuery,
   response: { 200: Page(BankAccountDto), ...errors(401, 403, 422) },

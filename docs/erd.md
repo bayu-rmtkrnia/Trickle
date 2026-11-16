@@ -93,7 +93,7 @@ erDiagram
     BankAccount {
         string id PK
         string userId FK "unik bersama numberFingerprint"
-        string bankCode
+        string bankCode "bank atau dompet digital (GOPAY, OVO, DANA, SHOPEEPAY, LINKAJA)"
         string accountName
         string label "nullable"
         string numberEncrypted "AES-256-GCM"
@@ -213,7 +213,7 @@ erDiagram
 | `Worker` | Pekerja sebuah perusahaan, dengan gaji referensi dalam sen | unik `(companyId, userId)`; index `userId` |
 | `Recipient` | Anggota keluarga penerima milik pekerja | unik `(ownerId, userId)`; index `userId` |
 | `Invite` | Undangan WORKER/RECIPIENT. Status `EXPIRED` dihitung dari `expiresAt` saat dibaca, tidak disimpan | `code` unik; index `createdById`, `companyId` |
-| `BankAccount` | Rekening pencairan penerima | unik `(userId, numberFingerprint)` sebagai pencegah duplikat |
+| `BankAccount` | Tujuan pencairan penerima: rekening bank atau dompet digital (nomor HP) | unik `(userId, numberFingerprint)` sebagai pencegah duplikat |
 | `Payout` | Pencairan: transfer on-chain → IDR lewat provider sandbox | `sourceTxHash` unik (satu payout per transfer), `providerRef` unik; index `userId`, `bankAccountId` |
 | `DemoStream` | Stream judge mode yang dibuat employer demo | `userId` unik; index `createdAt`, `(ip, createdAt)` untuk batas harian |
 | `GasDrip` | Log sponsor gas (MON testnet), drip pertama dan isi ulang | `(address, seq)` unik; index `createdAt` |

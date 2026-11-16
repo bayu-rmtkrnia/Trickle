@@ -462,6 +462,16 @@ const collection = {
           },
           tests: [status(201), save('bankAccountId', 'id')],
         }),
+        req('Add e-wallet', 'POST', '/api/v1/bank-accounts', {
+          auth: bearer('familyToken'),
+          description:
+            'Same endpoint for e-wallets (GOPAY, OVO, DANA, SHOPEEPAY, LINKAJA): accountNumber is the phone number, stored as 08…. Payouts to it use the same sandbox provider.',
+          body: { bankCode: 'DANA', accountNumber: '+62 812-3456-7890', accountName: 'Ibu Aminah' },
+          tests: [
+            status(201),
+            "pm.test('e-wallet', () => pm.expect(pm.response.json().type).to.eql('EWALLET'));",
+          ],
+        }),
         req('Add bank account - duplicate (409)', 'POST', '/api/v1/bank-accounts', {
           auth: bearer('familyToken'),
           body: { bankCode: 'BCA', accountNumber: '1234 5678 90', accountName: 'Ibu Aminah' },
