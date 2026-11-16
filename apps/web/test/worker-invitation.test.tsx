@@ -155,7 +155,9 @@ describe('worker invitation onboarding', () => {
     dependencies.getInvitation.mockResolvedValue({ ...invitation, status: 'ACCEPTED' })
     render(<WorkerInvitation code="WORKER1234" />)
     await screen.findByRole('heading', { name: 'Undangan sudah digunakan' })
-    expect(screen.getByRole('link', { name: 'Buka dashboard' }).getAttribute('href')).toBe('/worker')
+    expect(screen.getByRole('link', { name: 'Buka dashboard' }).getAttribute('href')).toBe(
+      '/worker',
+    )
     expect(screen.queryByText('Kamu sudah bergabung')).toBeNull()
     expect(dependencies.navigate).not.toHaveBeenCalled()
   })
