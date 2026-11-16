@@ -24,7 +24,7 @@ Ada tiga peran, dan perannya **kontekstual**: satu akun bisa sekaligus employer,
 
 ```
 apps/api/        Backend (Fastify + Prisma + Postgres). Pemilik: BE
-apps/web/        Frontend Next.js + Privy (rute /employer, /w, /f). Pemilik: FE. Memanggil API lewat lib/api/real.ts (mock.ts sebagai fallback). Bisa dipasang ke layar utama HP (app/manifest.ts + ikon di public/icons)
+apps/web/        Frontend Next.js + Privy (rute /, /for-companies, /employer, /worker, /family; path lama /w, /f, /perusahaan dialihkan lewat redirect di next.config.ts). Pemilik: FE. Memanggil API lewat lib/api/real.ts (mock.ts sebagai fallback). Bisa dipasang ke layar utama HP (app/manifest.ts + ikon di public/icons)
 contracts/       Smart contract TricklePayroll (Foundry), ter-deploy di Monad testnet. Pemilik: SC
 packages/shared/ ABI + alamat kontrak (deployments/testnet.json) untuk FE/BE
 docs/            PLAN.md (sumber kebenaran scope), ARCHITECTURE.md (file ini), erd.md (database), backend/api-changes-fe.md (panduan integrasi FE), roadmap BE, dokumen kuliah
@@ -193,7 +193,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Satu pemindaian dalam satu waktu per proses.** Loop (`startSplitSync`, interval sama dengan `STREAM_SYNC_SECONDS`) dan catch-up saat request diantrikan, supaya cursor tidak mundur. Railway menjalankan satu instance; kalau nanti lebih dari satu, cursor perlu dikunci di database (`SELECT ... FOR UPDATE`).
 - **Daftar membaca blok terbaru dulu** (`catchUp`, maksimal 3 request, tanpa backfill), jadi kiriman dari penarikan beberapa detik lalu langsung muncul. Kalau RPC gagal, daftar tetap dijawab dari cache.
 - **Nama pengirim ditautkan saat dibaca** lewat `User.address`: `displayName` akun, atau nama pekerja dari employer kalau kosong. `sender: null` kalau alamatnya belum punya akun. Tanpa cek peran, sama seperti `/users/me/streams`, supaya penerima yang sudah dihapus tetap melihat riwayatnya.
-- **Web: bagian "Kiriman masuk" di `/f`** (`components/family/incoming-transfers.tsx`, `hooks/use-incoming-transfers.ts`). Per kiriman: nama pengirim (atau alamat pendek kalau tidak punya akun), waktu, jumlah USD, perkiraan rupiah dari kurs yang sama dengan kartu saldo, dan link ke explorer. Halaman pertama diambil ulang tiap 30 detik selama tab terlihat; refresh yang gagal tidak menghapus daftar.
+- **Web: bagian "Kiriman masuk" di `/family`** (`components/family/incoming-transfers.tsx`, `hooks/use-incoming-transfers.ts`). Per kiriman: nama pengirim (atau alamat pendek kalau tidak punya akun), waktu, jumlah USD, perkiraan rupiah dari kurs yang sama dengan kartu saldo, dan link ke explorer. Halaman pertama diambil ulang tiap 30 detik selama tab terlihat; refresh yang gagal tidak menghapus daftar.
 
 ### Penerima (Fitur 7)
 - **`FamilyLink` di-rename jadi `Recipient`** (resource `recipients` di PLAN §6.3), kolom `workerId` jadi `ownerId` (pekerja pemilik) dan `relativeId` jadi `userId` (akun penerima). Pola sama dengan `Worker`: unik per (pemilik, user), soft delete, dan dipulihkan kalau ditambah atau diundang lagi.
@@ -204,7 +204,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Tanpa `PAYROLL_ADDRESS`, hapus tetap jalan dan dicatat di log.** Kenapa: development lokal dan test tidak perlu RPC; di deploy env ini wajib diisi.
 
 ### Undangan (Fitur 8)
-- **Jenis `FAMILY` di-rename jadi `RECIPIENT`** dengan `ALTER TYPE ... RENAME VALUE`, supaya satu konsep punya satu nama di peran, resource, dan undangan. Link FE tetap `/f/invite/:code`.
+- **Jenis `FAMILY` di-rename jadi `RECIPIENT`** dengan `ALTER TYPE ... RENAME VALUE`, supaya satu konsep punya satu nama di peran, resource, dan undangan. Link FE `/family/invite/:code` (dulu `/f/invite/:code`, sekarang dialihkan).
 - **Menerima undangan = `POST /invites/:code/acceptance` (201)**, mengikuti PLAN §6.3: yang dibuat adalah "penerimaan", bukan aksi berupa kata kerja di URL (K1).
 - **Membatalkan = `DELETE /invites/:id`, bukan hapus baris.** Statusnya jadi `REVOKED` supaya link lama menjawab 409 `INVITE_REVOKED` (bukan 404 yang membingungkan) dan riwayat tetap ada. Membatalkan dua kali tetap 204 (idempoten); yang sudah diterima 409.
 - **Pembatalan dan penerimaan sama-sama memakai update bersyarat `WHERE status = 'PENDING'`**, jadi kalau keduanya terjadi bersamaan hanya satu yang menang.
@@ -255,7 +255,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Employer demo mengisi saldonya sendiri** lewat `mint` terbuka milik MockAUSD, dan `approve` hanya dipanggil sekali (`maxUint256`). Jadi selama penjurian (14–27 Okt) yang perlu dipantau hanya MON untuk gas, lewat `GET /demo-streams/status`. Kalau token diganti AUSD asli, mint akan gagal dan endpoint menjawab 502.
 - **Transaksi signer diantrekan satu per satu** di dalam proses, karena semuanya memakai nonce yang sama. Ini cukup untuk satu instance Railway. Kalau di-scale ke beberapa instance, perlu antrean bersama.
 - **Signer ada di belakang interface `DemoSigner`** (`lib/demo.ts`) dan di-inject lewat `buildApp({ demo })`. Test memakai versi palsu, jadi tidak ada yang dikirim ke chain. Tanpa key, endpoint menjawab 503 `DEMO_UNAVAILABLE`.
-- **Di web, tombol "Coba gaji demo" ada di dashboard pekerja (`/w`)** (`components/worker/demo-stream-card.tsx`). Tombol hanya muncul kalau akun belum punya pekerjaan dan pembacaan chain memastikan belum ada stream ke wallet ini. Kenapa: dosen atau pengunjung bisa mencoba alur pekerja tanpa harus membuat employer, mendanai gaji, dan mengundang akun kedua. Setelah berhasil, dashboard memuat ulang `GET /users/me/streams`, yang menarik stream baru dari chain, sehingga saldo langsung muncul. Gas untuk menarik gaji tetap diurus alur penarikan yang sudah ada (`POST /gas-drips`).
+- **Di web, tombol "Coba gaji demo" ada di dashboard pekerja (`/worker`)** (`components/worker/demo-stream-card.tsx`). Tombol hanya muncul kalau akun belum punya pekerjaan dan pembacaan chain memastikan belum ada stream ke wallet ini. Kenapa: dosen atau pengunjung bisa mencoba alur pekerja tanpa harus membuat employer, mendanai gaji, dan mengundang akun kedua. Setelah berhasil, dashboard memuat ulang `GET /users/me/streams`, yang menarik stream baru dari chain, sehingga saldo langsung muncul. Gas untuk menarik gaji tetap diurus alur penarikan yang sudah ada (`POST /gas-drips`).
 
 ### Bentuk API
 - **Prefix `/api/v1` dan nama resource berupa kata benda jamak** (rubrik K1).

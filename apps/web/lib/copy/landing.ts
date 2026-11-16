@@ -1,4 +1,4 @@
-// Teks landing per bahasa, dibagi dua sisi: pekerja (`/`) dan perusahaan (`/perusahaan`).
+// Teks landing per bahasa, dibagi dua sisi: pekerja (`/`) dan perusahaan (`/for-companies`).
 // Bahasa umum, tanpa istilah teknis (DESIGN.md 1, 8). Tiap kalimat membawa fakta atau aksi.
 
 import type { Locale } from '@/lib/i18n/config'

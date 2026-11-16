@@ -59,7 +59,7 @@ export function WorkerInvitation({ code }: { code: string }) {
       <InlineError
         variant="page"
         {...t.errors.family}
-        action={{ label: t.family, href: `/f/invite/${encodeURIComponent(code)}` }}
+        action={{ label: t.family, href: `/family/invite/${encodeURIComponent(code)}` }}
       />
     )
 
@@ -102,7 +102,7 @@ export function WorkerInvitation({ code }: { code: string }) {
       <InlineError
         variant="page"
         {...message}
-        action={dashboard ? { label: t.dashboard, href: '/w' } : undefined}
+        action={dashboard ? { label: t.dashboard, href: '/worker' } : undefined}
       />
     )
   }

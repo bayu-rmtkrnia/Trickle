@@ -194,7 +194,7 @@ Body `POST /invites`:
 `Invite = { id, code, type, status, inviteeName, monthlySalaryUsd, relation, invitedBy: { name, address }, url, expiresAt, acceptedAt, createdAt }`
 
 - `status`: `PENDING`, `ACCEPTED`, `REVOKED`, `EXPIRED`.
-- `url` adalah link siap dibagikan (`<WEB_URL>/w/invite/:code` atau `/f/invite/:code`).
+- `url` adalah link siap dibagikan (`<WEB_URL>/worker/invite/:code` atau `/family/invite/:code`; path lama `/w` dan `/f` dialihkan).
 - Undangan RECIPIENT hanya bisa dibuat pekerja yang sudah punya employer.
 
 ### Rekening bank (recipient)
@@ -293,13 +293,13 @@ Alurnya:
 4. Daftar pekerja: `GET /companies/:id/workers`. Undangan: `GET /invites?type=WORKER`, batalkan dengan `DELETE /invites/:id`.
 5. Danai dan buat stream lewat kontrak (`createStream`), bukan lewat API.
 
-**Pekerja (`/w`)**
+**Pekerja (`/worker`)**
 1. Buka link → `GET /invites/:code` (tanpa login) → login → `POST /invites/:code/acceptance`.
 2. `POST /gas-drips` sebelum transaksi pertama.
 3. Saldo dan withdraw dari kontrak. Kurs: `GET /fx-rates/usd-idr`.
 4. Keluarga: `POST /invites` (RECIPIENT) atau `POST /recipients`, lalu `setSplits` di kontrak dengan `address` penerima.
 
-**Penerima (`/f`)**
+**Penerima (`/family`)**
 1. Buka link → login → `POST /invites/:code/acceptance`.
 2. Tambah rekening: `POST /bank-accounts`.
 3. Cairkan: `POST /gas-drips` (sekali), transfer mAUSD ke `PAYOUT_ADDRESS`, lalu `POST /payouts` dan polling `GET /payouts/:id`. Label "Mode uji".

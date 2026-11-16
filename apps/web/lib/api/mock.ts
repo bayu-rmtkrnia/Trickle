@@ -66,7 +66,7 @@ function stream(
 
 function inviteUrl(type: Invite['type'], code: string) {
   const origin = typeof window === 'undefined' ? 'http://localhost:3000' : window.location.origin
-  return `${origin}/${type === 'WORKER' ? 'w' : 'f'}/invite/${code}`
+  return `${origin}/${type === 'WORKER' ? 'worker' : 'family'}/invite/${code}`
 }
 
 const COMPANY = 'PT. Mencari Cinta Sejati'
