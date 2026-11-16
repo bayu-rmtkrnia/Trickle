@@ -3,18 +3,18 @@ import { isRejected } from '@/lib/chain/withdrawal-coordinator'
 import type { Locale } from '@/lib/i18n/config'
 
 const id = {
-  title: 'Cairkan ke rekening',
+  title: 'Cairkan dana',
   testMode: 'Mode uji',
   testModeHint:
-    'Token mAUSD dikirim sungguhan di testnet, tetapi tidak bernilai uang. Pencairan ke rekening hanya simulasi: tidak ada rupiah yang masuk ke rekening bank.',
+    'Token mAUSD dikirim sungguhan di testnet, tetapi tidak bernilai uang. Pencairan ke rekening atau dompet digital hanya simulasi: tidak ada rupiah yang masuk.',
   open: 'Cairkan',
   status: 'Lihat status pencairan',
   notConfigured: 'Pencairan belum dikonfigurasi',
   notConfiguredBody:
     'Alamat tujuan pencairan belum diatur untuk environment ini. Token tidak dapat dikirim.',
-  noBank: 'Tambahkan rekening bank terlebih dahulu untuk mencairkan dana.',
+  noBank: 'Tambahkan rekening bank atau dompet digital terlebih dahulu untuk mencairkan dana.',
   noBalance: 'Belum ada dana yang dapat dicairkan.',
-  bank: 'Rekening tujuan',
+  bank: 'Tujuan pencairan',
   amount: 'Jumlah mAUSD',
   amountHint: (max: string) => `Saldo tersedia: ${max}`,
   max: 'Semua',
@@ -38,7 +38,7 @@ const id = {
   },
   bankRequired: 'Pilih rekening tujuan.',
   phases: {
-    idle: 'Cairkan ke rekening',
+    idle: 'Cairkan dana',
     confirming: 'Konfirmasi pencairan',
     signing: 'Menunggu persetujuan wallet',
     'transfer-pending': 'Menunggu konfirmasi transfer token',
@@ -57,12 +57,12 @@ const id = {
       'Jangan mengirim ulang. Periksa transfer yang sudah diajukan terlebih dahulu.',
     'registration-pending':
       'Token sudah sampai di alamat pencairan. Daftarkan ulang dengan hash yang sama; tidak ada transfer baru.',
-    processing: 'Provider uji sedang mensimulasikan transfer bank. Status diperbarui otomatis.',
+    processing: 'Provider uji sedang mensimulasikan transfer. Status diperbarui otomatis.',
     completed:
-      'Provider uji menandai transfer bank selesai. Ini simulasi: tidak ada uang yang masuk ke rekening.',
+      'Provider uji menandai transfer selesai. Ini simulasi: tidak ada uang yang masuk ke rekening atau dompet.',
     'transfer-failed': 'Transfer token gagal di jaringan. Saldo tidak dianggap terkirim.',
     'payout-failed':
-      'Token uji sudah terkirim tetapi simulasi pencairan bank tidak berhasil. Token tidak dikembalikan otomatis; sampaikan hash transfer ini ke tim.',
+      'Token uji sudah terkirim tetapi simulasi pencairan tidak berhasil. Token tidak dikembalikan otomatis; sampaikan hash transfer ini ke tim.',
   },
   retryRegistration: 'Daftarkan ulang pencairan',
   registering: 'Mendaftarkan pencairan...',
@@ -118,25 +118,25 @@ const id = {
       FAILED: 'Gagal',
     } as Record<string, string>,
     failedHint:
-      'Token uji sudah terkirim. Simulasi pencairan bank gagal dan token tidak dikembalikan otomatis; sampaikan hash transfer ini ke tim.',
+      'Token uji sudah terkirim. Simulasi pencairan gagal dan token tidak dikembalikan otomatis; sampaikan hash transfer ini ke tim.',
     providerHint:
-      'Provider uji mensimulasikan transfer bank. Waktu selesai mengikuti konfigurasi server.',
+      'Provider uji mensimulasikan transfer. Waktu selesai mengikuti konfigurasi server.',
   },
 }
 export type PayoutCopy = typeof id
 
 const en: PayoutCopy = {
-  title: 'Cash out to bank',
+  title: 'Cash out',
   testMode: 'Test mode',
   testModeHint:
-    'mAUSD is really sent on testnet but has no monetary value. The bank cash-out is only a simulation: no rupiah reaches any bank account.',
+    'mAUSD is really sent on testnet but has no monetary value. The cash-out to a bank or e-wallet is only a simulation: no rupiah reaches it.',
   open: 'Cash out',
   status: 'View cash-out status',
   notConfigured: 'Cash-out isn’t set up',
   notConfiguredBody: 'The cash-out address isn’t set for this environment. Tokens can’t be sent.',
-  noBank: 'Add a bank account first to cash out.',
+  noBank: 'Add a bank account or e-wallet first to cash out.',
   noBalance: 'Nothing available to cash out yet.',
-  bank: 'Destination account',
+  bank: 'Cash-out destination',
   amount: 'mAUSD amount',
   amountHint: (max: string) => `Available balance: ${max}`,
   max: 'All',
@@ -160,7 +160,7 @@ const en: PayoutCopy = {
   },
   bankRequired: 'Choose a destination account.',
   phases: {
-    idle: 'Cash out to bank',
+    idle: 'Cash out',
     confirming: 'Confirm cash-out',
     signing: 'Waiting for wallet approval',
     'transfer-pending': 'Waiting for token transfer confirmation',
@@ -178,13 +178,12 @@ const en: PayoutCopy = {
     'submission-unknown': 'Don’t send it again. Check the transfer you already submitted first.',
     'registration-pending':
       'The tokens reached the cash-out address. Register again with the same hash; no new transfer is made.',
-    processing:
-      'The test provider is simulating the bank transfer. The status updates automatically.',
+    processing: 'The test provider is simulating the transfer. The status updates automatically.',
     completed:
-      'The test provider marked the bank transfer as complete. This is a simulation: no money reaches the account.',
+      'The test provider marked the transfer as complete. This is a simulation: no money reaches the account or wallet.',
     'transfer-failed': 'The token transfer failed on the network. Nothing counts as sent.',
     'payout-failed':
-      'The test tokens were sent but the simulated bank cash-out failed. Tokens aren’t returned automatically; give this transfer hash to the team.',
+      'The test tokens were sent but the simulated cash-out failed. Tokens aren’t returned automatically; give this transfer hash to the team.',
   },
   retryRegistration: 'Register cash-out again',
   registering: 'Registering cash-out...',
@@ -239,9 +238,9 @@ const en: PayoutCopy = {
       FAILED: 'Failed',
     } as Record<string, string>,
     failedHint:
-      'The test tokens were sent. The simulated bank cash-out failed and tokens aren’t returned automatically; give this transfer hash to the team.',
+      'The test tokens were sent. The simulated cash-out failed and tokens aren’t returned automatically; give this transfer hash to the team.',
     providerHint:
-      'The test provider simulates the bank transfer. Completion time follows the server setup.',
+      'The test provider simulates the transfer. Completion time follows the server setup.',
   },
 }
 

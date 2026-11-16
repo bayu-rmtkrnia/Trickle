@@ -21,9 +21,14 @@ vi.mock('@/lib/api/bank-accounts', async (actual) => ({
   deleteBankAccount: deps.remove,
 }))
 
-const account = (id: string, last4: string, extra: Partial<BankAccountDto> = {}) => ({
+const account = (
+  id: string,
+  last4: string,
+  extra: Partial<BankAccountDto> = {},
+): BankAccountDto => ({
   id,
   bankCode: 'BCA' as const,
+  type: 'BANK',
   accountName: 'Sari Wulandari',
   label: null,
   accountNumberLast4: last4,
@@ -116,6 +121,34 @@ describe('family bank accounts', () => {
     expect(await screen.findByText('Sari Wulandari · •••• 4567')).toBeTruthy()
     expect(screen.getAllByRole('listitem')).toHaveLength(2)
     expect(deps.list).toHaveBeenLastCalledWith('trickle-token', 'c2', expect.anything())
+  })
+
+  it('adds an e-wallet by its phone number, normalized to 08…', async () => {
+    const sheet = await openAdd()
+    fireEvent.click(within(sheet).getByLabelText('Dompet digital'))
+    const select = within(sheet).getByLabelText('Dompet digital', { selector: 'select' })
+    // Only e-wallets are offered once the type is switched.
+    expect(within(select).queryByRole('option', { name: 'BCA' })).toBeNull()
+    fireEvent.change(select, { target: { value: 'DANA' } })
+    fill(sheet, { 'Nomor HP terdaftar': '+62 812-3456-7890', 'Nama pemilik akun': 'Sari' })
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Simpan rekening' }))
+    await waitFor(() =>
+      expect(deps.create).toHaveBeenCalledWith(
+        { bankCode: 'DANA', accountNumber: '081234567890', accountName: 'Sari', label: null },
+        'trickle-token',
+      ),
+    )
+    expect(await screen.findByText('DANA')).toBeTruthy()
+  })
+
+  it('checks the e-wallet phone format and asks for a wallet, not a bank', async () => {
+    const sheet = await openAdd()
+    fireEvent.click(within(sheet).getByLabelText('Dompet digital'))
+    fill(sheet, { 'Nomor HP terdaftar': '1234567890', 'Nama pemilik akun': 'Sari' })
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Simpan rekening' }))
+    expect(within(sheet).getByText('Pilih dompet digital.')).toBeTruthy()
+    expect(within(sheet).getByText('Nomor HP harus diawali 08 atau 62, 10–13 digit.')).toBeTruthy()
+    expect(deps.create).not.toHaveBeenCalled()
   })
 
   it('adds an account, keeps leading zeros and clears the number afterwards', async () => {

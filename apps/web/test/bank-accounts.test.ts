@@ -5,6 +5,7 @@ import {
   getBankAccount,
   listBankAccounts,
   normalizeAccountNumber,
+  normalizeWalletPhone,
   updateBankAccount,
 } from '@/lib/api/bank-accounts'
 
@@ -39,7 +40,7 @@ describe('bank account adapter', () => {
     const page = await listBankAccounts('session', 'a/b c', options)
     expect(requests[0]?.url).toBe(`${base}/bank-accounts?cursor=a%2Fb+c`)
     expect(requests[0]?.headers.get('authorization')).toBe('Bearer session')
-    expect(page).toEqual({ data: [dto], nextCursor: 'n2' })
+    expect(page).toEqual({ data: [{ ...dto, type: 'BANK' }], nextCursor: 'n2' })
   })
 
   it('omits the cursor on the first page', async () => {
@@ -133,5 +134,32 @@ describe('bank account adapter', () => {
     ['', null],
   ])('normalizes account number %j', (raw, expected) => {
     expect(normalizeAccountNumber(raw)).toBe(expected)
+  })
+
+  it('accepts e-wallets and fills in the type', async () => {
+    const wallet = { ...dto, id: 'w-1', bankCode: 'GOPAY', type: 'EWALLET' }
+    const page = await listBankAccounts('session', undefined, {
+      baseUrl: base,
+      fetcher: async () => Response.json({ data: [wallet, dto], nextCursor: null }),
+    })
+    expect(page.data.map((a) => a.type)).toEqual(['EWALLET', 'BANK'])
+    await expect(
+      listBankAccounts('session', undefined, {
+        baseUrl: base,
+        fetcher: async () =>
+          Response.json({ data: [{ ...wallet, type: 'BANK' }], nextCursor: null }),
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_RESPONSE' })
+  })
+
+  it.each([
+    ['0812 3456 7890', '081234567890'],
+    ['+62 812-3456-7890', '081234567890'],
+    ['628123456789', '08123456789'],
+    ['1234567890', null],
+    ['08123', null],
+    ['08x1234567', null],
+  ])('normalizes wallet phone %s', (raw, expected) => {
+    expect(normalizeWalletPhone(raw)).toBe(expected)
   })
 })
