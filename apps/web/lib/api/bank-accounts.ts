@@ -14,7 +14,16 @@ export const BANK_CODES = [
   'BTN',
   'OCBC',
 ] as const
-export type BankCode = (typeof BANK_CODES)[number]
+/** Mirrors `EWALLET_CODES` in the API. The number is the wallet's phone number. */
+export const EWALLET_CODES = ['GOPAY', 'OVO', 'DANA', 'SHOPEEPAY', 'LINKAJA'] as const
+/** Every payout destination: banks and e-wallets share the `/bank-accounts` endpoints. */
+export type BankCode = (typeof BANK_CODES)[number] | (typeof EWALLET_CODES)[number]
+export type AccountType = 'BANK' | 'EWALLET'
+const CODES: readonly string[] = [...BANK_CODES, ...EWALLET_CODES]
+
+export const isEwalletCode = (code: string) => (EWALLET_CODES as readonly string[]).includes(code)
+export const accountTypeOf = (code: string): AccountType =>
+  isEwalletCode(code) ? 'EWALLET' : 'BANK'
 
 /** Backend limit (`MAX_BANK_ACCOUNTS`); the server still enforces it. */
 export const MAX_BANK_ACCOUNTS = 5
@@ -22,6 +31,8 @@ export const MAX_BANK_ACCOUNTS = 5
 export interface BankAccountDto {
   id: string
   bankCode: BankCode
+  /** Derived from `bankCode` when an older API leaves it out. */
+  type: AccountType
   accountName: string
   label: string | null
   /** The full number never leaves the server. */
@@ -57,7 +68,9 @@ function isBankAccount(value: unknown): value is BankAccountDto {
   return (
     object(value) &&
     text(value.id) &&
-    BANK_CODES.includes(value.bankCode as BankCode) &&
+    typeof value.bankCode === 'string' &&
+    CODES.includes(value.bankCode) &&
+    (value.type === undefined || value.type === accountTypeOf(value.bankCode)) &&
     text(value.accountName) &&
     (value.label === null || text(value.label)) &&
     typeof value.accountNumberLast4 === 'string' &&
@@ -70,8 +83,12 @@ const invalid = () =>
   new ApiError('server', 'Respons rekening tidak valid', { code: 'INVALID_RESPONSE' })
 function account(value: unknown): BankAccountDto {
   if (!isBankAccount(value)) throw invalid()
-  return value
+  return withType(value)
 }
+const withType = (value: BankAccountDto): BankAccountDto => ({
+  ...value,
+  type: accountTypeOf(value.bankCode),
+})
 const path = (id: string) => `bank-accounts/${encodeURIComponent(id)}`
 
 /**
@@ -82,6 +99,17 @@ export function normalizeAccountNumber(raw: string): string | null {
   if (!/^[0-9 -]+$/.test(raw)) return null
   const digits = raw.replace(/[ -]/g, '')
   return digits.length >= 6 && digits.length <= 20 ? digits : null
+}
+
+/**
+ * An e-wallet phone number as the API stores it (`08…`, 10–13 digits), or
+ * `null`. Accepts `0812…`, `62812…` and `+62 812…`. Same rule as the backend.
+ */
+export function normalizeWalletPhone(raw: string): string | null {
+  if (!/^\+?[0-9 -]+$/.test(raw.trim())) return null
+  const digits = raw.replace(/[ +-]/g, '')
+  const local = digits.startsWith('62') ? `0${digits.slice(2)}` : digits
+  return /^08\d{8,11}$/.test(local) ? local : null
 }
 
 export async function listBankAccounts(
@@ -101,7 +129,8 @@ export async function listBankAccounts(
     !(result.nextCursor === null || text(result.nextCursor))
   )
     throw invalid()
-  return result as unknown as BankAccountPage
+  const page = result as unknown as BankAccountPage
+  return { ...page, data: page.data.map(withType) }
 }
 
 export async function getBankAccount(id: string, token: string, options: ClientOptions = {}) {

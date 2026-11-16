@@ -15,6 +15,7 @@ const accounts: BankAccountDto[] = [
   {
     id: 'bank-1',
     bankCode: 'BCA',
+    type: 'BANK',
     accountName: 'Sari',
     label: 'Utama',
     accountNumberLast4: '0123',
@@ -24,6 +25,7 @@ const accounts: BankAccountDto[] = [
   {
     id: 'bank-2',
     bankCode: 'BNI',
+    type: 'BANK',
     accountName: 'Sari',
     label: null,
     accountNumberLast4: '4567',
@@ -114,7 +116,9 @@ describe('family payout sheet', () => {
   it('submits bigint units and the chosen bank account, labelled as test mode', () => {
     const payout = controller()
     const sheet = show(payout)
-    expect(within(sheet).getByText(/tidak ada rupiah yang masuk ke rekening bank/)).toBeTruthy()
+    expect(
+      within(sheet).getByText(/Pencairan ke rekening atau dompet digital hanya simulasi/),
+    ).toBeTruthy()
     fireEvent.click(within(sheet).getByLabelText(/BNI/))
     fireEvent.change(within(sheet).getByLabelText('Jumlah mAUSD'), { target: { value: '5,25' } })
     expect(within(sheet).getByText('≈ Rp85.312')).toBeTruthy()

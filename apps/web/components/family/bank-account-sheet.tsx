@@ -7,7 +7,10 @@ import { InlineError } from '@/components/ui/inline-error'
 import { Sheet } from '@/components/ui/sheet'
 import {
   BANK_CODES,
+  EWALLET_CODES,
   normalizeAccountNumber,
+  normalizeWalletPhone,
+  type AccountType,
   type BankAccountDto,
   type BankCode,
   type CreateBankAccountInput,
@@ -20,7 +23,8 @@ import { useLocale } from '@/lib/i18n/client'
 type Errors = { bank?: string; number?: string; name?: string; label?: string }
 
 /**
- * Add or rename a bank account. Mount with a key per target so closing the
+ * Add or rename a payout destination: a bank account, or an e-wallet saved by
+ * its phone number (KF-17, simulated like banks). Mount with a key per target so closing the
  * sheet discards every field, including the full account number.
  */
 export function BankAccountSheet({
@@ -47,6 +51,7 @@ export function BankAccountSheet({
   const numberId = useId()
   const nameId = useId()
   const labelId = useId()
+  const [kind, setKind] = useState<AccountType>('BANK')
   const [bankCode, setBankCode] = useState<BankCode | ''>('')
   const [number, setNumber] = useState('')
   const [name, setName] = useState(account?.accountName ?? '')
@@ -57,7 +62,9 @@ export function BankAccountSheet({
   const busy = useRef(false)
   const editing = account !== null
 
+  const wallet = kind === 'EWALLET'
   function clear() {
+    setKind('BANK')
     setBankCode('')
     setNumber('')
     setName(account?.accountName ?? '')
@@ -75,11 +82,15 @@ export function BankAccountSheet({
     event.preventDefault()
     if (busy.current) return
     const next: Errors = {}
-    const digits = editing ? null : normalizeAccountNumber(number)
+    const digits = editing
+      ? null
+      : wallet
+        ? normalizeWalletPhone(number)
+        : normalizeAccountNumber(number)
     const accountName = name.trim()
     const nickname = label.trim()
-    if (!editing && !bankCode) next.bank = t.bankRequired
-    if (!editing && !digits) next.number = t.numberInvalid
+    if (!editing && !bankCode) next.bank = wallet ? t.walletRequired : t.bankRequired
+    if (!editing && !digits) next.number = wallet ? t.phoneInvalid : t.numberInvalid
     if (accountName.length < 2 || accountName.length > 100) next.name = t.nameInvalid
     if (nickname.length > 40) next.label = t.labelInvalid
     setErrors(next)
@@ -140,7 +151,36 @@ export function BankAccountSheet({
           </p>
         ) : (
           <>
-            <Field id={bankId} label={t.bank} error={errors.bank}>
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-2 text-label font-semibold">{t.kind}</legend>
+              <div className="grid grid-cols-2 gap-2">
+                {(['BANK', 'EWALLET'] as const).map((option) => (
+                  <label
+                    key={option}
+                    className={`flex min-h-12 cursor-pointer items-center justify-center rounded-xl border-[1.5px] px-3 text-center font-semibold ${
+                      kind === option
+                        ? 'border-brand-text bg-brand-fill text-on-brand'
+                        : 'border-muted/50 bg-surface'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name={`${formId}-kind`}
+                      value={option}
+                      checked={kind === option}
+                      onChange={() => {
+                        setKind(option)
+                        setBankCode('')
+                        setErrors({})
+                      }}
+                      className="sr-only"
+                    />
+                    {t.kinds[option]}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+            <Field id={bankId} label={wallet ? t.wallet : t.bank} error={errors.bank}>
               <select
                 id={bankId}
                 value={bankCode}
@@ -149,18 +189,23 @@ export function BankAccountSheet({
                 aria-describedby={describedBy(bankId, errors.bank)}
                 className={inputClass(Boolean(errors.bank))}
               >
-                <option value="">{t.bankPlaceholder}</option>
-                {BANK_CODES.map((code) => (
+                <option value="">{wallet ? t.walletPlaceholder : t.bankPlaceholder}</option>
+                {(wallet ? EWALLET_CODES : BANK_CODES).map((code) => (
                   <option key={code} value={code}>
                     {bankNames[code] ?? code}
                   </option>
                 ))}
               </select>
             </Field>
-            <Field id={numberId} label={t.number} hint={t.numberHint} error={errors.number}>
+            <Field
+              id={numberId}
+              label={wallet ? t.phone : t.number}
+              hint={wallet ? t.phoneHint : t.numberHint}
+              error={errors.number}
+            >
               <input
                 id={numberId}
-                inputMode="numeric"
+                inputMode={wallet ? 'tel' : 'numeric'}
                 autoComplete="off"
                 spellCheck={false}
                 maxLength={40}
@@ -173,7 +218,11 @@ export function BankAccountSheet({
             </Field>
           </>
         )}
-        <Field id={nameId} label={t.name} error={errors.name}>
+        <Field
+          id={nameId}
+          label={(account ? account.type === 'EWALLET' : wallet) ? t.walletName : t.name}
+          error={errors.name}
+        >
           <input
             id={nameId}
             autoComplete="off"
