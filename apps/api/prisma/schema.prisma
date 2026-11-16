@@ -303,3 +303,35 @@ model Stream {
   @@index([worker])
   @@index([settled])
 }
+
+/// One `SplitPaid` event: part of a worker's withdrawal paid straight to a family member.
+/// Filled by the split indexer, which scans contract logs 100 blocks at a time.
+model SplitPayment {
+  id          String   @id @default(cuid())
+  txHash      String
+  logIndex    Int
+  blockNumber BigInt
+  /// Block timestamp of the withdrawal
+  paidAt      DateTime
+  streamId    BigInt
+  /// Lowercased 0x address of the worker who withdrew
+  worker      String
+  /// Lowercased 0x address of the family member who was paid
+  recipient   String
+  /// Token units (6 decimals)
+  amountUnits String
+  createdAt   DateTime @default(now())
+
+  @@unique([txHash, logIndex])
+  @@index([recipient, blockNumber])
+}
+
+/// How far a log scanner has read. `forwardBlock` follows the chain head;
+/// `backfillBlock` walks back to `floorBlock` once, filling recent history.
+model IndexerCursor {
+  name          String   @id
+  forwardBlock  BigInt
+  backfillBlock BigInt
+  floorBlock    BigInt
+  updatedAt     DateTime @updatedAt
+}
