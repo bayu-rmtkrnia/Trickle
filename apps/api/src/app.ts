@@ -18,6 +18,8 @@ import { createFxService, type FxService } from './lib/fx.js'
 import { createMockPayoutProvider, type PayoutProvider } from './lib/payout-provider.js'
 import { createPrisma, type Db } from './lib/prisma.js'
 import { createPrivy, type Privy } from './lib/privy.js'
+import { createSplitIndexer, startSplitSync, type SplitIndexer } from './lib/split-indexer.js'
+import { createSplitStore } from './lib/split-store.js'
 import { createStreamIndexer, startStreamSync } from './lib/stream-indexer.js'
 import { createStreamStore } from './lib/stream-store.js'
 import { createStreamReader, type StreamReader } from './lib/streams.js'
@@ -25,6 +27,7 @@ import { createTransferVerifier, type TransferVerifier } from './lib/transfers.j
 import bankAccountRoutes from './modules/bank-accounts/routes.js'
 import companyRoutes from './modules/companies/routes.js'
 import demoStreamRoutes from './modules/demo-streams/routes.js'
+import incomingTransferRoutes from './modules/incoming-transfers/routes.js'
 import fxRoutes from './modules/fx/routes.js'
 import gasRoutes from './modules/gas/routes.js'
 import healthRoutes from './modules/health/routes.js'
@@ -50,6 +53,8 @@ export interface AppDeps {
   chain?: Chain
   privy?: Privy
   streams?: StreamReader
+  /** Family incoming transfers. `null` turns it off; tests pass a fake or `null`. */
+  splits?: Pick<SplitIndexer, 'catchUp'> | null
   /** Judge mode signer. Tests pass a fake so nothing goes on-chain. */
   demo?: DemoSigner
   /** Verifies payout transfers on-chain. */
@@ -109,6 +114,25 @@ export async function buildApp(deps: AppDeps) {
     let stop: (() => void) | undefined
     app.addHook('onReady', async () => {
       stop = startStreamSync(indexer, env.STREAM_SYNC_SECONDS, app.log)
+    })
+    app.addHook('onClose', async () => stop?.())
+  }
+  const splitIndexer =
+    payroll && deps.splits === undefined
+      ? createSplitIndexer({
+          client: readClient,
+          payroll,
+          store: createSplitStore(db),
+          backfillBlocks: BigInt(env.SPLIT_BACKFILL_BLOCKS),
+          requestsPerRound: env.SPLIT_SYNC_REQUESTS_PER_ROUND,
+        })
+      : undefined
+  app.decorate('splits', deps.splits ?? splitIndexer ?? null)
+  // Same switch and interval as the stream loop.
+  if (splitIndexer && deps.streamSync !== false && env.STREAM_SYNC_SECONDS > 0) {
+    let stop: (() => void) | undefined
+    app.addHook('onReady', async () => {
+      stop = startSplitSync(splitIndexer, env.STREAM_SYNC_SECONDS, app.log)
     })
     app.addHook('onClose', async () => stop?.())
   }
@@ -197,6 +221,7 @@ export async function buildApp(deps: AppDeps) {
       await v1.register(inviteRoutes)
       await v1.register(gasRoutes)
       await v1.register(demoStreamRoutes)
+      await v1.register(incomingTransferRoutes)
       await v1.register(fxRoutes)
     },
     { prefix: API_PREFIX },

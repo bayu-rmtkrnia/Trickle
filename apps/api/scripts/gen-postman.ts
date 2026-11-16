@@ -516,6 +516,12 @@ const collection = {
           body: { txHash: '0x' + '0'.repeat(64), bankAccountId: 'x' },
           tests: [status(403), errCode('FORBIDDEN')],
         }),
+        req('Incoming transfers (family)', 'GET', '/api/v1/users/me/incoming-transfers', {
+          auth: bearer('familyToken'),
+          description:
+            'SplitPaid events paying this wallet, newest first, with the sender name. Filled by the split indexer; empty until a worker with a split to this family member withdraws.',
+          tests: [status(200)],
+        }),
         req('List my payouts', 'GET', '/api/v1/payouts', {
           auth: bearer('familyToken'),
           tests: [status(200)],

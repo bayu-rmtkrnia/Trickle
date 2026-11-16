@@ -122,7 +122,7 @@ describe.skipIf(!url)('api (integration)', () => {
     splitBpsOf.mockReset().mockResolvedValue(0)
     syncNew.mockReset().mockResolvedValue()
     await db.$executeRawUnsafe(
-      'TRUNCATE "Payout","BankAccount","DemoStream","GasDrip","Invite","Recipient","Worker","Company","Session","User","Stream" CASCADE',
+      'TRUNCATE "Payout","BankAccount","DemoStream","GasDrip","Invite","Recipient","Worker","Company","Session","User","Stream","SplitPayment","IndexerCursor" CASCADE',
     )
   })
 
@@ -1713,6 +1713,75 @@ describe.skipIf(!url)('api (integration)', () => {
         headers: as(siti.token),
       })
       expect(badCursor.statusCode).toBe(422)
+    })
+  })
+
+  describe('incoming transfers', () => {
+    const split = (over: { recipient: string; worker: string; block: bigint; amount: string }) => ({
+      txHash: `0x${over.block.toString(16).padStart(64, '0')}`,
+      logIndex: 0,
+      blockNumber: over.block,
+      paidAt: new Date(Number(over.block) * 1000),
+      streamId: 7n,
+      worker: over.worker,
+      recipient: over.recipient,
+      amountUnits: over.amount,
+    })
+
+    it("lists the caller's SplitPaid transfers newest first, with the sender's name", async () => {
+      const siti = await signIn('siti-split')
+      const ibu = await signIn('ibu-split')
+      const other = await signIn('other-split')
+      const named = await app.inject({
+        method: 'PATCH',
+        url: '/api/v1/users/me',
+        headers: as(siti.token),
+        payload: { displayName: 'Siti' },
+      })
+      expect(named.statusCode).toBe(200)
+      const sitiAddr = siti.address.toLowerCase()
+      const ibuAddr = ibu.address.toLowerCase()
+      await db.splitPayment.createMany({
+        data: [
+          split({ recipient: ibuAddr, worker: sitiAddr, block: 10n, amount: '1000000' }),
+          split({ recipient: ibuAddr, worker: sitiAddr, block: 20n, amount: '2500000' }),
+          split({ recipient: ibuAddr, worker: '0x' + 'ab'.repeat(20), block: 30n, amount: '7' }),
+          split({
+            recipient: other.address.toLowerCase(),
+            worker: sitiAddr,
+            block: 40n,
+            amount: '9',
+          }),
+        ],
+      })
+
+      const list = (token: string, query = '') =>
+        app.inject({
+          method: 'GET',
+          url: `/api/v1/users/me/incoming-transfers${query}`,
+          headers: as(token),
+        })
+      const first = await list(ibu.token, '?limit=2')
+      expect(first.statusCode).toBe(200)
+      expect(first.json().data).toEqual([
+        expect.objectContaining({ amountUnits: '7', sender: null }),
+        expect.objectContaining({
+          amountUnits: '2500000',
+          streamId: '7',
+          workerAddress: sitiAddr,
+          paidAt: new Date(20_000).toISOString(),
+          sender: { id: expect.any(String), displayName: 'Siti' },
+        }),
+      ])
+      const next = await list(ibu.token, `?limit=2&cursor=${first.json().nextCursor}`)
+      expect(next.json()).toEqual({
+        data: [expect.objectContaining({ amountUnits: '1000000' })],
+        nextCursor: null,
+      })
+
+      // Nobody pays Siti, and no role is needed to ask.
+      expect((await list(siti.token)).json()).toEqual({ data: [], nextCursor: null })
+      expect((await list('')).statusCode).toBe(401)
     })
   })
 

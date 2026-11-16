@@ -34,7 +34,7 @@ Trickle has three roles. Everyone signs in with an email, a Google account, or a
 
 1. **Employer** creates a company profile, invites workers with a link, and funds each worker's pay for a period. Funding starts a salary stream in the `TricklePayroll` contract, and the employer can stop a stream early.
 2. **Worker** accepts the invite and sees their earned balance grow in real time. They can withdraw whenever they need to, invite family members, and choose what percentage of every withdrawal goes to each family member automatically.
-3. **Family** accepts the worker's invite, sees how much they have received with an estimate in rupiah, saves a bank account, and requests a cash-out. The backend checks the transfer on-chain before paying out in rupiah, and the family can follow the payout status in the app.
+3. **Family** accepts the worker's invite, sees each transfer they have received and their balance with an estimate in rupiah, saves a bank account, and requests a cash-out. The backend checks the transfer on-chain before paying out in rupiah, and the family can follow the payout status in the app.
 
 To try the worker side without an invite, sign in on the worker dashboard and press **Coba gaji demo** (Try a demo salary). A demo company then starts a short test salary stream to your account, which you can withdraw and share with family like a real one.
 
@@ -54,6 +54,8 @@ Amounts are shown in US dollars with a rupiah estimate, and the interface is ava
 | Family invitation | `/f/invite/<code>` |
 
 Dashboards need a signed-in account. Invitation pages open from the link the employer or worker shares.
+
+On a phone, the web app can be added to the home screen and opens like a regular app, without the browser bar.
 
 ### Current scope
 
@@ -202,6 +204,7 @@ In the **Access** column, _Owner_ means only the account that owns that item.
 | GET | `/recipients/:id` | Owner or the family member | View a family member |
 | PATCH | `/recipients/:id` | Owner | Edit a family member |
 | DELETE | `/recipients/:id` | Owner | Remove a family member (not allowed while they still get a share) |
+| GET | `/users/me/incoming-transfers` | Signed in | Money my family members sent me from their salary |
 | POST | `/bank-accounts` | Family | Add a bank account (the number is stored encrypted) |
 | GET | `/bank-accounts` | Family | List my bank accounts |
 | GET, PATCH, DELETE | `/bank-accounts/:id` | Owner | View, edit, or remove a bank account |

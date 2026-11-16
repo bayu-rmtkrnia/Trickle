@@ -165,6 +165,50 @@
           "createdAt"
         ]
       },
+      "IncomingTransferInput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "txHash": {
+            "type": "string",
+            "description": "The withdrawal transaction that paid this share"
+          },
+          "streamId": {
+            "type": "string",
+            "description": "On-chain stream the worker withdrew from"
+          },
+          "workerAddress": {
+            "type": "string",
+            "description": "Lowercased address of the worker who sent it"
+          },
+          "amountUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "paidAt": {
+            "type": "string",
+            "description": "Block time of the withdrawal"
+          },
+          "sender": {
+            "nullable": true,
+            "description": "The Trickle account of `workerAddress`, or `null` if it has none. `displayName` falls back to the worker name an employer gave them",
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "displayName": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": ["id", "displayName"]
+          }
+        },
+        "required": ["id", "txHash", "streamId", "workerAddress", "amountUnits", "paidAt", "sender"]
+      },
       "FxQuoteInput": {
         "type": "object",
         "properties": {
@@ -836,6 +880,60 @@
           "endsAt",
           "alreadyStarted",
           "createdAt"
+        ],
+        "additionalProperties": false
+      },
+      "IncomingTransfer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "txHash": {
+            "type": "string",
+            "description": "The withdrawal transaction that paid this share"
+          },
+          "streamId": {
+            "type": "string",
+            "description": "On-chain stream the worker withdrew from"
+          },
+          "workerAddress": {
+            "type": "string",
+            "description": "Lowercased address of the worker who sent it"
+          },
+          "amountUnits": {
+            "type": "string",
+            "description": "Token units (6 decimals), as a decimal string"
+          },
+          "paidAt": {
+            "type": "string",
+            "description": "Block time of the withdrawal"
+          },
+          "sender": {
+            "nullable": true,
+            "description": "The Trickle account of `workerAddress`, or `null` if it has none. `displayName` falls back to the worker name an employer gave them",
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "displayName": {
+                "nullable": true,
+                "type": "string"
+              }
+            },
+            "required": ["id", "displayName"],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "id",
+          "txHash",
+          "streamId",
+          "workerAddress",
+          "amountUnits",
+          "paidAt",
+          "sender"
         ],
         "additionalProperties": false
       },
@@ -5040,6 +5138,90 @@
                     "dailyLimit"
                   ],
                   "additionalProperties": false
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/users/me/incoming-transfers": {
+      "get": {
+        "summary": "Transfers my family members sent me through their salary split (recipient)",
+        "tags": ["Recipients"],
+        "description": "Every `SplitPaid` event paying the caller's wallet, newest first. The split indexer scans contract logs in the background, and the newest blocks are read again before answering. History starts from when the indexer first ran (`SPLIT_BACKFILL_BLOCKS` before that). No role check: the list is empty for accounts nobody pays.",
+        "parameters": [
+          {
+            "schema": {
+              "default": 20,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "description": "Items per page, 1–100"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "description": "`nextCursor` from the previous page. Omit for the first page."
+          }
+        ],
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IncomingTransfer"
+                      }
+                    },
+                    "nextCursor": {
+                      "nullable": true,
+                      "description": "Pass as `cursor` to get the next page. `null` on the last page.",
+                      "type": "string"
+                    }
+                  },
+                  "required": ["data", "nextCursor"],
+                  "additionalProperties": false
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Default Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
