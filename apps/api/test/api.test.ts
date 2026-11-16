@@ -283,7 +283,7 @@ describe.skipIf(!url)('api (integration)', () => {
         })
       ).json()
       expect(invite).toMatchObject({ type: 'WORKER', status: 'PENDING', monthlySalaryUsd: 1200.5 })
-      expect(invite.url).toContain(`/w/invite/${invite.code}`)
+      expect(invite.url).toContain(`/worker/invite/${invite.code}`)
 
       const publicView = await app.inject({ method: 'GET', url: `/api/v1/invites/${invite.code}` })
       expect(publicView.json().invitedBy.name).toBe('PT Maju Jaya')

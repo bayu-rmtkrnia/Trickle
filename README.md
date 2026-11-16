@@ -45,15 +45,15 @@ Amounts are shown in US dollars with a rupiah estimate, and the interface is ava
 | Page | Path |
 | --- | --- |
 | Landing page for workers, with a worker or company chooser | [`/`](https://trickle-one.vercel.app/) |
-| Landing page for companies | [`/perusahaan`](https://trickle-one.vercel.app/perusahaan) |
+| Landing page for companies | [`/for-companies`](https://trickle-one.vercel.app/for-companies) |
 | Company setup | `/employer/setup` |
 | Employer dashboard | `/employer` |
-| Worker dashboard | `/w` |
-| Worker invitation | `/w/invite/<code>` |
-| Family dashboard | `/f` |
-| Family invitation | `/f/invite/<code>` |
+| Worker dashboard | `/worker` |
+| Worker invitation | `/worker/invite/<code>` |
+| Family dashboard | `/family` |
+| Family invitation | `/family/invite/<code>` |
 
-Dashboards need a signed-in account. Invitation pages open from the link the employer or worker shares.
+Dashboards need a signed-in account. Invitation pages open from the link the employer or worker shares. Links that use the older short paths (`/w`, `/f`, `/perusahaan`) still work and redirect to the paths above.
 
 On a phone, the web app can be added to the home screen and opens like a regular app, without the browser bar.
 

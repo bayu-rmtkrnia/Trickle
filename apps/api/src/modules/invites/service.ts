@@ -31,7 +31,7 @@ export function createInviteService({ repo, env }: Deps) {
       name: i.type === 'WORKER' ? (i.company?.name ?? null) : i.createdBy.displayName,
       address: i.createdBy.address,
     },
-    url: `${env.WEB_URL}/${i.type === 'WORKER' ? 'w' : 'f'}/invite/${i.code}`,
+    url: `${env.WEB_URL}/${i.type === 'WORKER' ? 'worker' : 'family'}/invite/${i.code}`,
     expiresAt: i.expiresAt.toISOString(),
     acceptedAt: i.acceptedAt?.toISOString() ?? null,
     createdAt: i.createdAt.toISOString(),

@@ -76,7 +76,7 @@ describe('invite service: create', () => {
       monthlySalaryCents: 123456,
     })
     expect(dto.monthlySalaryUsd).toBe(1234.56)
-    expect(dto.url).toBe(`https://trickle.test/w/invite/${dto.code}`)
+    expect(dto.url).toBe(`https://trickle.test/worker/invite/${dto.code}`)
   })
 })
 

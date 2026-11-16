@@ -88,7 +88,7 @@ describe('family invitation onboarding', () => {
     expect(dependencies.acceptInvitation).not.toHaveBeenCalled()
     expect(screen.queryByText(invitation.invitedBy.address)).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Terima undangan' }))
-    await waitFor(() => expect(dependencies.navigate).toHaveBeenCalledWith('/f'))
+    await waitFor(() => expect(dependencies.navigate).toHaveBeenCalledWith('/family'))
     expect(dependencies.acceptInvitation).toHaveBeenCalledWith('FAMILY1234', 'trickle-token')
     expect(dependencies.session.refreshMe).toHaveBeenCalledOnce()
   })
@@ -126,7 +126,7 @@ describe('family invitation onboarding', () => {
     fireEvent.click(button)
     await waitFor(() => expect(dependencies.acceptInvitation).toHaveBeenCalledOnce())
     resolve({ ...invitation, status: 'ACCEPTED' })
-    await waitFor(() => expect(dependencies.navigate).toHaveBeenCalledWith('/f'))
+    await waitFor(() => expect(dependencies.navigate).toHaveBeenCalledWith('/family'))
   })
 
   it('rejects a worker invitation on the family route', async () => {
@@ -135,7 +135,7 @@ describe('family invitation onboarding', () => {
     await screen.findByRole('heading', { name: 'Ini undangan worker' })
     expect(screen.queryByRole('button', { name: 'Terima undangan' })).toBeNull()
     expect(screen.getByRole('link', { name: 'Buka undangan worker' }).getAttribute('href')).toBe(
-      '/w/invite/FAMILY1234',
+      '/worker/invite/FAMILY1234',
     )
   })
 
@@ -155,7 +155,7 @@ describe('family invitation onboarding', () => {
     render(<FamilyInvitation code="FAMILY1234" />)
     await screen.findByRole('heading', { name: 'Undangan sudah digunakan' })
     expect(screen.getByRole('link', { name: 'Buka dashboard keluarga' }).getAttribute('href')).toBe(
-      '/f',
+      '/family',
     )
     expect(dependencies.navigate).not.toHaveBeenCalled()
   })
@@ -191,7 +191,7 @@ describe('family invitation onboarding', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Terima undangan' }))
     await screen.findByText('Undangan diterima, profil belum diperbarui')
     fireEvent.click(screen.getByRole('button', { name: 'Perbarui profil' }))
-    await waitFor(() => expect(dependencies.navigate).toHaveBeenCalledWith('/f'))
+    await waitFor(() => expect(dependencies.navigate).toHaveBeenCalledWith('/family'))
     expect(dependencies.acceptInvitation).toHaveBeenCalledOnce()
     expect(dependencies.session.refreshMe).toHaveBeenCalledTimes(2)
   })
@@ -212,7 +212,7 @@ describe('family invitation onboarding', () => {
     await act(async () => {
       resolve(me)
     })
-    expect(dependencies.navigate).toHaveBeenCalledWith('/f')
+    expect(dependencies.navigate).toHaveBeenCalledWith('/family')
   })
 
   it('checks public status after an uncertain acceptance outcome', async () => {

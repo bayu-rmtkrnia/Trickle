@@ -3,7 +3,7 @@ import type { Locale } from '@/lib/i18n/config'
 import { CompanyPreview } from './company-preview'
 import { Closing, Faq, Hero, HowItWorks, LandingShell, RowList, SIGN_IN_HREF } from './shared'
 
-/** Landing sisi perusahaan (`/perusahaan`). */
+/** Landing sisi perusahaan (`/for-companies`). */
 export function CompanyLanding({ locale }: { locale: Locale }) {
   const t = landingCopy[locale]
   const c = t.company

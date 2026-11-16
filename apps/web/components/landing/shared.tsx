@@ -22,9 +22,9 @@ export type { Side }
  */
 export const SIDE_HREF: Record<Side, string> = {
   worker: `/?${SIDE_PARAM}=${WORKER_PARAM_VALUE}`,
-  company: '/perusahaan',
+  company: '/for-companies',
 }
-export const SIGN_IN_HREF: Record<Side, string> = { worker: '/w', company: '/employer' }
+export const SIGN_IN_HREF: Record<Side, string> = { worker: '/worker', company: '/employer' }
 
 /**
  * Mask kiri ke kanan: opacity 0 di kiri, 1 di kanan. Penuh di 85% karena gambar menjorok

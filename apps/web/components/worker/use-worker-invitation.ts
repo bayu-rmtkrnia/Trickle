@@ -116,7 +116,7 @@ export function useWorkerInvitation(code: string) {
       const me = await session.refreshMe()
       if (!current(version)) return
       if (!me?.roles.worker) throw new Error('Worker profile unavailable')
-      router.replace('/w')
+      router.replace('/worker')
     } catch {
       if (current(version)) setPhase('refresh-error')
     }

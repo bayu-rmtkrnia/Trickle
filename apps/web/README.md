@@ -39,10 +39,10 @@ Add `services/` and `types/` when integrations or shared types need their own fo
 | --- | --- |
 | `/` | Trickle Home |
 | `/employer` | Employer Dashboard |
-| `/w` | Worker Dashboard |
-| `/w/invite/[code]` | Worker Invitation |
-| `/f` | Family Dashboard |
-| `/f/invite/[code]` | Family Invitation |
+| `/worker` | Worker Dashboard |
+| `/worker/invite/[code]` | Worker Invitation |
+| `/family` | Family Dashboard |
+| `/family/invite/[code]` | Family Invitation |
 
 Dashboard and invitation routes remain public placeholders. Invitation pages only
 display the URL code. No API integration, business data, or contract integration

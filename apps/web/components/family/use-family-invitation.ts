@@ -116,7 +116,7 @@ export function useFamilyInvitation(code: string) {
       const me = await session.refreshMe()
       if (!current(version)) return
       if (!me?.roles.recipient) throw new Error('Recipient profile unavailable')
-      router.replace('/f')
+      router.replace('/family')
     } catch {
       if (current(version)) setPhase('refresh-error')
     }

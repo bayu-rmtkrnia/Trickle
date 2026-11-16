@@ -54,7 +54,7 @@ export function RoleChooser() {
   function choose(choice: 'worker' | 'company' | 'browse') {
     if (choice === 'company') {
       // Layar ini tetap menutupi sampai halaman perusahaan selesai dimuat.
-      router.push('/perusahaan')
+      router.push('/for-companies')
       return
     }
     // Buka kunci lebih awal supaya animasi hero berjalan bersamaan dengan memudarnya layar ini.
