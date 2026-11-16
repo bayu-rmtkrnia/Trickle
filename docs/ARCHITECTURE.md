@@ -221,6 +221,9 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 - **Hanya peran `recipient`** (PLAN §6.3 "R pemilik"): penerima yang mencairkan ke bank, sedangkan pekerja menarik gaji on-chain.
 - **PATCH hanya nama dan label.** Mengganti nomor sama dengan rekening baru, jadi caranya tambah rekening baru lalu hapus yang lama. Ini juga menjaga riwayat payout tetap menunjuk ke rekening yang benar.
 - **Maksimal 5 rekening aktif per user** (409 `BANK_ACCOUNT_LIMIT`), supaya satu akun tidak bisa memenuhi tabel.
+- **Dompet digital (KF-17) disimpan di tabel yang sama**, sebagai kode tambahan `GOPAY`, `OVO`, `DANA`, `SHOPEEPAY`, `LINKAJA`, dengan nomor HP sebagai "nomor rekening". Respons punya `type: BANK | EWALLET`. Kenapa tidak tabel atau endpoint baru: enkripsi, deteksi duplikat, batas 5, dan alur payout sama persis, dan `bankCode` sudah berupa teks, jadi tidak butuh migrasi. Path tetap `/bank-accounts` supaya tidak ada rename endpoint menjelang deadline.
+- **Nomor HP dompet dinormalkan ke `08…`** (`+62 812…`, `62812…`, dan `0812…` jadi satu) sebelum dienkripsi dan di-fingerprint, jadi dompet yang sama tidak bisa ditambahkan dua kali dengan format berbeda. Formatnya divalidasi 10–13 digit diawali `08`; nomor bank tetap 6–20 digit.
+- **Pencairan ke dompet digital juga simulasi**, lewat provider mock yang sama dengan bank (nomor berakhiran `0000` tetap gagal untuk demo). Xendit dan Flip memakai kode e-wallet yang serupa, jadi bentuk data ini tidak perlu diubah saat provider sungguhan dipasang.
 
 ### Gas & kurs (Fitur 10)
 - **Path mengikuti K1**: `/gas-drips` dan `/fx-rates/usd-idr`. **Path lama tetap jalan sebagai alias** karena FE sudah memakainya. Alias ditandai `deprecated` di OpenAPI dan mengirim header `Deprecation: true` dan `Link: <path baru>; rel="successor-version"`, jadi FE bisa pindah kapan saja tanpa rusak. Alias dihapus di Fitur 13.

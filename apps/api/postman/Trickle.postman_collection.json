@@ -2400,6 +2400,55 @@
           ]
         },
         {
+          "name": "Add e-wallet",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/v1/bank-accounts",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "v1", "bank-accounts"]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{familyToken}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankCode\": \"DANA\",\n  \"accountNumber\": \"+62 812-3456-7890\",\n  \"accountName\": \"Ibu Aminah\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Same endpoint for e-wallets (GOPAY, OVO, DANA, SHOPEEPAY, LINKAJA): accountNumber is the phone number, stored as 08…. Payouts to it use the same sandbox provider."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status 201', () => pm.response.to.have.status(201));",
+                  "pm.test('e-wallet', () => pm.expect(pm.response.json().type).to.eql('EWALLET'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
           "name": "Add bank account - duplicate (409)",
           "request": {
             "method": "POST",
