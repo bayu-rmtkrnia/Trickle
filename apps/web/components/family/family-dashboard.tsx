@@ -8,6 +8,7 @@ import { useBankAccounts } from '@/hooks/use-bank-accounts'
 import { useFamilyBalance } from '@/hooks/use-family-balance'
 import { useFamilyPayout } from '@/hooks/use-family-payout'
 import { useFamilyPayouts } from '@/hooks/use-family-payouts'
+import { useIncomingTransfers } from '@/hooks/use-incoming-transfers'
 import { useUsdIdr } from '@/hooks/use-usd-idr'
 import { useAccount } from '@/lib/account'
 import { statusPhase } from '@/lib/chain/payout-coordinator'
@@ -18,6 +19,7 @@ import { useSession, type SessionContextValue } from '@/providers/session-provid
 import { BankAccountList } from './bank-account-list'
 import { FamilyBalanceCard } from './family-balance-card'
 import { FamilyShell } from './family-shell'
+import { IncomingTransfers } from './incoming-transfers'
 import { PayoutHistory } from './payout-history'
 import { PayoutSheet } from './payout-sheet'
 
@@ -176,6 +178,7 @@ function FamilyOverview({
     }
   }, [phase])
   const history = useFamilyPayouts(session)
+  const incoming = useIncomingTransfers(session)
   const [historyOpen, setHistoryOpen] = useState(false)
   const registered = payout.state.payout
   const track = history.track
@@ -225,6 +228,7 @@ function FamilyOverview({
         onPayout={openPayout}
         onHistory={() => setHistoryOpen(true)}
       />
+      <IncomingTransfers incoming={incoming} fx={fx} />
       <BankAccountList bank={bank} />
       <PayoutSheet
         open={sheetOpen}
