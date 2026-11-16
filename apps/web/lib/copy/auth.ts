@@ -8,8 +8,9 @@ const id = {
     unconfiguredMessage: 'Layanan login belum disiapkan di aplikasi ini. Coba lagi nanti.',
     toHome: 'Ke beranda',
     signInTitle: 'Masuk dulu, ya',
-    signInMessage: 'Masuk pakai email atau Google untuk mengelola perusahaan dan pekerjamu.',
-    signIn: 'Masuk dengan email/Google',
+    signInMessage:
+      'Masuk pakai email, Google, atau passkey (sidik jari/Face ID) untuk mengelola perusahaan dan pekerjamu.',
+    signIn: 'Masuk',
     signInFailed: 'Halaman login belum bisa dibuka. Coba lagi sebentar.',
     loading: 'Menyiapkan akunmu…',
     retry: 'Coba lagi',
@@ -48,8 +49,9 @@ const en: AuthCopy = {
     unconfiguredMessage: 'Sign-in hasn’t been set up for this app yet. Please try again later.',
     toHome: 'Go to home',
     signInTitle: 'Sign in first',
-    signInMessage: 'Sign in with email or Google to manage your company and workers.',
-    signIn: 'Sign in with email/Google',
+    signInMessage:
+      'Sign in with email, Google, or a passkey (fingerprint/Face ID) to manage your company and workers.',
+    signIn: 'Sign in',
     signInFailed: 'The sign-in page couldn’t open. Try again in a moment.',
     loading: 'Setting up your account…',
     retry: 'Try again',

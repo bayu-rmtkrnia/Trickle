@@ -82,7 +82,8 @@ export function TricklePrivyProvider({ children }: { children: ReactNode }) {
       config={{
         supportedChains: [payrollChain],
         defaultChain: payrollChain,
-        loginMethods: ['email', 'google'],
+        // Passkey = fingerprint or Face ID on the phone. It must also be enabled in the Privy dashboard.
+        loginMethods: ['email', 'google', 'passkey'],
         embeddedWallets: {
           ethereum: { createOnLogin: 'all-users' },
         },
