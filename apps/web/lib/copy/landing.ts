@@ -74,7 +74,7 @@ const id = {
       steps: [
         {
           title: 'Terima link undangan dari perusahaan',
-          body: 'Buka link-nya dari WhatsApp, lalu masuk pakai email atau Google.',
+          body: 'Buka link-nya dari WhatsApp, lalu masuk pakai email, Google, atau sidik jari.',
         },
         {
           title: 'Gajimu bertambah tiap detik',
@@ -108,7 +108,7 @@ const id = {
         },
         {
           q: 'Masuknya pakai apa?',
-          a: 'Email atau akun Google. Nggak perlu kartu atau dokumen khusus.',
+          a: 'Email, akun Google, atau passkey (sidik jari/Face ID di HP). Nggak perlu kartu atau dokumen khusus.',
         },
         {
           q: 'Berapa orang keluarga yang bisa menerima?',
@@ -178,7 +178,7 @@ const id = {
       steps: [
         {
           title: 'Daftarkan perusahaan',
-          body: 'Isi nama perusahaan dan negara. Masuk pakai email atau Google.',
+          body: 'Isi nama perusahaan dan negara. Masuk pakai email, Google, atau passkey.',
         },
         {
           title: 'Undang pekerja lewat WhatsApp',
@@ -203,7 +203,7 @@ const id = {
         },
         {
           q: 'Apa yang dibutuhkan pekerja?',
-          a: 'HP dengan browser, dan email atau akun Google. Nggak perlu pasang aplikasi.',
+          a: 'HP dengan browser, dan email, akun Google, atau passkey. Nggak perlu pasang aplikasi.',
         },
         {
           q: 'Bisa membatalkan undangan?',
@@ -303,7 +303,7 @@ const en: LandingCopy = {
       steps: [
         {
           title: 'Get an invite link from your company',
-          body: 'Open it from WhatsApp, then sign in with email or Google.',
+          body: 'Open it from WhatsApp, then sign in with email, Google, or your fingerprint.',
         },
         {
           title: 'Your pay grows every second',
@@ -336,7 +336,7 @@ const en: LandingCopy = {
         },
         {
           q: 'How do I sign in?',
-          a: 'With email or a Google account. No special card or documents needed.',
+          a: 'With email, a Google account, or a passkey (fingerprint/Face ID on your phone). No special card or documents needed.',
         },
         {
           q: 'How many family members can receive money?',
@@ -406,7 +406,7 @@ const en: LandingCopy = {
       steps: [
         {
           title: 'Register your company',
-          body: 'Enter your company name and country. Sign in with email or Google.',
+          body: 'Enter your company name and country. Sign in with email, Google, or a passkey.',
         },
         {
           title: 'Invite workers on WhatsApp',
@@ -431,7 +431,7 @@ const en: LandingCopy = {
         },
         {
           q: 'What do workers need?',
-          a: 'A phone with a browser, and an email or Google account. No app to install.',
+          a: 'A phone with a browser, and an email, Google account, or passkey. No app to install.',
         },
         {
           q: 'Can I cancel an invite?',

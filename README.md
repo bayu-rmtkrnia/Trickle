@@ -30,7 +30,7 @@ Migrant workers are usually paid once a month. When something urgent comes up in
 
 ### How Trickle works
 
-Trickle has three roles. Everyone signs in with an email or Google account, and a wallet is created for them in the background. The app also pays the gas fees for new accounts, so nobody needs to own crypto or understand blockchain to use it.
+Trickle has three roles. Everyone signs in with an email, a Google account, or a passkey (fingerprint or Face ID on their phone), and a wallet is created for them in the background. The app also pays the gas fees for new accounts, so nobody needs to own crypto or understand blockchain to use it.
 
 1. **Employer** creates a company profile, invites workers with a link, and funds each worker's pay for a period. Funding starts a salary stream in the `TricklePayroll` contract, and the employer can stop a stream early.
 2. **Worker** accepts the invite and sees their earned balance grow in real time. They can withdraw whenever they need to, invite family members, and choose what percentage of every withdrawal goes to each family member automatically.

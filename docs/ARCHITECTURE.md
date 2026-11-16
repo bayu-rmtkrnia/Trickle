@@ -141,6 +141,7 @@ Setiap keputusan ditulis dengan **apa** dan **kenapa**. Kalau suatu saat diubah,
 
 ### Auth & sesi (Fitur 3)
 - **Login lewat Privy (D1 = Privy), bukan SIWE/Mera.** FE memakai `@privy-io/react-auth` dengan embedded wallet, sehingga `/sessions/challenges` tidak dibuat.
+- **Metode login: email, Google, dan passkey** (`loginMethods` di `apps/web/providers/privy-provider.tsx`). Passkey = sidik jari atau Face ID di HP, sesuai janji login tanpa kata sandi di laporan M1 (D10). Harus juga diaktifkan di dashboard Privy (Login methods → Passkeys). API tidak perlu berubah: alamat wallet tetap diambil dari embedded wallet, apa pun metode loginnya, dan akun passkey tidak punya email (`account.user.email` bernilai `null`).
 - **API menerbitkan token sesinya sendiri**, tidak memakai token Privy langsung di setiap request. Kenapa: logout bisa benar-benar mencabut akses (`revokedAt`), endpoint lain tidak bergantung pada Privy, dan masa berlakunya diatur oleh kita (`SESSION_TTL_DAYS`).
 - **Token sesi opak (32 byte acak), dan DB hanya menyimpan SHA-256-nya.** Kenapa: kalau database bocor, isinya tidak bisa dipakai untuk login. Dibanding JWT, token opak mudah dicabut dan tidak butuh secret penandatangan.
 - **Access token Privy diverifikasi lokal dengan `jose`** (ES256, `iss=privy.io`, `aud=PRIVY_APP_ID`). Kuncinya dari `PRIVY_VERIFICATION_KEY` atau dari JWKS Privy.
@@ -322,4 +323,3 @@ Semua env var didefinisikan di `apps/api/src/env.ts`, dan contohnya ada di `apps
 - **Belum ada rotasi kunci enkripsi.** Token sudah diberi versi (`v1.`), tapi re-enkripsi ke kunci baru belum dibuat.
 - **Path lama `POST /gas/drip`, `GET /gas/status`, `GET /fx/usd-idr` masih ada** sebagai alias deprecated. `apps/web` di `main` sudah memakai `/fx-rates/usd-idr` dan `/gas-drips`, jadi alias ini siap dihapus (Fitur 13) setelah FE production dipastikan memakai versi itu.
 - **PWA baru sebatas bisa dipasang.** Ada manifest dan ikon, jadi Trickle bisa ditambahkan ke layar utama dan terbuka tanpa bilah browser. Belum ada service worker, jadi belum bisa dibuka offline dan belum ada notifikasi push.
-- D10 (login tanpa kata sandi untuk rubrik K4) masih Open di koordinator.
