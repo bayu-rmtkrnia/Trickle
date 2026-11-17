@@ -18,7 +18,7 @@ Final project for the Web Application Development (Pengembangan Aplikasi Web) co
 | Resource | Link |
 | --- | --- |
 | Web app | https://trickle-one.vercel.app |
-| Demo video | _To be added_ |
+| Demo video | [Google Drive](https://drive.google.com/file/d/1VbQSRKIQ4LZSngQban_QigUxEJdr2efo/view?usp=sharing) |
 | API | https://trickle-production-ff1f.up.railway.app (interactive docs at [`/docs`](https://trickle-production-ff1f.up.railway.app/docs)) |
 | Milestone 1 report (initial plan) | [Google Drive (PDF)](https://drive.google.com/file/d/1QpE0x27FLanq6SFl48sUJyDhbVktgnzW/view?usp=sharing) |
 
@@ -59,7 +59,7 @@ On a phone, the web app can be added to the home screen and opens like a regular
 
 ### Current scope
 
-Trickle runs on Monad testnet with a test stablecoin (mock AUSD), so no real money moves. Payouts to banks and e-wallets go through a simulated provider. The backend keeps the provider behind an interface, so a real one such as Xendit or Flip can be added later.
+Trickle runs on Monad testnet with a test stablecoin (mock AUSD), so no real money moves. Payouts to banks and e-wallets go through a simulated provider. The backend keeps the provider behind an interface, so a real one such as Xendit or Flip can be added later. A payout that fails after the money reaches the payout wallet is refunded by hand for now, as there is no automatic refund or retry yet. The web app can be installed on a phone, but it does not work offline.
 
 ### Why Monad
 
